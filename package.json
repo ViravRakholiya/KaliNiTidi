@@ -1,0 +1,32 @@
+{
+  "name": "blacks-3-backend",
+  "version": "1.0.0",
+  "description": "Real-time multiplayer card game backend - Blacks 3",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "docker:build": "docker build -t blacks-3-backend .",
+    "docker:run": "docker run -p 3000:3000 --env-file .env blacks-3-backend"
+  },
+  "keywords": [
+    "card-game",
+    "multiplayer",
+    "real-time",
+    "socket.io"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.38.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "socket.io": "^4.6.1",
+    "ws": "^8.20.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blacks 3 - Room System Test Client</title>
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
+    .container { max-width: 600px; margin: 0 auto; }
+    h1 { text-align: center; color: #00d9ff; margin-bottom: 20px; }
+    .status { background: #16213e; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    .status-item { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .status-label { color: #888; }
+    .status-value { color: #00d9ff; font-weight: bold; }
+    .card { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 15px; }
+    .card h3 { color: #00d9ff; margin-bottom: 15px; }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; color: #aaa; }
+    input { width: 100%; padding: 10px; border: 1px solid #444; background: #0f3460; color: #fff; border-radius: 4px; }
+    input:focus { outline: none; border-color: #00d9ff; }
+    button { width: 100%; padding: 12px; background: #00d9ff; border: none; border-radius: 4px; color: #1a1a2e; font-weight: bold; cursor: pointer; }
+    button:hover { background: #00b4d8; }
+    button:disabled { background: #444; cursor: not-allowed; }
+    .btn-secondary { background: #e94560; }
+    .btn-secondary:hover { background: #c73e54; }
+    .log { background: #0f3460; padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+    .log-entry { margin-bottom: 5px; padding: 5px; border-radius: 3px; }
+    .log-info { background: rgba(0, 217, 255, 0.1); border-left: 3px solid #00d9ff; }
+    .log-success { background: rgba(0, 255, 128, 0.1); border-left: 3px solid #00ff80; }
+    .log-error { background: rgba(233, 69, 96, 0.1); border-left: 3px solid #e94560; }
+    .players-list { list-style: none; }
+    .player-item { background: #0f3460; padding: 10px; margin-bottom: 8px; border-radius: 4px; display: flex; justify-content: space-between; }
+    .player-name { font-weight: bold; }
+    .player-host { color: #ffd700; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Blacks 3 - Room System</h1>
+
+    <div class="status">
+      <div class="status-item">
+        <span class="status-label">Connection:</span>
+        <span class="status-value" id="connectionStatus">Connecting...</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Socket ID:</span>
+        <span class="status-value" id="socketId">-</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Room ID:</span>
+        <span class="status-value" id="roomId">-</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">Role:</span>
+        <span class="status-value" id="role">-</span>
+      </div>
+    </div>
+
+    <div class="card" id="loginCard">
+      <h3>Join Game</h3>
+      <div class="form-group">
+        <label>Your Name</label>
+        <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
+      </div>
+      <div class="form-group">
+        <label>Room ID (optional - leave empty to create new)</label>
+        <input type="text" id="roomInput" placeholder="Enter room ID or leave empty" maxlength="6">
+      </div>
+      <div class="form-group" id="maxPlayersGroup">
+        <label>Max Players (for new room)</label>
+        <input type="number" id="maxPlayers" value="4" min="2" max="10">
+      </div>
+      <button onclick="joinOrCreateRoom()">Join or Create Room</button>
+    </div>
+
+    <div class="card hidden" id="roomCard">
+      <h3>Room: <span id="displayRoomId">-</span></h3>
+      <h4>Players (<span id="playerCount">0</span>/<span id="maxPlayersDisplay">4</span>)</h4>
+      <ul class="players-list" id="playersList"></ul>
+      <div style="margin-top: 15px;">
+        <button id="startGameBtn" onclick="startGame()">Start Game</button>
+        <button class="btn-secondary" onclick="leaveRoom()" style="margin-top: 10px;">Leave Room</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Event Log</h3>
+      <div class="log" id="eventLog"></div>
+    </div>
+  </div>
+
+  <script>
+    const socket = io('http://localhost:3001', {
+      transports: ['websocket', 'polling'],
+      reconnection: true
+    });
+
+    let currentRoom = null;
+    let isHost = false;
+
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('eventLog');
+      const entry = document.createElement('div');
+      entry.className = `log-entry log-${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    socket.on('connect', () => {
+      document.getElementById('connectionStatus').textContent = 'Connected';
+      document.getElementById('connectionStatus').style.color = '#00ff80';
+      log('Connected to server', 'success');
+    });
+
+    socket.on('disconnect', () => {
+      document.getElementById('connectionStatus').textContent = 'Disconnected';
+      document.getElementById('connectionStatus').style.color = '#e94560';
+      log('Disconnected from server', 'error');
+    });
+
+    socket.on('CONNECTED', (data) => {
+      document.getElementById('socketId').textContent = data.socketId.substring(0, 8) + '...';
+    });
+
+    socket.on('ROOM_CREATED', (data) => {
+      currentRoom = data.roomId;
+      isHost = true;
+      document.getElementById('roomId').textContent = data.roomId;
+      document.getElementById('role').textContent = 'Host';
+      document.getElementById('role').style.color = '#ffd700';
+      document.getElementById('loginCard').classList.add('hidden');
+      document.getElementById('roomCard').classList.remove('hidden');
+      document.getElementById('displayRoomId').textContent = data.roomId;
+      document.getElementById('maxPlayersDisplay').textContent = data.maxPlayers;
+      updatePlayersList(data.players);
+      document.getElementById('startGameBtn').disabled = false;
+      log(`Room created: ${data.roomId}`, 'success');
+    });
+
+    socket.on('ROOM_JOINED', (data) => {
+      currentRoom = data.roomId;
+      isHost = false;
+      document.getElementById('roomId').textContent = data.roomId;
+      document.getElementById('role').textContent = 'Player';
+      document.getElementById('role').style.color = '#00d9ff';
+      document.getElementById('loginCard').classList.add('hidden');
+      document.getElementById('roomCard').classList.remove('hidden');
+      document.getElementById('displayRoomId').textContent = data.roomId;
+      document.getElementById('maxPlayersDisplay').textContent = data.maxPlayers;
+      updatePlayersList(data.players);
+      document.getElementById('startGameBtn').disabled = true;
+      log(`Joined room: ${data.roomId}`, 'success');
+    });
+
+    socket.on('PLAYER_JOINED', (data) => {
+      log(`${data.player.name} joined the room`, 'info');
+      socket.emit('GET_ROOM_STATE', {}, (response) => {
+        if (response.success) {
+          updatePlayersList(response.roomState.players);
+        }
+      });
+    });
+
+    socket.on('PLAYER_LEFT', (data) => {
+      log(`${data.player.name} left the room`, 'info');
+      socket.emit('GET_ROOM_STATE', {}, (response) => {
+        if (response.success) {
+          updatePlayersList(response.roomState.players);
+        }
+      });
+      if (data.newHostId === socket.id) {
+        isHost = true;
+        document.getElementById('role').textContent = 'Host';
+        document.getElementById('role').style.color = '#ffd700';
+        document.getElementById('startGameBtn').disabled = false;
+        log('You are now the host!', 'success');
+      }
+    });
+
+    socket.on('HOST_ASSIGNED', () => {
+      isHost = true;
+      document.getElementById('role').textContent = 'Host';
+      document.getElementById('role').style.color = '#ffd700';
+      document.getElementById('startGameBtn').disabled = false;
+      log('You are now the host!', 'success');
+    });
+
+    socket.on('GAME_STARTED', () => {
+      log('Game started!', 'success');
+    });
+
+    socket.on('ROOM_ERROR', (error) => {
+      log(`Error: ${error.message}`, 'error');
+    });
+
+    socket.on('ROOM_LEFT', (data) => {
+      log('Left the room', 'info');
+      resetUI();
+    });
+
+    function joinOrCreateRoom() {
+      const name = document.getElementById('playerName').value.trim();
+      const roomInput = document.getElementById('roomInput').value.trim().toUpperCase();
+      const maxPlayers = parseInt(document.getElementById('maxPlayers').value);
+
+      if (!name) {
+        log('Please enter your name', 'error');
+        return;
+      }
+
+      if (roomInput) {
+        socket.emit('JOIN_ROOM', { roomId: roomInput, name }, (response) => {
+          if (!response.success) {
+            log(response.message, 'error');
+          }
+        });
+      } else {
+        socket.emit('CREATE_ROOM', { name, maxPlayers }, (response) => {
+          if (!response.success) {
+            log(response.message, 'error');
+          }
+        });
+      }
+    }
+
+    function leaveRoom() {
+      socket.emit('LEAVE_ROOM', {}, (response) => {
+        if (response.success) {
+          log('Leaving room...', 'info');
+        }
+      });
+    }
+
+    function startGame() {
+      if (isHost) {
+        socket.emit('START_GAME', {}, (response) => {
+          if (!response.success) {
+            log(response.message, 'error');
+          }
+        });
+      }
+    }
+
+    function updatePlayersList(players) {
+      const list = document.getElementById('playersList');
+      const count = document.getElementById('playerCount');
+      list.innerHTML = '';
+      count.textContent = players.length;
+
+      players.forEach(player => {
+        const item = document.createElement('li');
+        item.className = 'player-item';
+        const hostBadge = player.isHost ? ' <span class="player-host">👑 Host</span>' : '';
+        const youBadge = player.socketId === socket.id ? ' <span style="color: #00ff80;">(You)</span>' : '';
+        item.innerHTML = `<span class="player-name">${player.name}${hostBadge}${youBadge}</span>`;
+        list.appendChild(item);
+      });
+    }
+
+    function resetUI() {
+      currentRoom = null;
+      isHost = false;
+      document.getElementById('roomId').textContent = '-';
+      document.getElementById('role').textContent = '-';
+      document.getElementById('role').style.color = '#00d9ff';
+      document.getElementById('loginCard').classList.remove('hidden');
+      document.getElementById('roomCard').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
