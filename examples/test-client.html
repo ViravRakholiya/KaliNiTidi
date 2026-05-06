@@ -238,7 +238,7 @@
 
     function startGame() {
       if (isHost) {
-        socket.emit('START_GAME', {}, (response) => {
+        socket.emit('START_GAME', { cardsPerPlayer: 5 }, (response) => {
           if (!response.success) {
             log(response.message, 'error');
           }

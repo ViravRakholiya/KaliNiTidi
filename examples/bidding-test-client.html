@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blacks 3 - Bidding System Test</title>
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
+    .container { max-width: 1400px; margin: 0 auto; }
+    h1 { text-align: center; color: #00d9ff; margin-bottom: 5px; }
+    .subtitle { text-align: center; color: #888; margin-bottom: 20px; }
+
+    .phase-indicator {
+      text-align: center;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .phase-waiting { background: #16213e; color: #888; }
+    .phase-bidding { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; }
+    .phase-selection { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: #fff; }
+    .phase-playing { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: #fff; }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+    .card { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 15px; }
+    .card h3 { color: #00d9ff; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+
+    .bid-info { display: flex; justify-content: space-between; align-items: center; gap: 15px; }
+    .bid-value { font-size: 32px; font-weight: bold; color: #ffd700; }
+    .bid-label { color: #888; font-size: 14px; }
+
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; color: #aaa; }
+    input, select { width: 100%; padding: 10px; border: 1px solid #444; background: #0f3460; color: #fff; border-radius: 4px; }
+    input:focus, select:focus { outline: none; border-color: #00d9ff; }
+
+    button { width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: #00d9ff; color: #1a1a2e; }
+    .btn-secondary { background: #e94560; color: #fff; }
+    .btn-success { background: #00ff80; color: #1a1a2e; }
+    .btn-warning { background: #ffd700; color: #1a1a2e; }
+
+    .bid-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .bid-buttons button { padding: 8px; font-size: 14px; }
+
+    .turn-indicator {
+      background: #0f3460;
+      padding: 10px;
+      border-radius: 4px;
+      text-align: center;
+      margin-bottom: 15px;
+    }
+    .turn-indicator.active { border: 2px solid #00d9ff; }
+    .turn-indicator.your-turn { background: rgba(0, 217, 255, 0.2); }
+
+    .players-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .player-card {
+      background: #0f3460;
+      padding: 10px;
+      border-radius: 4px;
+      text-align: center;
+    }
+    .player-card.passed { opacity: 0.5; }
+    .player-card.leader { border: 2px solid #ffd700; }
+    .player-card.partner { border: 2px solid #00ff80; }
+    .player-card.you { border: 2px solid #00d9ff; }
+
+    .log { background: #0f3460; padding: 15px; border-radius: 8px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+    .log-entry { margin-bottom: 5px; padding: 5px; border-radius: 3px; }
+    .log-info { background: rgba(0, 217, 255, 0.1); border-left: 3px solid #00d9ff; }
+    .log-success { background: rgba(0, 255, 128, 0.1); border-left: 3px solid #00ff80; }
+    .log-error { background: rgba(233, 69, 96, 0.1); border-left: 3px solid #e94560; }
+    .log-bid { background: rgba(255, 215, 0, 0.1); border-left: 3px solid #ffd700; }
+
+    .selection-info { background: #0f3460; padding: 15px; border-radius: 4px; margin-bottom: 15px; }
+    .selection-info h4 { color: #ffd700; margin-bottom: 10px; }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Blacks 3 - Bidding System</h1>
+    <p class="subtitle">Test the complete bidding and selection flow</p>
+
+    <div id="phaseIndicator" class="phase-indicator phase-waiting">
+      Phase: Waiting to Start
+    </div>
+
+    <div class="grid">
+      <!-- Left Column -->
+      <div>
+        <div class="card" id="setupCard">
+          <h3>Quick Setup</h3>
+          <div class="form-group">
+            <label>Your Name</label>
+            <input type="text" id="playerName" placeholder="Enter name" maxlength="20">
+          </div>
+          <div class="form-group">
+            <label>Room ID (optional)</label>
+            <input type="text" id="roomInput" placeholder="Create new room">
+          </div>
+          <button class="btn-primary" onclick="quickJoin()">Join & Start Game</button>
+        </div>
+
+        <div class="card hidden" id="biddingCard">
+          <h3>
+            <span>Bidding</span>
+            <span id="turnBadge" class="hidden" style="background:#ffd700;color:#1a1a2e;padding:4px 8px;border-radius:4px;font-size:12px;">YOUR TURN</span>
+          </h3>
+
+          <div class="bid-info">
+            <div>
+              <div class="bid-label">Current Bid</div>
+              <div class="bid-value" id="currentBid">-</div>
+            </div>
+            <div>
+              <div class="bid-label">Minimum Bid</div>
+              <div class="bid-value" id="minBid">-</div>
+            </div>
+            <div>
+              <div class="bid-label">Total Points</div>
+              <div class="bid-value" id="totalPoints">-</div>
+            </div>
+          </div>
+
+          <div class="turn-indicator" id="turnIndicator">
+            Waiting for turn...
+          </div>
+
+          <div id="biddingControls" class="hidden">
+            <div class="form-group">
+              <label>Place Bid</label>
+              <div class="bid-buttons">
+                <button class="btn-warning" onclick="placeBid(5)">+5</button>
+                <button class="btn-warning" onclick="placeBid(10)">+10</button>
+                <button class="btn-warning" onclick="placeBid(15)">+15</button>
+                <button class="btn-warning" onclick="placeBid(20)">+20</button>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+              <button class="btn-primary" onclick="showCustomBid()">Custom Bid</button>
+              <button class="btn-secondary" onclick="passBid()">Pass</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card hidden" id="selectionCard">
+          <h3>Leader Selection</h3>
+          <div class="selection-info">
+            <h4>You are the Leader!</h4>
+            <p>Winning Bid: <span id="winningBidDisplay">-</span></p>
+          </div>
+
+          <div class="form-group">
+            <label>Select Trump Suit</label>
+            <select id="trumpSelect" onchange="selectTrump()">
+              <option value="">-- Select --</option>
+              <option value="spades">♠ Spades</option>
+              <option value="hearts">♥ Hearts</option>
+              <option value="diamonds">♦ Diamonds</option>
+              <option value="clubs">♣ Clubs</option>
+            </select>
+          </div>
+
+          <div class="form-group hidden" id="partnerSelection">
+            <label>Select Partner Card</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <select id="partnerRank">
+                <option value="A">Ace</option>
+                <option value="K">King</option>
+                <option value="Q">Queen</option>
+                <option value="J">Jack</option>
+                <option value="10">10</option>
+                <option value="9">9</option>
+                <option value="8">8</option>
+                <option value="7">7</option>
+                <option value="6">6</option>
+                <option value="5">5</option>
+                <option value="4">4</option>
+                <option value="3">3</option>
+                <option value="2">2</option>
+              </select>
+              <select id="partnerSuit">
+                <option value="spades">♠ Spades</option>
+                <option value="hearts">♥ Hearts</option>
+                <option value="diamonds">♦ Diamonds</option>
+                <option value="clubs">♣ Clubs</option>
+              </select>
+            </div>
+            <button class="btn-success" style="margin-top:10px;" onclick="selectPartnerCard()">Select Partner Card</button>
+          </div>
+
+          <div id="waitingForLeader" class="hidden">
+            <p style="text-align:center;color:#888;">Waiting for leader to select trump and partner...</p>
+          </div>
+        </div>
+
+        <div class="card hidden" id="resultCard">
+          <h3>Selection Complete</h3>
+          <div class="selection-info">
+            <p><strong>Leader:</strong> <span id="resultLeader">-</span></p>
+            <p><strong>Trump:</strong> <span id="resultTrump">-</span></p>
+            <p><strong>Partner Card:</strong> <span id="resultPartnerCard">-</span></p>
+            <p><strong>Winning Bid:</strong> <span id="resultWinningBid">-</span></p>
+            <p id="partnerNotice" class="hidden" style="color:#00ff80;margin-top:10px;"><strong>🎉 You are the partner!</strong></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column -->
+      <div>
+        <div class="card">
+          <h3>Players <span id="playerCount">(0/4)</span></h3>
+          <div class="players-grid" id="playersList"></div>
+        </div>
+
+        <div class="card">
+          <h3>Event Log</h3>
+          <div class="log" id="eventLog"></div>
+        </div>
+
+        <div class="card" id="myHandCard">
+          <h3>My Hand <span id="handCardCount">(0 cards)</span></h3>
+          <div style="max-height:300px;overflow-y:auto;">
+            <div class="cards-grid" id="myCards"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const socket = io('http://localhost:3001', { transports: ['websocket', 'polling'] });
+
+    let currentRoom = null;
+    let isHost = false;
+    let myCards = [];
+    let isLeader = false;
+    let isPartner = false;
+    let biddingState = null;
+
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('eventLog');
+      const entry = document.createElement('div');
+      entry.className = `log-entry log-${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    socket.on('connect', () => log('Connected to server', 'success'));
+
+    socket.on('BIDDING_STARTED', (data) => {
+      updatePhase('bidding');
+      document.getElementById('currentBid').textContent = data.minBid;
+      document.getElementById('minBid').textContent = data.minBid;
+      document.getElementById('totalPoints').textContent = data.totalPoints;
+      document.getElementById('biddingCard').classList.remove('hidden');
+      log(`Bidding started! Min bid: ${data.minBid}, Total points: ${data.totalPoints}`, 'success');
+    });
+
+    socket.on('BID_UPDATED', (data) => {
+      document.getElementById('currentBid').textContent = data.bidValue;
+      const bidder = get playerName(data.bidder);
+      log(`${bidder} bid ${data.bidValue}`, 'bid');
+      updateTurnIndicator(data.nextTurn);
+    });
+
+    socket.on('PLAYER_PASSED', (data) => {
+      const player = getPlayerName(data.player);
+      log(`${player} passed (${data.remainingPlayers} remaining)`, 'info');
+      markPlayerPassed(data.player);
+      updateTurnIndicator(data.nextTurn);
+    });
+
+    socket.on('BIDDING_ENDED', (data) => {
+      document.getElementById('biddingControls').classList.add('hidden');
+      document.getElementById('turnIndicator').textContent = 'Bidding ended!';
+      const leaderName = getPlayerName(data.leader);
+      log(`Bidding ended! Leader: ${leaderName} with bid ${data.winningBid}`, 'success');
+
+      if (data.leader === socket.id) {
+        isLeader = true;
+        document.getElementById('selectionCard').classList.remove('hidden');
+        document.getElementById('winningBidDisplay').textContent = data.winningBid;
+        log('You are the leader! Select trump and partner card.', 'success');
+      } else {
+        document.getElementById('waitingForLeader').classList.remove('hidden');
+      }
+    });
+
+    socket.on('TRUMP_SELECTED', (data) => {
+      const selector = getPlayerName(data.selectedBy);
+      log(`Trump selected: ${data.suit} by ${selector}`, 'success');
+    });
+
+    socket.on('PARTNER_CARD_SELECTED', (data) => {
+      const selector = getPlayerName(data.selectedBy);
+      log(`Partner card: ${data.partnerCard.rank} of ${data.partnerCard.suit}`, 'info');
+    });
+
+    socket.on('SELECTION_DONE', (data) => {
+      updatePhase('playing');
+      document.getElementById('selectionCard').classList.add('hidden');
+      document.getElementById('biddingCard').classList.add('hidden');
+      document.getElementById('resultCard').classList.remove('hidden');
+
+      document.getElementById('resultLeader').textContent = getPlayerName(data.leader);
+      document.getElementById('resultTrump').textContent = data.trump;
+      document.getElementById('resultPartnerCard').textContent = `${data.partnerCard.rank} of ${data.partnerCard.suit}`;
+      document.getElementById('resultWinningBid').textContent = data.winningBid;
+
+      log(`Selection complete! Trump: ${data.trump}, Partner: ${data.partnerCard.rank} of ${data.partnerCard.suit}`, 'success');
+      markPlayerLeader(data.leader);
+    });
+
+    socket.on('YOU_ARE_PARTNER', (data) => {
+      isPartner = true;
+      document.getElementById('partnerNotice').classList.remove('hidden');
+      log(`You are the partner! Partner card: ${data.partnerCard.rank} of ${data.partnerCard.suit}`, 'success');
+      markPlayerPartner(socket.id);
+    });
+
+    socket.on('PLAYER_HAND', (data) => {
+      myCards = data.cards;
+      displayCards(data.cards);
+      document.getElementById('handCardCount').textContent = `(${data.cards.length} cards)`;
+      log(`Received ${data.cards.length} cards`, 'info');
+    });
+
+    socket.on('PLAYER_JOINED', (data) => {
+      log(`${data.player.name} joined`, 'info');
+    });
+
+    socket.on('ROOM_ERROR', (error) => {
+      log(`Error: ${error.message}`, 'error');
+    });
+
+    function quickJoin() {
+      const name = document.getElementById('playerName').value.trim() || 'Player';
+      const roomId = document.getElementById('roomInput').value.trim();
+
+      if (roomId) {
+        socket.emit('JOIN_ROOM', { roomId, name }, (response) => {
+          if (response.success) {
+            currentRoom = roomId;
+            startGame();
+          }
+        });
+      } else {
+        socket.emit('CREATE_ROOM', { name, maxPlayers: 4 }, (response) => {
+          if (response.success) {
+            currentRoom = response.roomId;
+            isHost = true;
+            startGame();
+          }
+        });
+      }
+    }
+
+    function startGame() {
+      socket.emit('START_GAME', { roomId: currentRoom, cardsPerPlayer: 5 }, (response) => {
+        if (response.success) {
+          document.getElementById('setupCard').classList.add('hidden');
+          log('Game started! Waiting for cards...', 'success');
+        }
+      });
+    }
+
+    function placeBid(increment) {
+      const currentBid = parseInt(document.getElementById('currentBid').textContent) || 0;
+      const newBid = currentBid + increment;
+
+      socket.emit('PLACE_BID', { roomId: currentRoom, bidValue: newBid }, (response) => {
+        if (response.success) {
+          log(`You bid ${newBid}`, 'bid');
+        } else {
+          log(`Bid failed: ${response.message}`, 'error');
+        }
+      });
+    }
+
+    function showCustomBid() {
+      const currentBid = parseInt(document.getElementById('currentBid').textContent) || 0;
+      const customBid = prompt(`Enter bid (must be multiple of 5, greater than ${currentBid}):`);
+
+      if (customBid) {
+        const bidValue = parseInt(customBid);
+        if (!isNaN(bidValue)) {
+          socket.emit('PLACE_BID', { roomId: currentRoom, bidValue }, (response) => {
+            if (response.success) {
+              log(`You bid ${bidValue}`, 'bid');
+            } else {
+              log(`Bid failed: ${response.message}`, 'error');
+            }
+          });
+        }
+      }
+    }
+
+    function passBid() {
+      socket.emit('PASS_BID', { roomId: currentRoom }, (response) => {
+        if (response.success) {
+          log('You passed', 'info');
+        } else {
+          log(`Pass failed: ${response.message}`, 'error');
+        }
+      });
+    }
+
+    function selectTrump() {
+      const suit = document.getElementById('trumpSelect').value;
+      if (suit) {
+        socket.emit('SELECT_TRUMP', { roomId: currentRoom, suit }, (response) => {
+          if (response.success) {
+            log(`Trump selected: ${suit}`, 'success');
+            document.getElementById('trumpSelect').disabled = true;
+            document.getElementById('partnerSelection').classList.remove('hidden');
+          } else {
+            log(`Failed: ${response.message}`, 'error');
+          }
+        });
+      }
+    }
+
+    function selectPartnerCard() {
+      const rank = document.getElementById('partnerRank').value;
+      const suit = document.getElementById('partnerSuit').value;
+
+      socket.emit('SELECT_PARTNER_CARD', { roomId: currentRoom, rank, suit }, (response) => {
+        if (response.success) {
+          log(`Partner card selected: ${rank} of ${suit}`, 'success');
+        } else {
+          log(`Failed: ${response.message}`, 'error');
+        }
+      });
+    }
+
+    function updateTurnIndicator(currentTurnSocketId) {
+      const isYourTurn = currentTurnSocketId === socket.id;
+      const turnBadge = document.getElementById('turnBadge');
+      const turnIndicator = document.getElementById('turnIndicator');
+      const biddingControls = document.getElementById('biddingControls');
+
+      if (isYourTurn) {
+        turnBadge.classList.remove('hidden');
+        turnIndicator.classList.add('your-turn');
+        turnIndicator.textContent = '🎯 Your Turn!';
+        biddingControls.classList.remove('hidden');
+      } else {
+        turnBadge.classList.add('hidden');
+        turnIndicator.classList.remove('your-turn');
+        turnIndicator.textContent = `Waiting for ${getPlayerName(currentTurnSocketId)}...`;
+        biddingControls.classList.add('hidden');
+      }
+    }
+
+    function updatePhase(phase) {
+      const indicator = document.getElementById('phaseIndicator');
+      indicator.className = 'phase-indicator';
+
+      const phaseNames = {
+        'waiting': 'Waiting to Start',
+        'bidding': '🎭 Bidding Phase',
+        'selection': '👑 Selection Phase',
+        'playing': '🎮 Playing Phase'
+      };
+
+      indicator.textContent = `Phase: ${phaseNames[phase]}`;
+      indicator.classList.add(`phase-${phase}`);
+    }
+
+    function getPlayerName(socketId) {
+      const player = document.querySelector(`[data-socket-id="${socketId}"]`);
+      return player ? player.dataset.playerName : 'Unknown';
+    }
+
+    function markPlayerPassed(socketId) {
+      const player = document.querySelector(`[data-socket-id="${socketId}"]`);
+      if (player) player.classList.add('passed');
+    }
+
+    function markPlayerLeader(socketId) {
+      const player = document.querySelector(`[data-socket-id="${socketId}"]`);
+      if (player) player.classList.add('leader');
+    }
+
+    function markPlayerPartner(socketId) {
+      const player = document.querySelector(`[data-socket-id="${socketId}"]`);
+      if (player) player.classList.add('partner');
+    }
+
+    function displayCards(cards) {
+      const grid = document.getElementById('myCards');
+      grid.innerHTML = '';
+
+      cards.forEach(card => {
+        const cardEl = document.createElement('div');
+        const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
+        const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+
+        cardEl.className = `playing-card ${isRed ? 'red' : 'black'}`;
+        cardEl.style.cssText = 'background:#fff;color:#333;padding:8px;border-radius:6px;text-align:center;margin:4px;';
+        cardEl.innerHTML = `
+          <div style="font-size:16px;font-weight:bold;">${card.rank}</div>
+          <div style="font-size:20px;">${suitSymbols[card.suit]}</div>
+          <div style="font-size:10px;color:${card.points >= 10 ? '#d4af37' : '#888'};">${card.points} pts</div>
+        `;
+        grid.appendChild(cardEl);
+      });
+    }
+
+    // Track players
+    socket.on('ROOM_CREATED', (data) => {
+      updatePlayersList(data.players);
+      currentRoom = data.roomId;
+    });
+
+    socket.on('ROOM_JOINED', (data) => {
+      updatePlayersList(data.players);
+    });
+
+    socket.on('GAME_STARTED', (data) => {
+      updatePlayersList(data.players);
+    });
+
+    function updatePlayersList(players) {
+      const list = document.getElementById('playersList');
+      const count = document.getElementById('playerCount');
+      list.innerHTML = '';
+      count.textContent = `(${players.length}/4)`;
+
+      players.forEach(player => {
+        const div = document.createElement('div');
+        div.className = 'player-card';
+        div.dataset.socketId = player.socketId;
+        div.dataset.playerName = player.name;
+        if (player.socketId === socket.id) div.classList.add('you');
+
+        div.innerHTML = `
+          <div style="font-weight:bold;">${player.name}</div>
+          <div style="font-size:12px;color:#888;">${player.socketId.substring(0,8)}...</div>
+          ${player.socketId === socket.id ? '<div style="font-size:10px;color:#00d9ff;">You</div>' : ''}
+        `;
+        list.appendChild(div);
+      });
+    }
+  </script>
+</body>
+</html>

@@ -3,6 +3,11 @@ import cors from 'cors';
 import { config } from '../config/index.js';
 import healthRoutes from '../controllers/healthController.js';
 import { errorHandler, notFoundHandler } from '../utils/middleware.js';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
 
@@ -21,12 +26,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// Serve static files from public directory (unified game client)
+app.use(express.static(join(__dirname, 'public')));
+
+// Legacy routes - redirect to main page
+app.use('/test-client', (req, res) => res.redirect('/'));
+app.use('/game-test', (req, res) => res.redirect('/'));
+app.use('/bidding-test', (req, res) => res.redirect('/'));
+
 // Routes
 app.use('/health', healthRoutes);
-
-// API routes (to be added)
-// app.use('/api/v1/games', gameRoutes);
-// app.use('/api/v1/auth', authRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

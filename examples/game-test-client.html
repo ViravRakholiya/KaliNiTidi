@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blacks 3 - Game Start Test</title>
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 { text-align: center; color: #00d9ff; margin-bottom: 10px; }
+    .subtitle { text-align: center; color: #888; margin-bottom: 30px; }
+    .status { background: #16213e; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+    .status-item { background: #0f3460; padding: 10px; border-radius: 4px; }
+    .status-label { color: #888; font-size: 12px; }
+    .status-value { color: #00d9ff; font-weight: bold; font-size: 18px; }
+    .card { background: #16213e; padding: 20px; border-radius: 8px; margin-bottom: 15px; }
+    .card h3 { color: #00d9ff; margin-bottom: 15px; }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; color: #aaa; }
+    input, select { width: 100%; padding: 10px; border: 1px solid #444; background: #0f3460; color: #fff; border-radius: 4px; }
+    input:focus, select:focus { outline: none; border-color: #00d9ff; }
+    button { width: 100%; padding: 12px; background: #00d9ff; border: none; border-radius: 4px; color: #1a1a2e; font-weight: bold; cursor: pointer; }
+    button:hover { background: #00b4d8; }
+    button:disabled { background: #444; cursor: not-allowed; }
+    .btn-secondary { background: #e94560; }
+    .btn-secondary:hover { background: #c73e54; }
+    .btn-success { background: #00ff80; color: #1a1a2e; }
+    .btn-success:hover { background: #00cc66; }
+    .log { background: #0f3460; padding: 15px; border-radius: 8px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+    .log-entry { margin-bottom: 5px; padding: 5px; border-radius: 3px; }
+    .log-info { background: rgba(0, 217, 255, 0.1); border-left: 3px solid #00d9ff; }
+    .log-success { background: rgba(0, 255, 128, 0.1); border-left: 3px solid #00ff80; }
+    .log-error { background: rgba(233, 69, 96, 0.1); border-left: 3px solid #e94560; }
+    .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; }
+    .playing-card { background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%); color: #333; padding: 8px; border-radius: 6px; text-align: center; font-size: 12px; border: 1px solid #ddd; }
+    .playing-card.red { color: #e94560; }
+    .playing-card.black { color: #333; }
+    .playing-card .rank { font-size: 16px; font-weight: bold; }
+    .playing-card .suit { font-size: 20px; }
+    .playing-card .points { font-size: 10px; color: #888; margin-top: 4px; }
+    .playing-card .points.high { color: #ffd700; font-weight: bold; }
+    .hidden { display: none; }
+    .player-hand { margin-bottom: 20px; }
+    .player-hand h4 { color: #ffd700; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Blacks 3 - Game Start Test</h1>
+    <p class="subtitle">Test card distribution and point system</p>
+
+    <div class="status">
+      <div class="status-grid">
+        <div class="status-item">
+          <div class="status-label">Connection</div>
+          <div class="status-value" id="connectionStatus">Connecting...</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">Socket ID</div>
+          <div class="status-value" id="socketId">-</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">Room ID</div>
+          <div class="status-value" id="roomId">-</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">Players</div>
+          <div class="status-value" id="playerCount">0/4</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="setupCard">
+      <h3>Game Setup</h3>
+      <div class="form-group">
+        <label>Your Name</label>
+        <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
+      </div>
+      <div class="form-group">
+        <label>Room ID (optional)</label>
+        <input type="text" id="roomInput" placeholder="Enter room ID or create new" maxlength="6">
+      </div>
+      <div class="form-group">
+        <label>Max Players</label>
+        <input type="number" id="maxPlayers" value="4" min="3" max="10">
+      </div>
+      <button onclick="joinOrCreateRoom()">Join or Create Room</button>
+    </div>
+
+    <div class="card hidden" id="gameCard">
+      <h3>Room: <span id="displayRoomId">-</span></h3>
+      <div id="playersList"></div>
+      <div style="margin-top: 15px;" id="gameControls">
+        <div class="form-group">
+          <label>Cards Per Player</label>
+          <input type="number" id="cardsPerPlayer" value="5" min="1" max="52">
+        </div>
+        <button id="startGameBtn" class="btn-success" onclick="startGame()">Start Game</button>
+        <button class="btn-secondary" onclick="leaveRoom()" style="margin-top: 10px;">Leave Room</button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="handCard">
+      <h3>Your Hand</h3>
+      <div class="player-hand">
+        <div class="status-item" style="margin-bottom: 10px;">
+          <span class="status-label">Cards: </span>
+          <span class="status-value" id="cardCount">0</span>
+          <span style="margin: 0 10px; color: #888;">|</span>
+          <span class="status-label">Total Points: </span>
+          <span class="status-value" id="totalPoints">0</span>
+        </div>
+        <div class="cards-grid" id="myCards"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Event Log</h3>
+      <div class="log" id="eventLog"></div>
+    </div>
+  </div>
+
+  <script>
+    const socket = io('http://localhost:3001', {
+      transports: ['websocket', 'polling'],
+      reconnection: true
+    });
+
+    let currentRoom = null;
+    let isHost = false;
+    let myCards = [];
+
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('eventLog');
+      const entry = document.createElement('div');
+      entry.className = `log-entry log-${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    socket.on('connect', () => {
+      document.getElementById('connectionStatus').textContent = 'Connected';
+      document.getElementById('connectionStatus').style.color = '#00ff80';
+      log('Connected to server', 'success');
+    });
+
+    socket.on('disconnect', () => {
+      document.getElementById('connectionStatus').textContent = 'Disconnected';
+      document.getElementById('connectionStatus').style.color = '#e94560';
+      log('Disconnected from server', 'error');
+    });
+
+    socket.on('CONNECTED', (data) => {
+      document.getElementById('socketId').textContent = data.socketId.substring(0, 8) + '...';
+    });
+
+    socket.on('ROOM_CREATED', (data) => {
+      currentRoom = data.roomId;
+      isHost = true;
+      document.getElementById('roomId').textContent = data.roomId;
+      document.getElementById('playerCount').textContent = `${data.players.length}/${data.maxPlayers}`;
+      document.getElementById('setupCard').classList.add('hidden');
+      document.getElementById('gameCard').classList.remove('hidden');
+      document.getElementById('displayRoomId').textContent = data.roomId;
+      updatePlayersList(data.players);
+      document.getElementById('startGameBtn').disabled = data.players.length < 3;
+      log(`Room created: ${data.roomId}`, 'success');
+    });
+
+    socket.on('ROOM_JOINED', (data) => {
+      currentRoom = data.roomId;
+      isHost = false;
+      document.getElementById('roomId').textContent = data.roomId;
+      document.getElementById('playerCount').textContent = `${data.players.length}/${data.maxPlayers}`;
+      document.getElementById('setupCard').classList.add('hidden');
+      document.getElementById('gameCard').classList.remove('hidden');
+      document.getElementById('displayRoomId').textContent = data.roomId;
+      updatePlayersList(data.players);
+      document.getElementById('startGameBtn').disabled = true;
+      log(`Joined room: ${data.roomId}`, 'success');
+    });
+
+    socket.on('PLAYER_JOINED', (data) => {
+      log(`${data.player.name} joined the room`, 'info');
+      socket.emit('GET_ROOM_STATE', {}, (response) => {
+        if (response.success) {
+          updatePlayersList(response.roomState.players);
+          const room = response.roomState;
+          document.getElementById('playerCount').textContent = `${room.playerCount}/${room.maxPlayers}`;
+          if (isHost && room.playerCount >= 3) {
+            document.getElementById('startGameBtn').disabled = false;
+          }
+        }
+      });
+    });
+
+    socket.on('PLAYER_LEFT', (data) => {
+      log(`${data.player.name} left the room`, 'info');
+      socket.emit('GET_ROOM_STATE', {}, (response) => {
+        if (response.success) {
+          updatePlayersList(response.roomState.players);
+          const room = response.roomState;
+          document.getElementById('playerCount').textContent = `${room.playerCount}/${room.maxPlayers}`;
+          if (isHost && room.playerCount < 3) {
+            document.getElementById('startGameBtn').disabled = true;
+          }
+        }
+      });
+      if (data.newHostId === socket.id) {
+        isHost = true;
+        document.getElementById('startGameBtn').disabled = false;
+        log('You are now the host!', 'success');
+      }
+    });
+
+    socket.on('GAME_STARTED', (data) => {
+      log('Game started!', 'success');
+      log(`Players: ${data.players.length}, Cards each: ${data.cardsPerPlayer}`, 'info');
+      document.getElementById('gameControls').classList.add('hidden');
+    });
+
+    socket.on('PLAYER_HAND', (data) => {
+      myCards = data.cards;
+      displayCards(data.cards);
+      document.getElementById('handCard').classList.remove('hidden');
+      log(`Received ${data.cards.length} cards`, 'success');
+    });
+
+    socket.on('ROOM_ERROR', (error) => {
+      log(`Error: ${error.message}`, 'error');
+    });
+
+    socket.on('ROOM_LEFT', () => {
+      log('Left the room', 'info');
+      resetUI();
+    });
+
+    function joinOrCreateRoom() {
+      const name = document.getElementById('playerName').value.trim();
+      const roomInput = document.getElementById('roomInput').value.trim().toUpperCase();
+      const maxPlayers = parseInt(document.getElementById('maxPlayers').value);
+
+      if (!name) {
+        log('Please enter your name', 'error');
+        return;
+      }
+
+      if (roomInput) {
+        socket.emit('JOIN_ROOM', { roomId: roomInput, name }, (response) => {
+          if (!response.success) {
+            log(response.message, 'error');
+          }
+        });
+      } else {
+        socket.emit('CREATE_ROOM', { name, maxPlayers }, (response) => {
+          if (!response.success) {
+            log(response.message, 'error');
+          }
+        });
+      }
+    }
+
+    function leaveRoom() {
+      socket.emit('LEAVE_ROOM', {}, (response) => {
+        if (response.success) {
+          log('Leaving room...', 'info');
+        }
+      });
+    }
+
+    function startGame() {
+      if (isHost) {
+        const cardsPerPlayer = parseInt(document.getElementById('cardsPerPlayer').value);
+        socket.emit('START_GAME', { cardsPerPlayer }, (response) => {
+          if (!response.success) {
+            log(response.message, 'error');
+          }
+        });
+      }
+    }
+
+    function updatePlayersList(players) {
+      const list = document.getElementById('playersList');
+      list.innerHTML = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">';
+
+      players.forEach(player => {
+        const isMe = player.socketId === socket.id;
+        const div = document.createElement('div');
+        div.className = 'status-item';
+        div.style.textAlign = 'center';
+        const hostBadge = player.isHost ? ' 👑' : '';
+        const meBadge = isMe ? ' (You)' : '';
+        div.innerHTML = `
+          <div style="font-weight: bold; color: ${isMe ? '#00ff80' : '#00d9ff'}">
+            ${player.name}${hostBadge}${meBadge}
+          </div>
+          <div style="font-size: 12px; color: #888;">${player.socketId.substring(0, 8)}...</div>
+        `;
+        list.appendChild(div);
+      });
+
+      list.innerHTML += '</div>';
+    }
+
+    function displayCards(cards) {
+      const grid = document.getElementById('myCards');
+      grid.innerHTML = '';
+
+      document.getElementById('cardCount').textContent = cards.length;
+
+      const totalPoints = cards.reduce((sum, card) => sum + card.points, 0);
+      document.getElementById('totalPoints').textContent = totalPoints;
+
+      cards.forEach(card => {
+        const cardEl = document.createElement('div');
+        const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
+        const isHighPoints = card.points >= 10;
+        const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+
+        cardEl.className = `playing-card ${isRed ? 'red' : 'black'}`;
+        cardEl.innerHTML = `
+          <div class="rank">${card.rank}</div>
+          <div class="suit">${suitSymbols[card.suit]}</div>
+          <div class="points ${isHighPoints ? 'high' : ''}">${card.points} pts</div>
+        `;
+        grid.appendChild(cardEl);
+      });
+    }
+
+    function resetUI() {
+      currentRoom = null;
+      isHost = false;
+      myCards = [];
+      document.getElementById('roomId').textContent = '-';
+      document.getElementById('playerCount').textContent = '0/4';
+      document.getElementById('setupCard').classList.remove('hidden');
+      document.getElementById('gameCard').classList.add('hidden');
+      document.getElementById('handCard').classList.add('hidden');
+      document.getElementById('gameControls').classList.remove('hidden');
+      document.getElementById('myCards').innerHTML = '';
+    }
+  </script>
+</body>
+</html>
