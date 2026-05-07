@@ -1604,17 +1604,79 @@
       `).join('');
 
       scoreboard.innerHTML = `
-        <h2 style="color: #ffd700; margin-bottom: 20px;">🏆 Game Over!</h2>
+        <h2 style="color: #ffd700; margin-bottom: 20px;">🏆 Round Complete!</h2>
         <p style="color: #00ff80; font-size: 1.2em; margin-bottom: 20px;">Winner: ${winnerName}</p>
         <div style="background: rgba(0, 0, 0, 0.3); border-radius: 10px; padding: 15px; margin-bottom: 20px;">
+          <h3 style="color: #888; margin-bottom: 10px; font-size: 1em;">Round Scores</h3>
           ${scoresHtml}
         </div>
-        <button class="btn btn-primary" onclick="location.reload()">Play Again</button>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">
+          <button class="btn btn-success" onclick="startNextRound()">Next Round ➡️</button>
+          <button class="btn btn-secondary" onclick="leaveRoom()">Leave Room</button>
+        </div>
       `;
 
       gamePanel.innerHTML = '';
       gamePanel.appendChild(scoreboard);
     }
+
+    function startNextRound() {
+      if (!isHost) {
+        log('Only the host can start the next round!', 'error');
+        return;
+      }
+
+      log('Starting next round...', 'info');
+
+      // Use same settings as previous round
+      const cardsPerPlayer = 13; // Could be stored from previous round
+      const numberOfSets = 2; // Could be stored from previous round
+
+      socket.emit('START_GAME', {
+        roomId: currentRoom,
+        cardsPerPlayer,
+        numberOfSets
+      }, (response) => {
+        if (response && response.success) {
+          log('Next round started!', 'success');
+
+          // Reset UI for new round
+          document.getElementById('gamePanel').innerHTML = `
+            <h3>🎮 Game In Progress</h3>
+            <p>Starting next round...</p>
+          `;
+
+          // Reset individual scores display
+          updateIndividualScores([]);
+        } else {
+          log(`Failed to start next round: ${response?.message || 'Unknown error'}`, 'error');
+        }
+      });
+    }
+
+    function leaveRoom() {
+      if (confirm('Are you sure you want to leave the room?')) {
+        socket.emit('LEAVE_ROOM', { roomId: currentRoom }, (response) => {
+          if (response && response.success) {
+            log('Left the room', 'success');
+            setTimeout(() => location.reload(), 1000);
+          }
+        });
+      }
+    }
+
+    // Listen for next round events
+    socket.on('NEXT_ROUND_STARTED', (data) => {
+      log(`Round ${data.roundNumber} started!`, 'success');
+      updatePhase('bidding');
+
+      // Reset UI for new round
+      document.getElementById('gamePanel').classList.add('hidden');
+      document.getElementById('biddingPanel').classList.remove('hidden');
+
+      // Reset individual scores display
+      updateIndividualScores([]);
+    });
   </script>
 </body>
 </html>

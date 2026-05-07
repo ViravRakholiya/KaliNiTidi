@@ -285,6 +285,16 @@ export const handleGameSocket = (io, socket) => {
 
         logger.info(`[DEBUG] Emitted GAME_STARTED to room ${roomId}`);
 
+        // Emit NEXT_ROUND_STARTED for subsequent rounds
+        if (result.isSubsequentRound) {
+          io.to(roomId).emit('NEXT_ROUND_STARTED', {
+            roomId,
+            roundNumber: result.roundNumber,
+            cumulativeScores: roomService.getRoom(roomId)?.cumulativeScores
+          });
+          logger.info(`Next round started: Round ${result.roundNumber}`);
+        }
+
         // Emit BIDDING_STARTED to room
         const biddingStartedData = {
           minBid: result.bidding.minimumBid,

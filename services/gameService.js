@@ -140,6 +140,11 @@ class GameService {
 
       logger.info(`Game started in room ${roomId} with ${numberOfPlayers} players, ${numberOfSets} sets, phase: bidding`);
 
+      // Track if this is a subsequent round (not first game)
+      const isSubsequentRound = room.status === 'playing';
+      const roundNumber = isSubsequentRound ? (room.currentRound || 1) + 1 : 1;
+      gameState.roundNumber = roundNumber;
+
       return {
         success: true,
         gameState,
@@ -148,7 +153,9 @@ class GameService {
         totalCards: validation.totalCards,
         numberOfPlayers,
         numberOfSets,
-        bidding: biddingState
+        bidding: biddingState,
+        roundNumber,
+        isSubsequentRound
       };
 
     } catch (error) {
@@ -572,32 +579,37 @@ class GameService {
 
           logger.info(`Partner card played by ${player.name} (${socketId.substring(0, 8)}...) - Play #${gameState.partnerCardPlays.length}`);
 
-          // Check partner assignment based on preferred position
-          const bidding = biddingService.activeBiddings.get(roomId);
-          const preferredPosition = bidding?.partnerCards[0]?.preferredPosition;
+          // Prevent bidder from becoming their own partner
+          if (socketId === gameState.bidWinner) {
+            logger.info(`Skipping partner assignment - bidder cannot be their own partner`);
+          } else {
+            // Check partner assignment based on preferred position
+            const bidding = biddingService.activeBiddings.get(roomId);
+            const preferredPosition = bidding?.partnerCards[0]?.preferredPosition;
 
-          if (preferredPosition && gameState.partnerCardPlays.length === preferredPosition) {
-            // Leader's preferred position player becomes partner
-            gameState.partnerId = socketId;
-            gameState.partnerAssignedAt = Date.now();
+            if (preferredPosition && gameState.partnerCardPlays.length === preferredPosition) {
+              // Leader's preferred position player becomes partner
+              gameState.partnerId = socketId;
+              gameState.partnerAssignedAt = Date.now();
 
-            logger.info(`PARTNER ASSIGNED (Preferred Position ${preferredPosition}): ${player.name} (${socketId.substring(0, 8)}...) is now the partner!`);
+              logger.info(`PARTNER ASSIGNED (Preferred Position ${preferredPosition}): ${player.name} (${socketId.substring(0, 8)}...) is now the partner!`);
 
-            gameState.teamsAssigned = true;
-          } else if (gameState.partnerCardPlays.length === 1 && !preferredPosition) {
-            // First player to play partner card becomes partner (no preference)
-            gameState.partnerId = socketId;
-            gameState.partnerAssignedAt = Date.now();
+              gameState.teamsAssigned = true;
+            } else if (gameState.partnerCardPlays.length === 1 && !preferredPosition) {
+              // First player to play partner card becomes partner (no preference)
+              gameState.partnerId = socketId;
+              gameState.partnerAssignedAt = Date.now();
 
-            logger.info(`PARTNER ASSIGNED: ${player.name} (${socketId.substring(0, 8)}...) is now the partner!`);
-          } else if (gameState.partnerCardPlays.length === 2 && !preferredPosition) {
-            // Second player to play partner card becomes opponent
-            logger.info(`SECOND PARTNER CARD PLAYED: ${player.name} (${socketId.substring(0, 8)}...) is now an opponent!`);
-            gameState.teamsAssigned = true;
-          } else if (gameState.partnerCardPlays.length === 2 && preferredPosition) {
-            // Second player played (not the preferred position) - becomes opponent
-            logger.info(`SECOND PARTNER CARD PLAYED: ${player.name} (${socketId.substring(0, 8)}...) is now an opponent!`);
-            gameState.teamsAssigned = true;
+              logger.info(`PARTNER ASSIGNED: ${player.name} (${socketId.substring(0, 8)}...) is now the partner!`);
+            } else if (gameState.partnerCardPlays.length === 2 && !preferredPosition) {
+              // Second player to play partner card becomes opponent
+              logger.info(`SECOND PARTNER CARD PLAYED: ${player.name} (${socketId.substring(0, 8)}...) is now an opponent!`);
+              gameState.teamsAssigned = true;
+            } else if (gameState.partnerCardPlays.length === 2 && preferredPosition) {
+              // Second player played (not the preferred position) - becomes opponent
+              logger.info(`SECOND PARTNER CARD PLAYED: ${player.name} (${socketId.substring(0, 8)}...) is now an opponent!`);
+              gameState.teamsAssigned = true;
+            }
           }
         }
       }
@@ -950,7 +962,7 @@ class GameService {
   }
 
   /**
-   * End game and clean up
+   * End game and clean up (but keep room active for next round)
    */
   endGame(roomId) {
     const gameState = this.activeGames.get(roomId);
@@ -963,18 +975,58 @@ class GameService {
       };
     }
 
+    // Store final scores for cumulative tracking
+    const finalScores = this.calculateFinalScores(roomId);
+    const room = roomService.getRoom(roomId);
+
+    if (room) {
+      // Initialize cumulative scores if not exists
+      if (!room.cumulativeScores) {
+        room.cumulativeScores = {};
+        gameState.players.forEach(p => {
+          room.cumulativeScores[p.socketId] = 0;
+        });
+      }
+
+      // Add current round scores to cumulative
+      Object.keys(finalScores.playerScores).forEach(socketId => {
+        room.cumulativeScores[socketId] = (room.cumulativeScores[socketId] || 0) + finalScores.playerScores[socketId];
+      });
+
+      // Update round number
+      room.currentRound = gameState.roundNumber || 1;
+
+      logger.info(`Round ${room.currentRound} completed in room ${roomId}`);
+      logger.info(`Cumulative Scores:`, room.cumulativeScores);
+    }
+
     // Clean up bidding state
     biddingService.cleanup(roomId);
 
+    // Remove current game state but keep room in 'playing' status
     this.activeGames.delete(roomId);
-    roomService.updateRoomStatus(roomId, 'completed');
+    roomService.updateRoomStatus(roomId, 'waiting'); // Set to waiting for next round
 
-    logger.info(`Game ended in room ${roomId}`);
+    logger.info(`Game ended in room ${roomId} - Room ready for next round`);
 
     return {
       success: true,
-      message: 'Game ended successfully'
+      message: 'Game ended successfully',
+      cumulativeScores: room?.cumulativeScores,
+      currentRound: room?.currentRound
     };
+  }
+
+  /**
+   * Get cumulative scores for a room
+   */
+  getCumulativeScores(roomId) {
+    const room = roomService.getRoom(roomId);
+    if (!room || !room.cumulativeScores) {
+      return null;
+    }
+
+    return room.cumulativeScores;
   }
 
   /**
