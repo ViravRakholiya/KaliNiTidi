@@ -215,6 +215,7 @@
     .player-card.you { border-color: #00d9ff; }
     .player-card.leader { border-color: #ffd700; }
     .player-card.partner { border-color: #00ff80; }
+    .player-card.opponent { border-color: #e94560; }
     .player-card.passed { opacity: 0.5; }
 
     .player-card .name {
@@ -233,6 +234,7 @@
     .badge-host { background: #ffd700; color: #1a1a2e; }
     .badge-leader { background: #ffd700; color: #1a1a2e; }
     .badge-partner { background: #00ff80; color: #1a1a2e; }
+    .badge-opponent { background: #e94560; color: #fff; }
     .badge-you { background: #00d9ff; color: #1a1a2e; }
 
     .cards-display {
@@ -468,64 +470,103 @@
             </select>
           </div>
 
-          <div class="selection-grid hidden" id="partnerSelection" style="margin-top: 15px;">
-            <div class="input-group">
-              <label>Partner Card Rank</label>
-              <select id="partnerRank">
-                <option value="A">Ace</option>
-                <option value="K">King</option>
-                <option value="Q">Queen</option>
-                <option value="J">Jack</option>
-                <option value="10">10</option>
-                <option value="9">9</option>
-                <option value="8">8</option>
-                <option value="7">7</option>
-                <option value="6">6</option>
-                <option value="5">5</option>
-                <option value="4">4</option>
-                <option value="3">3</option>
-                <option value="2">2</option>
-              </select>
+          <div class="input-group" style="margin-top: 15px;">
+            <label>Select Partner Card</label>
+            <div style="font-size: 0.85em; color: #888; margin-bottom: 8px;">
+              💡 Select a card to determine your partner during gameplay
             </div>
-            <div class="input-group">
-              <label>Partner Card Suit</label>
-              <select id="partnerSuit">
-                <option value="spades">♠ Spades</option>
-                <option value="hearts">♥ Hearts</option>
-                <option value="diamonds">♦ Diamonds</option>
-                <option value="clubs">♣ Clubs</option>
-              </select>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div>
+                <select id="partnerRank" onchange="updatePartnerCardOptions()" style="width: 100%; padding: 10px; border: 2px solid rgba(255,255,255,0.1); background: rgba(15,52,96,0.5); color: #fff; border-radius: 10px;">
+                  <option value="A">Ace</option>
+                  <option value="K">King</option>
+                  <option value="Q">Queen</option>
+                  <option value="J">Jack</option>
+                  <option value="10">10</option>
+                  <option value="9">9</option>
+                  <option value="8">8</option>
+                  <option value="7">7</option>
+                  <option value="6">6</option>
+                  <option value="5">5</option>
+                  <option value="4">4</option>
+                  <option value="3">3</option>
+                  <option value="2">2</option>
+                </select>
+              </div>
+              <div>
+                <select id="partnerSuit" onchange="updatePartnerCardOptions()" style="width: 100%; padding: 10px; border: 2px solid rgba(255,255,255,0.1); background: rgba(15,52,96,0.5); color: #fff; border-radius: 10px;">
+                  <option value="spades">♠ Spades</option>
+                  <option value="hearts">♥ Hearts</option>
+                  <option value="diamonds">♦ Diamonds</option>
+                  <option value="clubs">♣ Clubs</option>
+                </select>
+              </div>
+            </div>
+            <div id="cardCountInfo" style="font-size: 0.85em; color: #00d9ff; margin-top: 8px;">
+              Checking your hand...
             </div>
           </div>
 
-          <div id="partnerProgress" class="hidden" style="text-align: center; padding: 10px; background: rgba(0, 217, 255, 0.1); border-radius: 10px; margin-top: 10px;">
-            <span style="color: #00d9ff;">Partner Cards Selected: </span>
-            <strong id="partnerCountDisplay" style="color: #fff;">0/1</strong>
+          <div class="input-group hidden" id="partnerPositionGroup" style="margin-top: 15px;">
+            <label>Partner Position Preference</label>
+            <div style="font-size: 0.85em; color: #888; margin-bottom: 8px;">
+              🎯 Since you don't have this card, choose which player becomes your partner
+            </div>
+            <select id="partnerPosition" style="width: 100%; padding: 10px; border: 2px solid rgba(255,255,255,0.1); background: rgba(15,52,96,0.5); color: #fff; border-radius: 10px;">
+              <option value="1">1st player who plays this card → PARTNER ✅</option>
+              <option value="2">2nd player who plays this card → PARTNER ✅</option>
+            </select>
           </div>
 
-          <button class="btn btn-success hidden" id="selectPartnerBtn" style="margin-top: 15px; width: 100%;" onclick="selectPartnerCard()">
-            Select Partner Card
+          <button class="btn btn-success" id="startGameAfterSelection" style="margin-top: 15px; width: 100%;" onclick="startGameAfterSelection()">
+            Start Game
           </button>
 
           <div id="waitingForLeader" class="hidden" style="text-align: center; padding: 20px; color: #888;">
-            Waiting for leader to select trump and partner...
+            Waiting for leader to select trump and partner card...
           </div>
         </div>
 
         <!-- Game Started Panel -->
         <div class="card-panel hidden" id="gamePanel">
-          <h3>🎮 Game Ready!</h3>
-          <div class="hand-summary">
-            <div>
-              <div class="label">Leader</div>
-              <div class="value" id="leaderDisplay">-</div>
+          <h3>🎮 Game In Progress</h3>
+
+          <div style="background: rgba(0, 217, 255, 0.1); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <span style="color: #888;">Trump:</span>
+              <strong style="color: #ffd700; font-size: 1.2em;" id="gameTrumpDisplay">-</strong>
             </div>
-            <div>
-              <div class="label">Trump</div>
-              <div class="value" id="trumpDisplay">-</div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="color: #888;">Winning Bid:</span>
+              <strong style="color: #00ff80; font-size: 1.2em;" id="gameBidDisplay">-</strong>
             </div>
           </div>
-          <p style="text-align: center; color: #00ff80;">Game is ready to begin!</p>
+
+          <div style="background: rgba(0, 0, 0, 0.3); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+            <div style="color: #888; font-size: 0.9em; margin-bottom: 10px; text-align: center;">📊 Individual Scores</div>
+            <div id="individualScores" style="display: flex; flex-direction: column; gap: 8px; font-size: 0.85em;">
+              <!-- Individual scores will be populated here -->
+              <div style="text-align: center; color: #666;">Waiting for scores...</div>
+            </div>
+            <div style="font-size: 0.8em; color: #888; text-align: center; margin-top: 10px;">
+              <span id="bidProgress">Winning Bid: 0</span>
+            </div>
+          </div>
+
+          <div id="turnIndicator" class="turn-banner">
+            Waiting for game to start...
+          </div>
+
+          <div id="currentTrick" class="hidden" style="background: rgba(0, 0, 0, 0.3); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+            <div style="color: #888; font-size: 0.9em; margin-bottom: 10px; text-align: center;">Current Trick</div>
+            <div id="trickCards" style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;"></div>
+          </div>
+
+          <div id="scoreboardTable" class="hidden" style="background: rgba(0, 0, 0, 0.3); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+            <div style="color: #888; font-size: 0.9em; margin-bottom: 10px; text-align: center;">📊 Scoreboard (After Trick)</div>
+            <div id="scoreboardContent" style="font-size: 0.85em;"></div>
+          </div>
+
           <p id="partnerMessage" class="hidden" style="text-align: center; color: #ffd700; margin-top: 10px;">
             🎉 You are the partner!
           </p>
@@ -539,8 +580,8 @@
           <div class="players-grid" id="playersList"></div>
           <div style="margin-top: 15px; text-align: center;" id="gameControls" class="hidden">
             <div class="input-group">
-              <label>Cards Per Player (min 11)</label>
-              <input type="number" id="cardsPerPlayer" value="11" min="11" max="52" style="text-align: center;">
+              <label>Cards Per Player (min 13)</label>
+              <input type="number" id="cardsPerPlayer" value="13" min="13" max="52" style="text-align: center;">
             </div>
             <div class="input-group">
               <label>Number of Card Sets</label>
@@ -594,13 +635,18 @@
       reconnection: true
     });
 
+    // Debug: Log all incoming events
+    socket.onAny((eventName, ...args) => {
+      console.log(`[DEBUG ALL EVENTS] Received: ${eventName}`, args);
+    });
+
     let currentRoom = null;
     let isHost = false;
     let myCards = [];
     let isLeader = false;
     let isPartner = false;
-    let selectedPartners = 0;
-    let requiredPartners = 1;
+    let currentWinningBid = 0;
+    let currentBidWinner = null;
 
     function log(message, type = 'info') {
       const logDiv = document.getElementById('eventLog');
@@ -625,6 +671,7 @@
     }
 
     socket.on('connect', () => {
+      console.log('[DEBUG] Socket connected, ID:', socket.id);
       document.getElementById('connectionStatus').textContent = 'Connected';
       document.getElementById('connectionStatus').style.color = '#00ff80';
       log('Connected to server', 'success');
@@ -641,6 +688,7 @@
     });
 
     socket.on('ROOM_CREATED', (data) => {
+      console.log('[DEBUG] ROOM_CREATED event received:', data);
       currentRoom = data.roomId;
       isHost = true;
       document.getElementById('roomId').textContent = data.roomId;
@@ -649,9 +697,13 @@
       document.getElementById('gameControls').classList.remove('hidden');
       updatePlayersList(data.players);
       log(`Room created: ${data.roomId}`, 'success');
+
+      // Confirm we're in the room by listening for room-specific events
+      console.log('[DEBUG] Joined room:', data.roomId, 'Socket ID:', socket.id);
     });
 
     socket.on('ROOM_JOINED', (data) => {
+      console.log('[DEBUG] ROOM_JOINED event received:', data);
       currentRoom = data.roomId;
       isHost = false;
       document.getElementById('roomId').textContent = data.roomId;
@@ -659,6 +711,12 @@
       document.getElementById('setupPanel').classList.add('hidden');
       updatePlayersList(data.players);
       log(`Joined room: ${data.roomId}`, 'success');
+
+      // Test: Emit a test event to see if we receive broadcasts
+      console.log('[DEBUG] Testing room communication...');
+      socket.emit('GET_ROOM_STATE', { roomId: data.roomId }, (response) => {
+        console.log('[DEBUG] GET_ROOM_STATE response:', response);
+      });
     });
 
     socket.on('PLAYER_JOINED', (data) => {
@@ -688,11 +746,13 @@
     });
 
     socket.on('GAME_STARTED', (data) => {
+      console.log('[DEBUG] GAME_STARTED event received:', data);
       document.getElementById('gameControls').classList.add('hidden');
-      log('Game started! Waiting for cards...', 'success');
+      log('Game started! Waiting for bidding phase...', 'success');
     });
 
     socket.on('PLAYER_HAND', (data) => {
+      console.log('[DEBUG] PLAYER_HAND event received:', data);
       myCards = data.cards;
       displayCards(data.cards);
       document.getElementById('handCount').textContent = `(${data.cards.length} cards)`;
@@ -700,17 +760,39 @@
       const totalPoints = data.cards.reduce((sum, card) => sum + card.points, 0);
       document.getElementById('handPoints').textContent = totalPoints;
       log(`Received ${data.cards.length} cards (${totalPoints} points)`, 'success');
+
+      // Update partner card options based on hand
+      updatePartnerCardOptions();
     });
 
     socket.on('BIDDING_STARTED', (data) => {
-      console.log('BIDDING_STARTED event received:', data);
+      console.log('[DEBUG] BIDDING_STARTED event received:', data);
+      console.log('[DEBUG] Current socket ID:', socket.id);
+      console.log('[DEBUG] Current turn socket ID:', data.currentTurn);
+      console.log('[DEBUG] Is my turn?', socket.id === data.currentTurn);
+
+      // Update phase
       updatePhase('bidding');
+
+      // Update bidding display
       document.getElementById('currentBid').textContent = data.minBid;
       document.getElementById('minBid').textContent = data.minBid;
       document.getElementById('totalPoints').textContent = data.totalPoints;
-      document.getElementById('biddingPanel').classList.remove('hidden');
+
+      // Show bidding panel
+      const biddingPanel = document.getElementById('biddingPanel');
+      console.log('[DEBUG] Showing bidding panel, currently hidden?', biddingPanel.classList.contains('hidden'));
+      biddingPanel.classList.remove('hidden');
+
+      // Update turn indicator
       updateTurnIndicator(data.currentTurn);
+
       log(`Bidding started! Min bid: ${data.minBid}, Total points: ${data.totalPoints}`, 'success');
+
+      // Verify panel is visible
+      setTimeout(() => {
+        console.log('[DEBUG] Bidding panel visible after timeout?', !biddingPanel.classList.contains('hidden'));
+      }, 100);
     });
 
     socket.on('BID_UPDATED', (data) => {
@@ -733,11 +815,6 @@
       const leaderName = getPlayerName(data.leader);
       log(`Bidding ended! Leader: ${leaderName} with bid ${data.winningBid}`, 'success');
 
-      // Calculate number of partners needed (players / 2 - 1)
-      // For 4 players: 1 partner, 6 players: 2 partners, etc.
-      const playerCount = document.getElementById('playersList').children.length;
-      requiredPartners = Math.floor(playerCount / 2) - 1;
-
       // Show selection panel to everyone
       document.getElementById('selectionPanel').classList.remove('hidden');
       document.getElementById('winningBidDisplay').textContent = data.winningBid;
@@ -746,21 +823,18 @@
         isLeader = true;
         // Show leader controls
         document.getElementById('trumpSelect').disabled = false;
-        document.getElementById('partnerSelection').classList.add('hidden');
-        document.getElementById('selectPartnerBtn').classList.add('hidden');
+        document.getElementById('startGameAfterSelection').classList.remove('hidden');
         document.getElementById('waitingForLeader').classList.add('hidden');
-        log(`You are the leader! Select trump and ${requiredPartners} partner card(s).`, 'success');
+        log(`You are the leader! Select trump and partner card to start the game.`, 'success');
       } else {
         isLeader = false;
         // Hide leader controls, show waiting message
         document.getElementById('trumpSelect').disabled = true;
         document.getElementById('trumpSelect').value = '';
-        document.getElementById('partnerSelection').classList.add('hidden');
-        document.getElementById('selectPartnerBtn').classList.add('hidden');
-        document.getElementById('partnerProgress').classList.add('hidden');
+        document.getElementById('startGameAfterSelection').classList.add('hidden');
         document.getElementById('waitingForLeader').classList.remove('hidden');
         document.getElementById('waitingForLeader').innerHTML = `
-          Waiting for <strong>${leaderName}</strong> (Leader) to select trump and partner cards...<br>
+          Waiting for <strong>${leaderName}</strong> (Leader) to select trump and partner card...<br>
           <small style="color: #888;">Winning Bid: ${data.winningBid}</small>
         `;
       }
@@ -778,32 +852,84 @@
         // Non-leader: show that trump was selected
         document.getElementById('waitingForLeader').innerHTML = `
           <strong>${selector}</strong> selected <span style="color: #ffd700;">${data.suit}</span> as trump!<br>
-          <small style="color: #888;">Now selecting partner cards...</small>
+          <small style="color: #888;">Waiting for partner card selection...</small>
         `;
       }
     });
 
     socket.on('PARTNER_CARD_SELECTED', (data) => {
       const selector = getPlayerName(data.selectedBy);
-      log(`Partner card ${data.selectedCount}/${data.requiredCount}: ${data.partnerCard.rank} of ${data.partnerCard.suit} selected by ${selector}`, 'info');
-
-      // Show partner progress to everyone
-      selectedPartners = data.selectedCount;
-      requiredPartners = data.requiredCount;
-      updatePartnerProgress();
+      const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+      log(`Partner card selected: ${data.partnerCard.rank}${suitSymbols[data.partnerCard.suit]} by ${selector}`, 'info');
 
       if (data.selectedBy !== socket.id) {
-        // Non-leader: show partner card selection
-        const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
-        document.getElementById('partnerProgress').classList.remove('hidden');
+        // Non-leader: show that partner card was selected
         document.getElementById('waitingForLeader').innerHTML = `
-          Partner card ${data.selectedCount}/${data.requiredCount}: <span style="color: #00d9ff;">${data.partnerCard.rank}${suitSymbols[data.partnerCard.suit]}</span><br>
-          <small style="color: #888;">Waiting for more selections...</small>
+          <strong>${selector}</strong> selected <span style="color: #00d9ff;">${data.partnerCard.rank}${suitSymbols[data.partnerCard.suit]}</span> as partner card!<br>
+          <small style="color: #888;">Waiting for game to start...</small>
         `;
       }
     });
 
-    socket.on('SELECTION_DONE', (data) => {
+    socket.on('CARD_PLAYED', (data) => {
+      console.log('[DEBUG] CARD_PLAYED event received:', data);
+      log(`${data.playerName} played ${data.card.rank} of ${data.card.suit}`, 'info');
+
+      // Handle dynamic partner assignment
+      if (data.partnerCardPlayed && data.partnerAssigned) {
+        log(`🤝 PARTNER ASSIGNED: ${data.partnerName} is now the partner!`, 'success');
+        markPlayerPartner(data.partnerId);
+
+        if (data.partnerId === socket.id) {
+          isPartner = true;
+          document.getElementById('partnerMessage').classList.remove('hidden');
+        }
+      }
+
+      if (data.partnerCardPlayed && data.secondPartnerCardPlayed) {
+        log(`⚔️ OPPONENT ASSIGNED: ${data.opponentName} is now an opponent!`, 'info');
+        markPlayerOpponent(data.opponentId);
+      }
+
+      // Add card to current trick display
+      addCardToTrick(data.playerId, data.playerName, data.card);
+
+      // Update turn indicator with next player
+      if (!data.trickComplete) {
+        updateTurnIndicatorForGame(data.nextPlayerId);
+      }
+
+      // Remove card from display if it's our card
+      removeCardFromHand(data.card.id);
+
+      // Update our hand count
+      if (data.playerId === socket.id) {
+        document.getElementById('handCount').textContent = `(${data.cardsRemaining} cards)`;
+        document.getElementById('cardCount').textContent = data.cardsRemaining;
+      }
+    });
+
+    socket.on('TRICK_COMPLETE', (data) => {
+      console.log('[DEBUG] TRICK_COMPLETE event received:', data);
+      log(`${data.winnerName} won the trick with ${data.points} points!`, 'success');
+
+      // Update individual scores display
+      updateIndividualScores(data.currentScores);
+
+      // Show scoreboard after each trick
+      showScoreboard(data.currentScores, data.points, data.winner);
+
+      // Clear trick display after a short delay
+      setTimeout(() => {
+        clearTrickDisplay();
+      }, 2000);
+
+      // Update turn indicator for next trick (winner leads)
+      updateTurnIndicatorForGame(data.nextPlayerId);
+    });
+
+    socket.on('GAMEPLAY_STARTED', (data) => {
+      console.log('[DEBUG] GAMEPLAY_STARTED event received:', data);
       updatePhase('playing');
       document.getElementById('biddingPanel').classList.add('hidden');
       document.getElementById('selectionPanel').classList.add('hidden');
@@ -811,28 +937,57 @@
 
       const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
 
-      document.getElementById('leaderDisplay').textContent = getPlayerName(data.leader);
-      document.getElementById('trumpDisplay').textContent = data.trump;
+      document.getElementById('gameTrumpDisplay').textContent = `${data.trump} ${suitSymbols[data.trump] || ''}`;
+      document.getElementById('gameBidDisplay').textContent = data.winningBid || '-';
 
-      // Display partner cards if any were selected
-      if (data.partnerCards && data.partnerCards.length > 0) {
-        const partnerCardsText = data.partnerCards.map(pc => `${pc.rank}${suitSymbols[pc.suit]}`).join(', ');
-        document.getElementById('trumpDisplay').textContent = `${data.trump} | Partners: ${partnerCardsText}`;
+      // Display partner card info
+      if (data.partnerCard) {
+        document.getElementById('gameTrumpDisplay').textContent = `${data.trump} ${suitSymbols[data.trump] || ''} | Partner Card: ${data.partnerCard.rank}${suitSymbols[data.partnerCard.suit]}`;
       }
 
-      log(`Selection complete! Leader: ${getPlayerName(data.leader)}, Trump: ${data.trump}`, 'success');
+      // Store winning bid for team score calculation
+      currentWinningBid = data.winningBid || 0;
+      currentBidWinner = data.leader;
+
+      log(`Gameplay started! Leader: ${getPlayerName(data.leader)}, Trump: ${data.trump}, Partner Card: ${data.partnerCard.rank} of ${data.partnerCard.suit}, Winning Bid: ${currentWinningBid}`, 'success');
+
       markPlayerLeader(data.leader);
+
+      // Initialize individual scores display
+      updateIndividualScores([]);
+
+      // Check if it's our turn
+      updateTurnIndicatorForGame(data.leader);
+
+      // Make cards clickable
+      renderMyCards(true);
     });
 
-    socket.on('YOU_ARE_PARTNER', (data) => {
-      isPartner = true;
-      document.getElementById('partnerMessage').classList.remove('hidden');
-      log(`You are the partner!`, 'success');
-      markPlayerPartner(socket.id);
+    socket.on('GAME_OVER', (data) => {
+      console.log('[DEBUG] GAME_OVER event received:', data);
+      updatePhase('waiting');
+      log(`Game Over! Winner: ${getPlayerName(data.winner)}`, 'success');
+
+      // Show final scoreboard
+      showFinalScoreboard(data.scores, data.winner);
     });
 
     socket.on('ROOM_ERROR', (error) => {
       log(`Error: ${error.message}`, 'error');
+    });
+
+    // Set up START_GAME_RESPONSE listener during initialization (before any game start)
+    socket.on('START_GAME_RESPONSE', (response) => {
+      console.log('[DEBUG] START_GAME_RESPONSE event received:', response);
+      if (response.success) {
+        log('Game started successfully! Waiting for bidding phase...', 'success');
+        // Manually trigger UI update as fallback
+        document.getElementById('gameControls').classList.add('hidden');
+        document.getElementById('biddingPanel').classList.remove('hidden');
+        updatePhase('bidding');
+      } else {
+        log(`Failed to start game: ${response.message}`, 'error');
+      }
     });
 
     function joinOrCreateRoom() {
@@ -847,12 +1002,14 @@
 
       if (roomInput) {
         socket.emit('JOIN_ROOM', { roomId: roomInput, name }, (response) => {
+          console.log('[DEBUG] JOIN_ROOM callback:', response);
           if (!response.success) {
             log(response.message, 'error');
           }
         });
       } else {
         socket.emit('CREATE_ROOM', { name, maxPlayers: numberOfPlayers }, (response) => {
+          console.log('[DEBUG] CREATE_ROOM callback:', response);
           if (!response.success) {
             log(response.message, 'error');
           }
@@ -861,23 +1018,65 @@
     }
 
     function startGame() {
+      console.log('[DEBUG] startGame called - isHost:', isHost, 'currentRoom:', currentRoom);
+
       if (isHost) {
-        const cardsPerPlayer = parseInt(document.getElementById('cardsPerPlayer').value) || 11;
+        const cardsPerPlayer = parseInt(document.getElementById('cardsPerPlayer').value) || 13;
         const numberOfSets = parseInt(document.getElementById('numberOfSets').value) || 2;
 
-        console.log(`Starting game: cardsPerPlayer=${cardsPerPlayer}, numberOfSets=${numberOfSets}`);
+        console.log(`Starting game: cardsPerPlayer=${cardsPerPlayer}, numberOfSets=${numberOfSets}, isHost=${isHost}`);
         log('Starting game...', 'info');
 
-        socket.emit('START_GAME', {
+        const eventData = {
+          roomId: currentRoom,
           cardsPerPlayer,
           numberOfSets
-        }, (response) => {
-          console.log('START_GAME response:', response);
-          if (response.success) {
-            log('Game started successfully! Waiting for bidding phase...', 'success');
+        };
+
+        console.log('[DEBUG] Emitting START_GAME with data:', eventData);
+        console.log('[DEBUG] Socket connected:', socket.connected);
+        console.log('[DEBUG] Socket ID:', socket.id);
+
+        // First test: Emit a simple ping to see if server responds
+        console.log('[DEBUG] TEST: Emitting GET_ROOM_STATE to test server communication...');
+        socket.emit('GET_ROOM_STATE', { roomId: currentRoom }, (testResponse) => {
+          console.log('[DEBUG] TEST: GET_ROOM_STATE response:', testResponse);
+          if (testResponse && testResponse.success) {
+            console.log('[DEBUG] TEST: Server communication is working! Now trying START_GAME...');
+
+            // Now try START_GAME
+            socket.emit('START_GAME', eventData, (response) => {
+              console.log('[DEBUG] START_GAME callback response:', response);
+              if (response) {
+                if (response.success) {
+                  log('Game started successfully!', 'success');
+                  // Manually show bidding panel as fallback
+                  document.getElementById('gameControls').classList.add('hidden');
+                  document.getElementById('biddingPanel').classList.remove('hidden');
+                  updatePhase('bidding');
+                } else {
+                  log(`Failed to start game: ${response.message}`, 'error');
+                }
+              } else {
+                console.log('[DEBUG] No response received from server');
+                log('No response from server when starting game', 'error');
+              }
+            });
           } else {
-            log(`Failed to start game: ${response.message}`, 'error');
+            console.log('[DEBUG] TEST: Server communication failed!');
+            log('Server communication test failed', 'error');
           }
+        });
+
+        // Also listen for the response event
+        socket.once('START_GAME_RESPONSE', (response) => {
+          console.log('[DEBUG] START_GAME_RESPONSE event received:', response);
+        });
+
+        // Listen for any errors
+        socket.once('ROOM_ERROR', (error) => {
+          console.log('[DEBUG] ROOM_ERROR received:', error);
+          log(`Server error: ${error.message}`, 'error');
         });
       } else {
         log('Only the host can start the game!', 'error');
@@ -961,11 +1160,6 @@
           if (response.success) {
             log(`Trump selected: ${suit}`, 'success');
             document.getElementById('trumpSelect').disabled = true;
-            document.getElementById('partnerSelection').classList.remove('hidden');
-            document.getElementById('partnerProgress').classList.remove('hidden');
-            document.getElementById('selectPartnerBtn').classList.remove('hidden');
-            selectedPartners = 0;
-            updatePartnerProgress();
           } else {
             log(`Failed: ${response.message}`, 'error');
           }
@@ -973,35 +1167,100 @@
       }
     }
 
-    function selectPartnerCard() {
-      const rank = document.getElementById('partnerRank').value;
-      const suit = document.getElementById('partnerSuit').value;
+    function startGameAfterSelection() {
+      const trump = document.getElementById('trumpSelect').value;
+      const partnerRank = document.getElementById('partnerRank').value;
+      const partnerSuit = document.getElementById('partnerSuit').value;
+      const partnerPosition = document.getElementById('partnerPosition').value;
 
-      socket.emit('SELECT_PARTNER_CARD', { roomId: currentRoom, rank, suit }, (response) => {
-        if (response.success) {
-          selectedPartners = response.selectedCount;
-          requiredPartners = response.requiredCount;
-          log(`Partner card selected: ${rank} of ${suit} (${selectedPartners}/${requiredPartners})`, 'success');
-          updatePartnerProgress();
+      if (!trump) {
+        log('Please select a trump suit', 'error');
+        return;
+      }
 
-          if (response.allPartnersSelected) {
-            document.getElementById('selectPartnerBtn').disabled = true;
-            document.getElementById('selectPartnerBtn').textContent = 'All Partners Selected!';
+      if (!partnerRank || !partnerSuit) {
+        log('Please select a partner card', 'error');
+        return;
+      }
+
+      // Check if position is required and provided
+      const positionGroup = document.getElementById('partnerPositionGroup');
+      if (!positionGroup.classList.contains('hidden') && !partnerPosition) {
+        log('Please select partner position preference', 'error');
+        return;
+      }
+
+      // First select trump if not already selected
+      socket.emit('SELECT_TRUMP', { roomId: currentRoom, suit: trump }, (trumpResponse) => {
+        if (trumpResponse.success) {
+          // Then select partner card with position preference
+          const partnerData = {
+            roomId: currentRoom,
+            rank: partnerRank,
+            suit: partnerSuit
+          };
+
+          // Add position preference if provided
+          if (partnerPosition) {
+            partnerData.preferredPosition = parseInt(partnerPosition);
           }
+
+          socket.emit('SELECT_PARTNER_CARD', partnerData, (partnerResponse) => {
+            if (partnerResponse.success) {
+              log(`Partner card selected: ${partnerRank} of ${partnerSuit}${partnerPosition ? ` (Position: ${partnerPosition})` : ''}`, 'success');
+              // Start the game
+              socket.emit('START_GAMEPLAY', { roomId: currentRoom }, (gameResponse) => {
+                if (gameResponse.success) {
+                  log('Game started! Partner will be determined during gameplay.', 'success');
+                } else {
+                  log(`Failed to start game: ${gameResponse.message}`, 'error');
+                }
+              });
+            } else {
+              log(`Failed: ${partnerResponse.message}`, 'error');
+            }
+          });
         } else {
-          log(`Failed: ${response.message}`, 'error');
+          log(`Failed: ${trumpResponse.message}`, 'error');
         }
       });
     }
 
-    function updatePartnerProgress() {
-      document.getElementById('partnerCountDisplay').textContent = `${selectedPartners}/${requiredPartners}`;
-      const btn = document.getElementById('selectPartnerBtn');
-      if (selectedPartners < requiredPartners) {
-        btn.textContent = `Select Partner Card (${selectedPartners}/${requiredPartners})`;
+    function updatePartnerCardOptions() {
+      if (myCards.length === 0) return;
+
+      const partnerRank = document.getElementById('partnerRank').value;
+      const partnerSuit = document.getElementById('partnerSuit').value;
+      const cardCountInfo = document.getElementById('cardCountInfo');
+      const positionGroup = document.getElementById('partnerPositionGroup');
+
+      if (!partnerRank || !partnerSuit) {
+        cardCountInfo.textContent = 'Select rank and suit to check your hand...';
+        return;
+      }
+
+      // Count how many of this card we have
+      const cardCount = myCards.filter(c => c.rank === partnerRank && c.suit === partnerSuit).length;
+
+      // Update info text
+      if (cardCount === 2) {
+        cardCountInfo.textContent = `✅ You have BOTH ${partnerRank} of ${partnerSuit} - You can choose which one to play during gameplay`;
+        cardCountInfo.style.color = '#00ff80';
+
+        // Hide position dropdown since leader has both cards
+        positionGroup.classList.add('hidden');
+      } else if (cardCount === 1) {
+        cardCountInfo.textContent = `✅ You have ONE ${partnerRank} of ${partnerSuit} - Your partner will be the player with the other one`;
+        cardCountInfo.style.color = '#00d9ff';
+
+        // Hide position dropdown since leader has one card
+        positionGroup.classList.add('hidden');
       } else {
-        btn.textContent = 'All Partners Selected!';
-        btn.disabled = true;
+        cardCountInfo.textContent = `⚠️ You don't have ${partnerRank} of ${partnerSuit} - Choose which player becomes your partner`;
+        cardCountInfo.style.color = '#ffd700';
+
+        // Show position dropdown since leader has neither card
+        positionGroup.classList.remove('hidden');
       }
     }
 
@@ -1107,26 +1366,56 @@
       const player = document.querySelector(`[data-socket-id="${socketId}"]`);
       if (player) {
         player.classList.add('partner');
+        player.classList.remove('opponent');
         const existingBadge = player.querySelector('.badge-partner');
         if (!existingBadge) {
           const badge = document.createElement('div');
           badge.innerHTML = '<span class="badge badge-partner">🤝 Partner</span>';
           player.appendChild(badge);
         }
+        // Remove opponent badge if exists
+        const opponentBadge = player.querySelector('.badge-opponent');
+        if (opponentBadge) opponentBadge.parentElement.remove();
+      }
+    }
+
+    function markPlayerOpponent(socketId) {
+      const player = document.querySelector(`[data-socket-id="${socketId}"]`);
+      if (player) {
+        player.classList.add('opponent');
+        player.classList.remove('partner');
+        const existingBadge = player.querySelector('.badge-opponent');
+        if (!existingBadge) {
+          const badge = document.createElement('div');
+          badge.innerHTML = '<span class="badge badge-opponent">⚔️ Opponent</span>';
+          player.appendChild(badge);
+        }
+        // Remove partner badge if exists
+        const partnerBadge = player.querySelector('.badge-partner');
+        if (partnerBadge) partnerBadge.parentElement.remove();
       }
     }
 
     function displayCards(cards) {
+      renderMyCards(false);
+    }
+
+    function renderMyCards(clickable = false) {
       const grid = document.getElementById('myCards');
       grid.innerHTML = '';
 
-      cards.forEach(card => {
+      myCards.forEach(card => {
         const cardEl = document.createElement('div');
         const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
         const isHighPoints = card.points >= 10;
         const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
 
         cardEl.className = `playing-card ${isRed ? 'red' : 'black'}`;
+        if (clickable) {
+          cardEl.style.cursor = 'pointer';
+          cardEl.onclick = () => playCard(card);
+        }
+
         cardEl.innerHTML = `
           <div class="rank">${card.rank}</div>
           <div class="suit">${suitSymbols[card.suit]}</div>
@@ -1134,6 +1423,197 @@
         `;
         grid.appendChild(cardEl);
       });
+    }
+
+    let currentTurnPlayerId = null;
+    let ledSuit = null;
+
+    function playCard(card) {
+      // Check if it's our turn
+      if (currentTurnPlayerId !== socket.id) {
+        log('It is not your turn!', 'error');
+        return;
+      }
+
+      // Check follow suit rule
+      if (ledSuit) {
+        const hasLedSuit = myCards.some(c => c.suit === ledSuit);
+        if (hasLedSuit && card.suit !== ledSuit) {
+          log(`You must follow suit (${ledSuit}) if you have it!`, 'error');
+          return;
+        }
+      }
+
+      // Emit play card event
+      socket.emit('PLAY_CARD', { roomId: currentRoom, cardId: card.id }, (response) => {
+        if (response.success) {
+          log(`You played ${card.rank} of ${card.suit}`, 'info');
+        } else {
+          log(`Cannot play card: ${response.message}`, 'error');
+        }
+      });
+    }
+
+    function removeCardFromHand(cardId) {
+      const index = myCards.findIndex(c => c.id === cardId);
+      if (index !== -1) {
+        myCards.splice(index, 1);
+        renderMyCards(true);
+      }
+    }
+
+    function updateTurnIndicatorForGame(currentPlayerId) {
+      currentTurnPlayerId = currentPlayerId;
+      const turnBanner = document.getElementById('turnIndicator');
+
+      if (currentPlayerId === socket.id) {
+        turnBanner.classList.add('your-turn');
+        turnBanner.textContent = '🎯 Your Turn! Play a card';
+        renderMyCards(true); // Make cards clickable
+      } else {
+        turnBanner.classList.remove('your-turn');
+        turnBanner.textContent = `Waiting for ${getPlayerName(currentPlayerId)}...`;
+        renderMyCards(false); // Make cards non-clickable
+      }
+    }
+
+    function addCardToTrick(playerId, playerName, card) {
+      const trickDiv = document.getElementById('currentTrick');
+      const trickCardsDiv = document.getElementById('trickCards');
+      trickDiv.classList.remove('hidden');
+
+      // Set led suit if this is the first card
+      if (!ledSuit) {
+        ledSuit = card.suit;
+      }
+
+      const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+      const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
+
+      const cardEl = document.createElement('div');
+      cardEl.className = `playing-card ${isRed ? 'red' : 'black'}`;
+      cardEl.style.margin = '5px';
+      cardEl.innerHTML = `
+        <div style="font-size: 0.7em; text-align: center; margin-bottom: 5px;">${playerName}</div>
+        <div class="rank">${card.rank}</div>
+        <div class="suit">${suitSymbols[card.suit]}</div>
+      `;
+      trickCardsDiv.appendChild(cardEl);
+    }
+
+    function clearTrickDisplay() {
+      const trickCardsDiv = document.getElementById('trickCards');
+      trickCardsDiv.innerHTML = '';
+      ledSuit = null;
+    }
+
+    function updateIndividualScores(playerScores) {
+      const scoresDiv = document.getElementById('individualScores');
+      document.getElementById('bidProgress').textContent = `Winning Bid: ${currentWinningBid}`;
+
+      if (!playerScores || playerScores.length === 0) {
+        scoresDiv.innerHTML = '<div style="text-align: center; color: #666;">Waiting for scores...</div>';
+        return;
+      }
+
+      // Sort by score (highest first)
+      const sortedScores = [...playerScores].sort((a, b) => b.score - a.score);
+
+      let html = '';
+      sortedScores.forEach(player => {
+        const isYou = player.socketId === socket.id;
+        const isLeader = player.socketId === currentBidWinner;
+        const color = isYou ? '#00d9ff' : (isLeader ? '#ffd700' : '#888');
+        const label = isYou ? 'You' : player.name;
+        const badge = isLeader ? '👑' : '';
+
+        html += `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 5px 10px; border-radius: 5px; background: ${isYou ? 'rgba(0, 217, 255, 0.1)' : 'rgba(255, 255, 255, 0.05)'};">
+            <span style="color: ${color};">${label} ${badge}</span>
+            <strong style="color: ${color};">${player.score} pts</strong>
+          </div>
+        `;
+      });
+
+      scoresDiv.innerHTML = html;
+    }
+
+    function showScoreboard(playerScores, trickPoints, winnerId) {
+      const scoreboardDiv = document.getElementById('scoreboardTable');
+      const scoreboardContent = document.getElementById('scoreboardContent');
+      scoreboardDiv.classList.remove('hidden');
+
+      if (!playerScores || playerScores.length === 0) {
+        scoreboardContent.innerHTML = '<div style="text-align: center; color: #888;">No scores available</div>';
+        return;
+      }
+
+      // Sort by score (highest first)
+      const sortedScores = [...playerScores].sort((a, b) => b.score - a.score);
+
+      let html = '<div style="display: grid; gap: 5px; font-size: 0.85em;">';
+      sortedScores.forEach(player => {
+        const isYou = player.socketId === socket.id;
+        const isWinner = player.socketId === winnerId;
+        const isLeader = player.socketId === currentBidWinner;
+        const color = isYou ? '#00d9ff' : (isLeader ? '#ffd700' : '#888');
+        const bgColor = isWinner ? 'rgba(0, 255, 128, 0.1)' : (isYou ? 'rgba(0, 217, 255, 0.1)' : 'rgba(255, 255, 255, 0.05)');
+        const label = isYou ? 'You' : player.name;
+        const badge = isWinner ? '🏆' : (isLeader ? '👑' : '');
+
+        html += `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 5px; background: ${bgColor};">
+            <span style="color: ${color}; font-weight: ${isYou ? 'bold' : 'normal'};">${label} ${badge}</span>
+            <strong style="color: ${color};">${player.score} pts</strong>
+          </div>
+        `;
+      });
+      html += '</div>';
+
+      html += `
+        <div style="text-align: center; color: #888; font-size: 0.8em; margin-top: 10px;">
+          Trick winner: ${getPlayerName(winnerId)} (+${trickPoints} pts) | Winning Bid: ${currentWinningBid}
+        </div>
+      `;
+
+      scoreboardContent.innerHTML = html;
+
+      // Auto-hide after 5 seconds
+      setTimeout(() => {
+        scoreboardDiv.classList.add('hidden');
+      }, 5000);
+    }
+
+    function updateScoreDisplay(scores) {
+      // This function is no longer used with team-based scoring
+      // Kept for backward compatibility
+    }
+
+    function showFinalScoreboard(scores, winnerId) {
+      const gamePanel = document.getElementById('gamePanel');
+      const scoreboard = document.createElement('div');
+      scoreboard.style.cssText = 'background: rgba(0, 0, 0, 0.5); padding: 30px; border-radius: 20px; text-align: center;';
+
+      const winnerName = getPlayerName(winnerId);
+
+      let scoresHtml = scores.map(s => `
+        <div style="display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <span>${s.name} ${s.socketId === winnerId ? '👑' : ''}</span>
+          <strong style="color: #00d9ff;">${s.score} points</strong>
+        </div>
+      `).join('');
+
+      scoreboard.innerHTML = `
+        <h2 style="color: #ffd700; margin-bottom: 20px;">🏆 Game Over!</h2>
+        <p style="color: #00ff80; font-size: 1.2em; margin-bottom: 20px;">Winner: ${winnerName}</p>
+        <div style="background: rgba(0, 0, 0, 0.3); border-radius: 10px; padding: 15px; margin-bottom: 20px;">
+          ${scoresHtml}
+        </div>
+        <button class="btn btn-primary" onclick="location.reload()">Play Again</button>
+      `;
+
+      gamePanel.innerHTML = '';
+      gamePanel.appendChild(scoreboard);
     }
   </script>
 </body>

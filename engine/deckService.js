@@ -164,8 +164,8 @@ class DeckService {
 
     if (!cardsPerPlayer || typeof cardsPerPlayer !== 'number') {
       errors.push('cardsPerPlayer must be a valid number');
-    } else if (cardsPerPlayer < 11) {
-      errors.push('Each player must receive at least 11 cards');
+    } else if (cardsPerPlayer < 13) {
+      errors.push('Each player must receive at least 13 cards');
     } else if (cardsPerPlayer > 52) {
       errors.push('Maximum 52 cards per player');
     }
@@ -183,8 +183,9 @@ class DeckService {
   }
 
   /**
-   * Distribute cards to players using the Blacks 3 distribution pattern
-   * ALL important cards are dealt first, then fill remaining with regular cards
+   * Distribute cards to players using random distribution
+   * ENSURES all important cards (500 points) are always in play
+   * Mixes all important cards with needed regular cards, then distributes randomly
    */
   distributeCards(deck, playerCount, cardsPerPlayer) {
     const hands = {};
@@ -192,7 +193,10 @@ class DeckService {
       hands[i] = [];
     }
 
-    // Separate important cards (high point cards) from regular cards
+    // Calculate total cards needed
+    const totalCardsNeeded = playerCount * cardsPerPlayer;
+
+    // Separate important cards (MUST ALL BE DEALT) from regular cards
     const importantCards = [];
     const regularCards = [];
 
@@ -204,40 +208,47 @@ class DeckService {
       }
     });
 
-    // Shuffle both piles
-    const shuffledImportant = this.shuffle(importantCards);
-    const shuffledRegular = this.shuffle(regularCards);
+    logger.info(`Deck has ${importantCards.length} important cards (${this.calculateTotalPointsFromArray(importantCards)} points) and ${regularCards.length} regular cards`);
 
-    logger.info(`Important cards: ${shuffledImportant.length} (${this.calculateTotalPointsFromArray(shuffledImportant)} points)`);
-    logger.info(`Regular cards: ${shuffledRegular.length} (${this.calculateTotalPointsFromArray(shuffledRegular)} points)`);
+    // Calculate how many regular cards we need
+    const regularCardsNeeded = totalCardsNeeded - importantCards.length;
 
-    // Deal ALL important cards first (round-robin to all players)
-    let importantCardIndex = 0;
-    let regularCardIndex = 0;
-
-    // Deal every important card to players (round-robin)
-    while (importantCardIndex < shuffledImportant.length) {
-      for (let i = 0; i < playerCount && importantCardIndex < shuffledImportant.length; i++) {
-        if (hands[i].length < cardsPerPlayer) {
-          hands[i].push(shuffledImportant[importantCardIndex++]);
-        }
-      }
+    // Check if we have enough capacity for all important cards
+    if (totalCardsNeeded < importantCards.length) {
+      logger.error(`ERROR: Cannot fit all ${importantCards.length} important cards into ${totalCardsNeeded} total slots!`);
+      throw new Error(`Not enough card slots for all important cards. Need at least ${Math.ceil(importantCards.length / playerCount)} cards per player.`);
     }
 
-    logger.info(`All important cards dealt. Now filling with regular cards...`);
+    // Take all important cards + needed regular cards
+    const selectedRegularCards = regularCards.slice(0, regularCardsNeeded);
+    const cardsToDeal = [...importantCards, ...selectedRegularCards];
 
-    // Fill remaining slots with regular cards
-    for (let i = 0; i < playerCount && regularCardIndex < shuffledRegular.length; i++) {
-      while (hands[i].length < cardsPerPlayer && regularCardIndex < shuffledRegular.length) {
-        hands[i].push(shuffledRegular[regularCardIndex++]);
-      }
+    // Shuffle the combined pile for randomness
+    const shuffledCards = this.shuffle(cardsToDeal);
+
+    logger.info(`Dealing ${shuffledCards.length} cards: ALL ${importantCards.length} important cards (${this.calculateTotalPointsFromArray(importantCards)} points) + ${selectedRegularCards.length} regular cards`);
+
+    // Distribute randomly using round-robin from the shuffled pile
+    let cardIndex = 0;
+    let playerIndex = 0;
+
+    while (cardIndex < shuffledCards.length) {
+      hands[playerIndex].push(shuffledCards[cardIndex]);
+      cardIndex++;
+      playerIndex = (playerIndex + 1) % playerCount; // Move to next player
     }
 
     // Log final distribution
+    logger.info(`Random distribution complete:`);
+    let totalPointsDealt = 0;
     for (let i = 0; i < playerCount; i++) {
       const handPoints = this.calculateTotalPointsFromArray(hands[i]);
-      logger.info(`Player ${i}: ${hands[i].length} cards (${handPoints} points)`);
+      totalPointsDealt += handPoints;
+      const importantCount = hands[i].filter(c => c.points > 0).length;
+      const regularCount = hands[i].filter(c => c.points === 0).length;
+      logger.info(`Player ${i}: ${hands[i].length} cards (${importantCount} important, ${regularCount} regular, ${handPoints} points)`);
     }
+    logger.info(`TOTAL POINTS IN PLAY: ${totalPointsDealt}`);
 
     return hands;
   }

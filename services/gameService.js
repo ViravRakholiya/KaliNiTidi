@@ -69,18 +69,24 @@ class GameService {
     }
 
     try {
+      logger.info('[DEBUG] About to generate deck...');
       // Generate deck with specified number of sets
       const deck = deckService.generateDeckWithSets(validation.totalCards, numberOfSets);
+      logger.info('[DEBUG] Deck generated successfully');
 
+      logger.info('[DEBUG] About to shuffle deck...');
       // Shuffle deck
       const shuffledDeck = deckService.shuffle(deck);
+      logger.info('[DEBUG] Deck shuffled successfully');
 
+      logger.info('[DEBUG] About to distribute cards...');
       // Distribute cards with important cards prioritized
       const hands = deckService.distributeCards(
         shuffledDeck,
         numberOfPlayers,
         cardsPerPlayer
       );
+      logger.info('[DEBUG] Cards distributed successfully, hands:', Object.keys(hands));
 
       // Create game state with bidding
       const gameState = {
@@ -110,19 +116,27 @@ class GameService {
       };
 
       // Map hands to socket IDs
+      logger.info('[DEBUG] About to map hands to socket IDs...');
       room.players.forEach((player, index) => {
         gameState.hands[player.socketId] = hands[index];
       });
+      logger.info('[DEBUG] Hands mapped successfully');
 
       // Initialize bidding with number of sets
+      logger.info('[DEBUG] About to initialize bidding...');
       const biddingState = biddingService.initializeBidding(roomId, gameState, numberOfSets);
+      logger.info('[DEBUG] Bidding initialized successfully');
       gameState.bidding = biddingState;
 
       // Store game state
+      logger.info('[DEBUG] About to store game state...');
       this.activeGames.set(roomId, gameState);
+      logger.info('[DEBUG] Game state stored successfully');
 
       // Update room status
+      logger.info('[DEBUG] About to update room status...');
       roomService.updateRoomStatus(roomId, 'playing');
+      logger.info('[DEBUG] Room status updated successfully');
 
       logger.info(`Game started in room ${roomId} with ${numberOfPlayers} players, ${numberOfSets} sets, phase: bidding`);
 
@@ -353,6 +367,82 @@ class GameService {
   }
 
   /**
+   * Start gameplay after trump and partner card selection
+   */
+  startGameplay(roomId, socketId) {
+    const gameState = this.activeGames.get(roomId);
+
+    if (!gameState) {
+      return {
+        success: false,
+        error: 'GAME_NOT_FOUND',
+        message: 'Game does not exist'
+      };
+    }
+
+    // Check if player is the leader
+    const bidding = biddingService.activeBiddings.get(roomId);
+    if (!bidding || bidding.highestBidder !== socketId) {
+      return {
+        success: false,
+        error: 'NOT_LEADER',
+        message: 'Only the leader can start the game'
+      };
+    }
+
+    if (!bidding.trump) {
+      return {
+        success: false,
+        error: 'TRUMP_NOT_SELECTED',
+        message: 'Trump must be selected first'
+      };
+    }
+
+    if (!bidding.partnerCards || bidding.partnerCards.length === 0) {
+      return {
+        success: false,
+        error: 'PARTNER_CARD_NOT_SELECTED',
+        message: 'Partner card must be selected first'
+      };
+    }
+
+    // Transition to playing phase
+    gameState.phase = 'playing';
+    gameState.leader = socketId;
+    gameState.trump = bidding.trump;
+    gameState.partnerCard = bidding.partnerCards[0]; // First (and only) partner card
+
+    // Track bidding information for scoring
+    gameState.bidWinner = bidding.highestBidder;
+    gameState.winningBid = bidding.currentBid;
+    gameState.minimumBid = bidding.minimumBid;
+    gameState.totalPointsInDeck = bidding.totalPoints;
+
+    // Initialize current trick with leader starting
+    gameState.currentTrick = {
+      cards: [],
+      ledSuit: null,
+      currentPlayerIndex: gameState.players.findIndex(p => p.socketId === socketId)
+    };
+
+    // Track partner card plays for dynamic team assignment
+    gameState.partnerCardPlays = []; // Will track who plays the partner card
+    gameState.teamsAssigned = false; // Will be set to true after both partner card holders have played
+
+    logger.info(`Gameplay started in room ${roomId}. Leader: ${socketId.substring(0, 8)}..., Trump: ${gameState.trump}, Partner Card: ${gameState.partnerCard.rank} of ${gameState.partnerCard.suit}, Bid: ${gameState.winningBid}`);
+
+    return {
+      success: true,
+      gameState,
+      trump: gameState.trump,
+      partnerCard: gameState.partnerCard,
+      leader: socketId,
+      winningBid: gameState.winningBid,
+      bidWinner: gameState.bidWinner
+    };
+  }
+
+  /**
    * Select partner card
    */
   selectPartnerCard(roomId, socketId, rank, suit) {
@@ -377,37 +467,18 @@ class GameService {
     const result = biddingService.selectPartnerCard(roomId, socketId, rank, suit);
 
     if (result.success) {
-      // Store partner cards in game state
+      // Store partner card in game state (leader will manually start gameplay)
       if (!gameState.partnerCards) {
         gameState.partnerCards = [];
       }
       gameState.partnerCards.push({ rank, suit });
       gameState.leader = socketId;
 
-      // Check if all partner cards are selected and we can complete selection
-      const bidding = biddingService.activeBiddings.get(roomId);
-      if (bidding && gameState.trump && result.allPartnersSelected) {
-        const completeResult = biddingService.completeSelection(roomId);
-        if (completeResult.success) {
-          gameState.phase = 'playing';
-
-          // Find and identify all partners
-          const partnerSocketIds = biddingService.findPartners(roomId, gameState.hands);
-          gameState.partnerIds = partnerSocketIds;
-
-          return {
-            success: true,
-            ...completeResult,
-            phase: 'playing',
-            partnerIds: partnerSocketIds
-          };
-        }
-      }
-
+      // Return success without automatically completing selection
       return {
         success: true,
-        ...result,
-        canComplete: result.allPartnersSelected
+        partnerCard: { rank, suit },
+        selectedCount: gameState.partnerCards.length
       };
     }
 
@@ -415,63 +486,467 @@ class GameService {
   }
 
   /**
-   * Play a card (for future card play logic)
+   * Play a card with full gameplay logic
    */
   playCard(roomId, socketId, cardId) {
+    try {
+      const gameState = this.activeGames.get(roomId);
+
+      if (!gameState) {
+        return {
+          success: false,
+          error: 'GAME_NOT_FOUND',
+          message: 'Game does not exist'
+        };
+      }
+
+      if (gameState.phase !== 'playing') {
+        return {
+          success: false,
+          error: 'NOT_PLAYING_PHASE',
+          message: 'Cannot play card - game not in playing phase'
+        };
+      }
+
+      // Initialize current trick if needed
+      if (!gameState.currentTrick) {
+        gameState.currentTrick = {
+          cards: [],
+          ledSuit: null,
+          currentPlayerIndex: gameState.players.findIndex(p => p.socketId === gameState.leader)
+        };
+      }
+
+      // Check if it's this player's turn
+      const currentPlayerSocketId = gameState.players[gameState.currentTrick.currentPlayerIndex].socketId;
+      if (currentPlayerSocketId !== socketId) {
+        return {
+          success: false,
+          error: 'NOT_YOUR_TURN',
+          message: 'It is not your turn to play'
+        };
+      }
+
+      const hand = gameState.hands[socketId];
+
+      if (!hand) {
+        return {
+          success: false,
+          error: 'PLAYER_NOT_IN_GAME',
+          message: 'Player not in this game'
+        };
+      }
+
+      // Find card in hand
+      const cardIndex = hand.findIndex(c => c.id === cardId);
+
+      if (cardIndex === -1) {
+        return {
+          success: false,
+          error: 'CARD_NOT_IN_HAND',
+          message: 'Card not found in player\'s hand'
+        };
+      }
+
+      const playedCard = hand[cardIndex];
+      const player = gameState.players.find(p => p.socketId === socketId);
+
+      // Check if this card is the partner card (only if partner card is set)
+      let isPartnerCard = false;
+      if (gameState.partnerCard && playedCard) {
+        isPartnerCard = playedCard.rank === gameState.partnerCard.rank &&
+                        playedCard.suit === gameState.partnerCard.suit;
+      }
+
+      // Track partner card plays for dynamic team assignment
+      if (isPartnerCard && gameState.partnerCardPlays) {
+        const alreadyPlayed = gameState.partnerCardPlays.find(p => p.playerId === socketId);
+
+        if (!alreadyPlayed) {
+          gameState.partnerCardPlays.push({
+            playerId: socketId,
+            playerName: player.name,
+            card: playedCard,
+            timestamp: new Date().toISOString()
+          });
+
+          logger.info(`Partner card played by ${player.name} (${socketId.substring(0, 8)}...) - Play #${gameState.partnerCardPlays.length}`);
+
+          // Check partner assignment based on preferred position
+          const bidding = biddingService.activeBiddings.get(roomId);
+          const preferredPosition = bidding?.partnerCards[0]?.preferredPosition;
+
+          if (preferredPosition && gameState.partnerCardPlays.length === preferredPosition) {
+            // Leader's preferred position player becomes partner
+            gameState.partnerId = socketId;
+            gameState.partnerAssignedAt = Date.now();
+
+            logger.info(`PARTNER ASSIGNED (Preferred Position ${preferredPosition}): ${player.name} (${socketId.substring(0, 8)}...) is now the partner!`);
+
+            gameState.teamsAssigned = true;
+          } else if (gameState.partnerCardPlays.length === 1 && !preferredPosition) {
+            // First player to play partner card becomes partner (no preference)
+            gameState.partnerId = socketId;
+            gameState.partnerAssignedAt = Date.now();
+
+            logger.info(`PARTNER ASSIGNED: ${player.name} (${socketId.substring(0, 8)}...) is now the partner!`);
+          } else if (gameState.partnerCardPlays.length === 2 && !preferredPosition) {
+            // Second player to play partner card becomes opponent
+            logger.info(`SECOND PARTNER CARD PLAYED: ${player.name} (${socketId.substring(0, 8)}...) is now an opponent!`);
+            gameState.teamsAssigned = true;
+          } else if (gameState.partnerCardPlays.length === 2 && preferredPosition) {
+            // Second player played (not the preferred position) - becomes opponent
+            logger.info(`SECOND PARTNER CARD PLAYED: ${player.name} (${socketId.substring(0, 8)}...) is now an opponent!`);
+            gameState.teamsAssigned = true;
+          }
+        }
+      }
+
+      // Validate follow suit rule
+      if (gameState.currentTrick.ledSuit) {
+        const hasLedSuit = hand.some(c => c.suit === gameState.currentTrick.ledSuit);
+
+        if (hasLedSuit && playedCard.suit !== gameState.currentTrick.ledSuit) {
+          return {
+            success: false,
+            error: 'MUST_FOLLOW_SUIT',
+            message: `You must follow suit (${gameState.currentTrick.ledSuit}) if you have it`
+          };
+        }
+      }
+
+      // Remove card from hand and add to trick
+      hand.splice(cardIndex, 1);
+      gameState.currentTrick.cards.push({
+        playerId: socketId,
+        card: playedCard
+      });
+
+      // Set led suit if this is the first card
+      if (gameState.currentTrick.cards.length === 1) {
+        gameState.currentTrick.ledSuit = playedCard.suit;
+      }
+
+      // Update player's card count
+      if (player) {
+        player.cardsInHand = hand.length;
+      }
+
+      logger.info(`Player ${socketId.substring(0, 8)}... played ${playedCard.rank} of ${playedCard.suit}`);
+
+      const result = {
+        success: true,
+        card: playedCard,
+        cardsRemaining: hand.length,
+        partnerCardPlayed: isPartnerCard
+      };
+
+      // Check if trick is complete
+      if (gameState.currentTrick.cards.length === gameState.players.length) {
+        const trickWinner = this.determineTrickWinner(gameState.currentTrick, gameState.trump);
+        const trickPoints = this.calculateTrickPoints(gameState.currentTrick.cards);
+
+        // Award individual points to trick winner during gameplay
+        const winnerPlayer = gameState.players.find(p => p.socketId === trickWinner);
+        if (winnerPlayer) {
+          winnerPlayer.score += trickPoints;
+          logger.info(`Awarded ${trickPoints} points to ${winnerPlayer.name} (${trickWinner.substring(0, 8)}...) - Individual score: ${winnerPlayer.score}`);
+        }
+
+        result.trickComplete = true;
+        result.trickWinner = trickWinner;
+        result.trickPoints = trickPoints;
+        result.trickCards = [...gameState.currentTrick.cards];
+
+        // Clear current trick
+        gameState.currentTrick = {
+          cards: [],
+          ledSuit: null,
+          currentPlayerIndex: gameState.players.findIndex(p => p.socketId === trickWinner)
+        };
+
+        // Check if game is over (all cards played)
+        const anyCardsRemaining = Object.values(gameState.hands).some(h => h.length > 0);
+        if (!anyCardsRemaining) {
+          result.gameOver = true;
+
+          logger.info(`All cards played. Calculating final scores...`);
+
+          // Calculate final team scores
+          const finalScores = this.calculateFinalScores(roomId);
+
+          if (!finalScores) {
+            logger.error(`Failed to calculate final scores for room ${roomId}`);
+            return {
+              success: false,
+              error: 'SCORE_CALCULATION_FAILED',
+              message: 'Failed to calculate final scores'
+            };
+          }
+
+          result.finalScores = finalScores;
+          result.madeBid = finalScores.madeBid;
+          result.bidderTeamPoints = finalScores.bidderTeamPoints;
+          result.opponentTeamPoints = finalScores.opponentTeamPoints;
+
+          // Determine game winner
+          let gameWinner = null;
+          const bidderScore = finalScores.playerScores[finalScores.bidder];
+          const partnerScore = finalScores.playerScores[finalScores.partner];
+
+          // Bidder's team wins if they have positive combined score
+          if (bidderScore + partnerScore > 0) {
+            gameWinner = finalScores.bidder;
+          } else {
+            // Opponent with highest score wins
+            let maxOpponentScore = -Infinity;
+            // Calculate opponent team from players who are not bidder or partner
+            const opponentTeam = gameState.players
+              .filter(p => p.socketId !== finalScores.bidder && p.socketId !== finalScores.partner)
+              .map(p => p.socketId);
+            opponentTeam.forEach(socketId => {
+              if (finalScores.playerScores[socketId] > maxOpponentScore) {
+                maxOpponentScore = finalScores.playerScores[socketId];
+                gameWinner = socketId;
+              }
+            });
+          }
+
+          result.gameWinner = gameWinner;
+          gameState.phase = 'completed';
+
+          logger.info(`GAME OVER! Winner: ${gameWinner.substring(0, 8)}...`);
+        }
+      } else {
+        // Move to next player
+        gameState.currentTrick.currentPlayerIndex =
+          (gameState.currentTrick.currentPlayerIndex + 1) % gameState.players.length;
+      }
+
+      return result;
+    } catch (error) {
+      logger.error(`Error in playCard: ${error.message}`, error);
+      return {
+        success: false,
+        error: 'INTERNAL_ERROR',
+        message: `Server error: ${error.message}`
+      };
+    }
+  }
+
+  /**
+   * Determine the winner of a trick
+   */
+  determineTrickWinner(trick, trump) {
+    const winningCard = trick.cards.reduce((winner, played, index) => {
+      const card = played.card;
+
+      // If no winner yet, this card wins
+      if (!winner) {
+        logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${card.suit} - First card, becomes winner`);
+        return played;
+      }
+
+      // Trump beats non-trump
+      if (card.suit === trump && winner.card.suit !== trump) {
+        logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${card.suit} (TRUMP) beats ${winner.card.rank} of ${winner.card.suit}`);
+        return played;
+      }
+
+      // If both are trump, higher rank wins
+      if (card.suit === trump && winner.card.suit === trump) {
+        const rankComparison = this.compareRanks(card.rank, winner.card.rank);
+        if (rankComparison > 0) {
+          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${card.suit} (TRUMP) beats ${winner.card.rank} of ${winner.card.suit}`);
+          return played;
+        } else if (rankComparison === 0) {
+          // SAME CARD TIEBREAKER: Second card played wins
+          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${card.suit} (TRUMP) TIES with ${winner.card.rank} of ${winner.card.suit} - Second card wins`);
+          return played; // New card wins (second card played)
+        }
+      }
+
+      // If neither is trump
+      if (card.suit === trick.ledSuit && winner.card.suit !== trick.ledSuit) {
+        logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${card.suit} (LED SUIT) beats ${winner.card.rank} of ${winner.card.suit} (off-suit)`);
+        return played;
+      }
+
+      // If both are led suit, higher rank wins
+      if (card.suit === trick.ledSuit && winner.card.suit === trick.ledSuit) {
+        const rankComparison = this.compareRanks(card.rank, winner.card.rank);
+        if (rankComparison > 0) {
+          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${card.suit} (LED SUIT) beats ${winner.card.rank} of ${winner.card.suit}`);
+          return played;
+        } else if (rankComparison === 0) {
+          // SAME CARD TIEBREAKER: Second card played wins
+          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${card.suit} (LED SUIT) TIES with ${winner.card.rank} of ${winner.card.suit} - Second card wins`);
+          return played; // New card wins (second card played)
+        }
+      }
+
+      // Otherwise, current winner still wins
+      logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${card.suit} loses to current winner ${winner.card.rank} of ${winner.card.suit}`);
+      return winner;
+    }, null);
+
+    return winningCard.playerId;
+  }
+
+  /**
+   * Compare two ranks and return which is higher
+   */
+  compareRanks(rank1, rank2) {
+    const rankOrder = {
+      'A': 14, 'K': 13, 'Q': 12, 'J': 11,
+      '10': 10, '9': 9, '8': 8, '7': 7,
+      '6': 6, '5': 5, '4': 4, '3': 3, '2': 2
+    };
+    return rankOrder[rank1] - rankOrder[rank2];
+  }
+
+  /**
+   * Calculate points in a trick
+   */
+  calculateTrickPoints(playedCards) {
+    return playedCards.reduce((sum, played) => sum + played.card.points, 0);
+  }
+
+  /**
+   * Award trick points to winner's team
+   */
+  awardTrickPoints(roomId, winnerSocketId, points) {
     const gameState = this.activeGames.get(roomId);
+    if (!gameState) return;
 
-    if (!gameState) {
-      return {
-        success: false,
-        error: 'GAME_NOT_FOUND',
-        message: 'Game does not exist'
-      };
+    const winner = gameState.players.find(p => p.socketId === winnerSocketId);
+    if (!winner) return;
+
+    // Award points to winner
+    winner.score += points;
+
+    logger.info(`Awarded ${points} points to ${winner.name} (${winnerSocketId.substring(0, 8)}...)`);
+  }
+
+  /**
+   * Determine the game winner based on scores
+   */
+  determineGameWinner(roomId) {
+    const gameState = this.activeGames.get(roomId);
+    if (!gameState) return null;
+
+    // Find team with highest score
+    let highestScore = -1;
+    let winner = null;
+
+    gameState.players.forEach(player => {
+      if (player.score > highestScore) {
+        highestScore = player.score;
+        winner = player.socketId;
+      }
+    });
+
+    return winner;
+  }
+
+  /**
+   * Calculate final team scores based on bidding results
+   */
+  calculateFinalScores(roomId) {
+    const gameState = this.activeGames.get(roomId);
+    if (!gameState) return null;
+
+    // Calculate total points collected by each player
+    const playerPoints = {};
+    gameState.players.forEach(player => {
+      playerPoints[player.socketId] = player.score;
+    });
+
+    // Determine teams
+    const bidderTeam = [gameState.bidWinner];
+    if (gameState.partnerId) {
+      bidderTeam.push(gameState.partnerId);
     }
 
-    if (gameState.phase !== 'playing') {
-      return {
-        success: false,
-        error: 'NOT_PLAYING_PHASE',
-        message: 'Cannot play card - game not in playing phase'
-      };
-    }
+    const opponentTeam = gameState.players
+      .filter(p => p.socketId !== gameState.bidWinner && p.socketId !== gameState.partnerId)
+      .map(p => p.socketId);
 
-    const hand = gameState.hands[socketId];
+    // Calculate team totals
+    const bidderTeamPoints = bidderTeam.reduce((sum, socketId) => sum + (playerPoints[socketId] || 0), 0);
+    const opponentTeamPoints = opponentTeam.reduce((sum, socketId) => sum + (playerPoints[socketId] || 0), 0);
 
-    if (!hand) {
-      return {
-        success: false,
-        error: 'PLAYER_NOT_IN_GAME',
-        message: 'Player not in this game'
-      };
-    }
+    logger.info(`Team Points - Bidder Team: ${bidderTeamPoints}, Opponent Team: ${opponentTeamPoints}, Winning Bid: ${gameState.winningBid}`);
 
-    // Find card in hand
-    const cardIndex = hand.findIndex(c => c.id === cardId);
+    // Calculate scores based on whether bid was made
+    const madeBid = bidderTeamPoints >= gameState.winningBid;
 
-    if (cardIndex === -1) {
-      return {
-        success: false,
-        error: 'CARD_NOT_IN_HAND',
-        message: 'Card not found in player\'s hand'
-      };
-    }
+    const finalScores = {};
+    gameState.players.forEach(player => {
+      if (player.socketId === gameState.bidWinner) {
+        // Bidder
+        if (madeBid) {
+          finalScores[player.socketId] = gameState.winningBid * 2;
+          logger.info(`${player.name} (Bidder) MADE BID ${gameState.winningBid}: Score = ${gameState.winningBid * 2}`);
+        } else {
+          finalScores[player.socketId] = -gameState.winningBid * 2;
+          logger.info(`${player.name} (Bidder) FAILED BID ${gameState.winningBid}: Score = -${gameState.winningBid * 2}`);
+        }
+      } else if (player.socketId === gameState.partnerId) {
+        // Partner
+        if (madeBid) {
+          finalScores[player.socketId] = gameState.winningBid;
+          logger.info(`${player.name} (Partner) MADE BID ${gameState.winningBid}: Score = ${gameState.winningBid}`);
+        } else {
+          finalScores[player.socketId] = 0;
+          logger.info(`${player.name} (Partner) FAILED BID ${gameState.winningBid}: Score = 0`);
+        }
+      } else {
+        // Opponents
+        if (!madeBid) {
+          finalScores[player.socketId] = gameState.winningBid;
+          logger.info(`${player.name} (Opponent) Bidder FAILED: Score = ${gameState.winningBid}`);
+        } else {
+          finalScores[player.socketId] = 0;
+          logger.info(`${player.name} (Opponent) Bidder MADE BID: Score = 0`);
+        }
+      }
+    });
 
-    const playedCard = hand.splice(cardIndex, 1)[0];
-
-    // Update player's card count
-    const player = gameState.players.find(p => p.socketId === socketId);
-    if (player) {
-      player.cardsInHand = hand.length;
-    }
-
-    logger.info(`Player ${socketId} played card: ${deckService.getCardSummary(playedCard)}`);
+    // Update player scores with calculated values
+    gameState.players.forEach(player => {
+      player.score = finalScores[player.socketId];
+    });
 
     return {
-      success: true,
-      card: playedCard,
-      cardsRemaining: hand.length
+      playerScores: finalScores,
+      bidderTeamPoints,
+      opponentTeamPoints,
+      winningBid: gameState.winningBid,
+      madeBid,
+      bidder: gameState.bidWinner,
+      partner: gameState.partnerId
     };
+  }
+
+  /**
+   * Get final scores for all players
+   */
+  getFinalScores(roomId) {
+    const gameState = this.activeGames.get(roomId);
+    if (!gameState) return null;
+
+    // Calculate final team scores
+    const finalScores = this.calculateFinalScores(roomId);
+
+    return gameState.players.map(p => ({
+      socketId: p.socketId,
+      name: p.name,
+      score: finalScores.playerScores[p.socketId],
+      isPartner: p.socketId === gameState.partnerId,
+      isBidder: p.socketId === finalScores.bidder,
+      team: p.socketId === finalScores.bidder || p.socketId === finalScores.partner ? 'bidder' : 'opponent'
+    }));
   }
 
   /**

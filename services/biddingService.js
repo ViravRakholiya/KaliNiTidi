@@ -330,9 +330,9 @@ class BiddingService {
 
   /**
    * Select partner card (only leader can do this)
-   * Supports multiple partner cards based on player count
+   * Supports position preference for leaders without the card
    */
-  selectPartnerCard(roomId, socketId, rank, suit) {
+  selectPartnerCard(roomId, socketId, rank, suit, preferredPosition = null) {
     const bidding = this.activeBiddings.get(roomId);
     if (!bidding) {
       return { success: false, error: 'BIDDING_NOT_FOUND', message: 'Bidding not found' };
@@ -388,20 +388,32 @@ class BiddingService {
       };
     }
 
-    // Add to partner cards array
-    bidding.partnerCards.push({ rank, suit });
+    // Validate preferred position (only if provided)
+    if (preferredPosition !== null) {
+      if (preferredPosition !== 1 && preferredPosition !== 2) {
+        return {
+          success: false,
+          error: 'INVALID_POSITION',
+          message: 'Preferred position must be 1 or 2'
+        };
+      }
+    }
 
-    logger.info(`Partner card ${bidding.partnerCards.length}/${bidding.numberOfPartners} selected in room ${roomId}: ${rank} of ${suit}`);
+    // Add to partner cards array with position preference
+    bidding.partnerCards.push({
+      rank,
+      suit,
+      preferredPosition: preferredPosition
+    });
 
-    const result = {
+    logger.info(`Partner card ${bidding.partnerCards.length}/${bidding.numberOfPartners} selected in room ${roomId}: ${rank} of ${suit} (Preferred position: ${preferredPosition || 'not specified'})`);
+
+    return {
       success: true,
       partnerCard: { rank, suit },
       selectedCount: bidding.partnerCards.length,
-      requiredCount: bidding.numberOfPartners,
-      allPartnersSelected: bidding.partnerCards.length >= bidding.numberOfPartners
+      requiredCount: bidding.numberOfPartners
     };
-
-    return result;
   }
 
   /**

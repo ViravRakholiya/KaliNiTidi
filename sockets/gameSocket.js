@@ -4,6 +4,15 @@ import { gameService } from '../services/gameService.js';
 import { deckService } from '../engine/deckService.js';
 import { biddingService } from '../services/biddingService.js';
 
+// Helper function to get player name
+function getPlayerName(roomId, socketId) {
+  const room = roomService.getRoom(roomId);
+  if (!room) return 'Unknown';
+
+  const player = room.players.find(p => p.socketId === socketId);
+  return player ? player.name : 'Unknown';
+}
+
 export const handleGameSocket = (io, socket) => {
   socket.on('CREATE_ROOM', (data, callback) => {
     const { name, maxPlayers } = data;
@@ -171,9 +180,14 @@ export const handleGameSocket = (io, socket) => {
   });
 
   socket.on('START_GAME', (data, callback) => {
+    logger.info(`[DEBUG] START_GAME event received from socket ${socket.id}`);
+    logger.info(`[DEBUG] Data received:`, JSON.stringify(data));
+
     const roomId = data?.roomId || roomService.findRoomBySocketId(socket.id);
+    logger.info(`[DEBUG] Resolved roomId: ${roomId}`);
 
     if (!roomId) {
+      logger.error(`[DEBUG] No roomId found for socket ${socket.id}`);
       const error = { success: false, error: 'NOT_IN_ROOM', message: 'Not in any room' };
       if (typeof callback === 'function') callback(error);
       socket.emit('ROOM_ERROR', error);
@@ -181,7 +195,10 @@ export const handleGameSocket = (io, socket) => {
     }
 
     const room = roomService.getRoom(roomId);
+    logger.info(`[DEBUG] Room found: ${room ? 'YES' : 'NO'}, hostId: ${room?.hostId}, requesting socket: ${socket.id}`);
+
     if (!room) {
+      logger.error(`[DEBUG] Room ${roomId} not found`);
       const error = { success: false, error: 'ROOM_NOT_FOUND', message: 'Room does not exist' };
       if (typeof callback === 'function') callback(error);
       socket.emit('ROOM_ERROR', error);
@@ -192,8 +209,8 @@ export const handleGameSocket = (io, socket) => {
     const numberOfPlayers = room.players.length; // Use actual room player count
 
     // Validate cardsPerPlayer
-    if (cardsPerPlayer !== undefined && (typeof cardsPerPlayer !== 'number' || cardsPerPlayer < 11 || cardsPerPlayer > 52)) {
-      const error = { success: false, error: 'INVALID_CARDS_PER_PLAYER', message: 'Cards per player must be between 11 and 52' };
+    if (cardsPerPlayer !== undefined && (typeof cardsPerPlayer !== 'number' || cardsPerPlayer < 13 || cardsPerPlayer > 52)) {
+      const error = { success: false, error: 'INVALID_CARDS_PER_PLAYER', message: 'Cards per player must be between 13 and 52' };
       if (typeof callback === 'function') callback(error);
       socket.emit('ROOM_ERROR', error);
       return;
@@ -218,71 +235,134 @@ export const handleGameSocket = (io, socket) => {
     // Start the game with card distribution
     logger.info(`Starting game in room ${roomId}: cardsPerPlayer=${cardsPerPlayer}, numberOfPlayers=${numberOfPlayers}, numberOfSets=${numberOfSets}`);
 
-    const result = gameService.startGame(roomId, socket.id, {
-      cardsPerPlayer,
-      numberOfPlayers,
-      numberOfSets
-    });
+    try {
+      const result = gameService.startGame(roomId, socket.id, {
+        cardsPerPlayer,
+        numberOfPlayers,
+        numberOfSets
+      });
 
-    if (result.success) {
-      logger.info(`Game started successfully, preparing to emit events...`);
+      logger.info(`[DEBUG] gameService.startGame returned:`, JSON.stringify(result));
 
-      const gameState = result.gameState;
+      if (result.success) {
+        logger.info(`Game started successfully, preparing to emit events...`);
 
-      // Send each player their private hand
-      gameState.players.forEach(player => {
-        const playerSocket = io.of('/').sockets.get(player.socketId);
-        if (playerSocket) {
-          const playerHand = gameService.getPlayerHand(roomId, player.socketId);
-          if (playerHand.success) {
-            playerSocket.emit('PLAYER_HAND', {
-              cards: playerHand.cards,
+        const gameState = result.gameState;
+
+        // Log game state for debugging
+        logger.info(`[DEBUG] Game state: players=${gameState.players.length}, phase=${gameState.phase}`);
+
+        // Send each player their private hand
+        gameState.players.forEach(player => {
+          const playerSocket = io.of('/').sockets.get(player.socketId);
+          if (playerSocket) {
+            const playerHand = gameService.getPlayerHand(roomId, player.socketId);
+            if (playerHand.success) {
+              playerSocket.emit('PLAYER_HAND', {
+                cards: playerHand.cards,
+                cardsPerPlayer: result.cardsPerPlayer,
+                totalCards: result.totalCards
+              });
+              logger.info(`Sent ${playerHand.cards.length} cards to player ${player.name} (${player.socketId.substring(0, 8)}...)`);
+            }
+          } else {
+            logger.warn(`Could not find socket for player ${player.name} (${player.socketId.substring(0, 8)}...)`);
+          }
+        });
+
+        // Broadcast game started to room (without card data)
+        io.to(roomId).emit('GAME_STARTED', {
+          roomId,
+          players: gameState.players.map(p => ({
+            socketId: p.socketId,
+            name: p.name,
+            isHost: p.isHost,
+            cardsInHand: p.cardsInHand
+          })),
+          cardsPerPlayer: result.cardsPerPlayer,
+          totalCards: result.totalCards
+        });
+
+        logger.info(`[DEBUG] Emitted GAME_STARTED to room ${roomId}`);
+
+        // Emit BIDDING_STARTED to room
+        const biddingStartedData = {
+          minBid: result.bidding.minimumBid,
+          totalPoints: result.bidding.totalPoints,
+          currentTurn: result.bidding.playersOrder[result.bidding.currentTurnIndex]
+        };
+
+        logger.info(`Emitting BIDDING_STARTED to room ${roomId}: minBid=${biddingStartedData.minBid}, currentTurn=${biddingStartedData.currentTurn.substring(0, 8)}...`);
+
+        io.to(roomId).emit('BIDDING_STARTED', biddingStartedData);
+        logger.info(`[DEBUG] Emitted BIDDING_STARTED to room ${roomId}`);
+
+        // FALLBACK: Also emit directly to each socket to ensure they receive the events
+        logger.info(`[DEBUG] FALLBACK: Emitting directly to each socket in room`);
+        const allSockets = io.of('/').sockets;
+        for (const [socketId, individualSocket] of allSockets) {
+          if (gameState.players.find(p => p.socketId === socketId)) {
+            logger.info(`[DEBUG] FALLBACK: Emitting GAME_STARTED and BIDDING_STARTED to socket ${socketId.substring(0, 8)}...`);
+            individualSocket.emit('GAME_STARTED', {
+              roomId,
+              players: gameState.players.map(p => ({
+                socketId: p.socketId,
+                name: p.name,
+                isHost: p.isHost,
+                cardsInHand: p.cardsInHand
+              })),
               cardsPerPlayer: result.cardsPerPlayer,
               totalCards: result.totalCards
             });
-            logger.info(`Sent ${playerHand.cards.length} cards to player ${player.name} (${player.socketId.substring(0, 8)}...)`);
+            individualSocket.emit('BIDDING_STARTED', biddingStartedData);
           }
-        } else {
-          logger.warn(`Could not find socket for player ${player.name} (${player.socketId.substring(0, 8)}...)`);
         }
-      });
 
-      // Broadcast game started to room (without card data)
-      io.to(roomId).emit('GAME_STARTED', {
-        roomId,
-        players: gameState.players.map(p => ({
-          socketId: p.socketId,
-          name: p.name,
-          isHost: p.isHost,
-          cardsInHand: p.cardsInHand
-        })),
-        cardsPerPlayer: result.cardsPerPlayer,
-        totalCards: result.totalCards
-      });
+        if (typeof callback === 'function') callback({
+          success: true,
+          players: gameState.players,
+          cardsPerPlayer: result.cardsPerPlayer,
+          totalCards: result.totalCards,
+          bidding: result.bidding
+        });
 
-      // Emit BIDDING_STARTED to room
-      const biddingStartedData = {
-        minBid: result.bidding.minimumBid,
-        totalPoints: result.bidding.totalPoints,
-        currentTurn: result.bidding.playersOrder[result.bidding.currentTurnIndex]
+        // Also emit response as event for all clients
+        io.to(roomId).emit('START_GAME_RESPONSE', {
+          success: true,
+          players: gameState.players,
+          cardsPerPlayer: result.cardsPerPlayer,
+          totalCards: result.totalCards,
+          bidding: result.bidding
+        });
+
+        // FALLBACK: Also emit START_GAME_RESPONSE directly to each socket
+        for (const [socketId, individualSocket] of allSockets) {
+          if (gameState.players.find(p => p.socketId === socketId)) {
+            individualSocket.emit('START_GAME_RESPONSE', {
+              success: true,
+              players: gameState.players,
+              cardsPerPlayer: result.cardsPerPlayer,
+              totalCards: result.totalCards,
+              bidding: result.bidding
+            });
+          }
+        }
+
+        logger.info(`Game started in room ${roomId}: ${gameState.players.length} players, ${result.cardsPerPlayer} cards each, phase: bidding`);
+      } else {
+        if (typeof callback === 'function') callback(result);
+        socket.emit('ROOM_ERROR', result);
+      }
+    } catch (error) {
+      logger.error(`[ERROR] Exception in START_GAME: ${error.message}`);
+      logger.error(`[ERROR] Stack: ${error.stack}`);
+      const errorResult = {
+        success: false,
+        error: 'INTERNAL_ERROR',
+        message: `Server error: ${error.message}`
       };
-
-      logger.info(`Emitting BIDDING_STARTED to room ${roomId}: minBid=${biddingStartedData.minBid}, currentTurn=${biddingStartedData.currentTurn.substring(0, 8)}...`);
-
-      io.to(roomId).emit('BIDDING_STARTED', biddingStartedData);
-
-      if (typeof callback === 'function') callback({
-        success: true,
-        players: gameState.players,
-        cardsPerPlayer: result.cardsPerPlayer,
-        totalCards: result.totalCards,
-        bidding: result.bidding
-      });
-
-      logger.info(`Game started in room ${roomId}: ${gameState.players.length} players, ${result.cardsPerPlayer} cards each, phase: bidding`);
-    } else {
-      if (typeof callback === 'function') callback(result);
-      socket.emit('ROOM_ERROR', result);
+      if (typeof callback === 'function') callback(errorResult);
+      socket.emit('ROOM_ERROR', errorResult);
     }
   });
 
@@ -406,9 +486,141 @@ export const handleGameSocket = (io, socket) => {
     }
   });
 
+  // ============================================
+  // GAMEPLAY EVENTS
+  // ============================================
+
+  socket.on('PLAY_CARD', (data, callback) => {
+    const roomId = data?.roomId || roomService.findRoomBySocketId(socket.id);
+    const { cardId } = data;
+
+    if (!roomId) {
+      const error = { success: false, error: 'NOT_IN_ROOM', message: 'Not in any room' };
+      if (typeof callback === 'function') callback(error);
+      socket.emit('ROOM_ERROR', error);
+      return;
+    }
+
+    if (!cardId) {
+      const error = { success: false, error: 'INVALID_CARD', message: 'Card ID is required' };
+      if (typeof callback === 'function') callback(error);
+      socket.emit('ROOM_ERROR', error);
+      return;
+    }
+
+    const result = gameService.playCard(roomId, socket.id, cardId);
+
+    if (result.success) {
+      // Get next player for turn indication
+      const gameState = gameService.activeGames.get(roomId);
+      const nextPlayerId = gameState?.currentTrick?.currentPlayerIndex !== undefined
+        ? gameState.players[gameState.currentTrick.currentPlayerIndex]?.socketId
+        : null;
+
+      // Broadcast card played to room
+      io.to(roomId).emit('CARD_PLAYED', {
+        roomId,
+        playerId: socket.id,
+        playerName: getPlayerName(roomId, socket.id),
+        card: result.card,
+        cardsRemaining: result.cardsRemaining,
+        nextPlayerId: nextPlayerId,
+        trickComplete: result.trickComplete,
+        partnerCardPlayed: result.partnerCardPlayed,
+        partnerAssigned: result.partnerAssigned,
+        partnerId: result.partnerId,
+        partnerName: result.partnerName,
+        secondPartnerCardPlayed: result.secondPartnerCardPlayed,
+        opponentId: result.opponentId,
+        opponentName: result.opponentName
+      });
+
+      // Check if trick is complete
+      if (result.trickComplete) {
+        // Get updated scores
+        const gameState = gameService.activeGames.get(roomId);
+        const currentScores = gameState.players.map(p => ({
+          socketId: p.socketId,
+          name: p.name,
+          score: p.score
+        }));
+
+        io.to(roomId).emit('TRICK_COMPLETE', {
+          roomId,
+          winner: result.trickWinner,
+          winnerName: getPlayerName(roomId, result.trickWinner),
+          points: result.trickPoints,
+          cards: result.trickCards,
+          currentScores: currentScores,
+          nextPlayerId: result.trickWinner
+        });
+
+        logger.info(`Trick complete in room ${roomId}. Winner: ${result.trickWinner.substring(0, 8)}..., Points: ${result.trickPoints}`);
+      }
+
+      // Check if game is over
+      if (result.gameOver) {
+        const finalScores = gameService.getFinalScores(roomId);
+        io.to(roomId).emit('GAME_OVER', {
+          roomId,
+          scores: finalScores,
+          winner: result.gameWinner
+        });
+
+        logger.info(`Game over in room ${roomId}. Winner: ${result.gameWinner}`);
+      }
+
+      if (typeof callback === 'function') callback(result);
+
+      logger.info(`Player ${socket.id.substring(0, 8)}... played card in room ${roomId}`);
+    } else {
+      if (typeof callback === 'function') callback(result);
+      socket.emit('ROOM_ERROR', result);
+    }
+  });
+
+  // ============================================
+  // PARTNER SELECTION EVENTS
+  // ============================================
+
+  socket.on('START_GAMEPLAY', (data, callback) => {
+    const roomId = data?.roomId || roomService.findRoomBySocketId(socket.id);
+
+    if (!roomId) {
+      const error = { success: false, error: 'NOT_IN_ROOM', message: 'Not in any room' };
+      if (typeof callback === 'function') callback(error);
+      socket.emit('ROOM_ERROR', error);
+      return;
+    }
+
+    const result = gameService.startGameplay(roomId, socket.id);
+
+    if (result.success) {
+      // Broadcast game started to room
+      io.to(roomId).emit('GAMEPLAY_STARTED', {
+        roomId,
+        players: result.gameState.players.map(p => ({
+          socketId: p.socketId,
+          name: p.name,
+          isHost: p.isHost
+        })),
+        trump: result.trump,
+        partnerCard: result.partnerCard,
+        leader: result.leader
+      });
+
+      if (typeof callback === 'function') callback(result);
+
+      logger.info(`Gameplay started in room ${roomId}`);
+    } else {
+      if (typeof callback === 'function') callback(result);
+      socket.emit('ROOM_ERROR', result);
+    }
+  });
+
   socket.on('SELECT_PARTNER_CARD', (data, callback) => {
     const roomId = data?.roomId || roomService.findRoomBySocketId(socket.id);
-    const { rank, suit } = data;
+    const { rank, suit, preferredPosition } = data;
 
     if (!roomId) {
       const error = { success: false, error: 'NOT_IN_ROOM', message: 'Not in any room' };
@@ -424,52 +636,18 @@ export const handleGameSocket = (io, socket) => {
       return;
     }
 
-    const result = gameService.selectPartnerCard(roomId, socket.id, rank, suit);
+    const result = biddingService.selectPartnerCard(roomId, socket.id, rank, suit, preferredPosition);
 
     if (result.success) {
-      // If selection is complete and game moves to playing
-      if (result.phase === 'playing') {
-        io.to(roomId).emit('SELECTION_DONE', {
-          roomId,
-          leader: result.leader,
-          trump: result.trump,
-          partnerCards: result.partnerCards,
-          numberOfPartners: result.numberOfPartners,
-          winningBid: result.winningBid,
-          phase: 'playing'
-        });
+      // Just emit that partner card was selected - leader will start game manually
+      io.to(roomId).emit('PARTNER_CARD_SELECTED', {
+        roomId,
+        partnerCard: result.partnerCard,
+        selectedBy: socket.id,
+        preferredPosition: preferredPosition
+      });
 
-        // Notify all partners privately
-        if (result.partnerIds && result.partnerIds.length > 0) {
-          result.partnerIds.forEach((partnerId, index) => {
-            const partnerSocket = io.of('/').sockets.get(partnerId);
-            if (partnerSocket) {
-              partnerSocket.emit('YOU_ARE_PARTNER', {
-                roomId,
-                leader: result.leader,
-                partnerCards: result.partnerCards,
-                yourPartnerIndex: index
-              });
-              logger.info(`Partner ${index + 1} notified in room ${roomId}: ${partnerId.substring(0, 8)}...`);
-            } else {
-              logger.warn(`Could not find socket for partner ${partnerId.substring(0, 8)}...`);
-            }
-          });
-        }
-
-        logger.info(`Selection complete in room ${roomId}. Moving to playing phase. Partners: ${result.partnerIds?.length || 0}`);
-      } else {
-        // Just partner card selected, more may be needed
-        io.to(roomId).emit('PARTNER_CARD_SELECTED', {
-          roomId,
-          partnerCard: result.partnerCard,
-          selectedCount: result.selectedCount,
-          requiredCount: result.requiredCount,
-          selectedBy: socket.id
-        });
-
-        logger.info(`Partner card ${result.selectedCount}/${result.requiredCount} selected in room ${roomId}: ${rank} of ${suit}`);
-      }
+      logger.info(`Partner card selected in room ${roomId}: ${rank} of ${suit} by ${socket.id.substring(0, 8)}...` + (preferredPosition ? ` (Preferred position: ${preferredPosition})` : ''));
 
       if (typeof callback === 'function') callback(result);
     } else {
