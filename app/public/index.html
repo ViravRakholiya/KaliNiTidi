@@ -1086,8 +1086,15 @@
         // Show leader controls (trump, partner, start button)
         document.getElementById('leaderControls').classList.remove('hidden');
         document.getElementById('trumpSelect').disabled = false;
+        document.getElementById('partnerRank').disabled = false;
+        document.getElementById('partnerSuit').disabled = false;
         document.getElementById('startGameAfterSelection').classList.remove('hidden');
         document.getElementById('waitingForLeader').classList.add('hidden');
+
+        // Reset form values
+        document.getElementById('trumpSelect').value = '';
+        document.getElementById('partnerPositionGroup').classList.add('hidden');
+
         log(`You are the leader! Select trump and partner card to start the game.`, 'success');
       } else {
         isLeader = false;
@@ -1225,51 +1232,69 @@
         }
 
         updatePhase('playing');
-        document.getElementById('biddingPanel').classList.add('hidden');
-        document.getElementById('selectionPanel').classList.add('hidden');
-        document.getElementById('gamePanel').classList.remove('hidden');
+
+        const biddingPanel = document.getElementById('biddingPanel');
+        const selectionPanel = document.getElementById('selectionPanel');
+        const gamePanel = document.getElementById('gamePanel');
+
+        if (biddingPanel) biddingPanel.classList.add('hidden');
+        if (selectionPanel) selectionPanel.classList.add('hidden');
+        if (gamePanel) gamePanel.classList.remove('hidden');
 
         console.log('[DEBUG] Game panel should now be visible');
 
         const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
         const suitColors = { spades: '#ffd700', hearts: '#ff6b6b', diamonds: '#ff6b6b', clubs: '#00d9ff' };
 
-        // Update Trump Display
-        document.getElementById('trumpSuitIcon').textContent = suitSymbols[data.trump] || '?';
-        document.getElementById('gameTrumpDisplay').textContent = `${data.trump.charAt(0).toUpperCase() + data.trump.slice(1)}`;
-        document.getElementById('gameTrumpDisplay').style.color = suitColors[data.trump] || '#ffd700';
-
-        // Update Partner Card Display
-        if (data.partnerCard) {
-          document.getElementById('partnerCardIcon').textContent = suitSymbols[data.partnerCard.suit] || '🤝';
-          document.getElementById('gamePartnerCardDisplay').textContent = `${data.partnerCard.rank} of ${data.partnerCard.suit.charAt(0).toUpperCase() + data.partnerCard.suit.slice(1)}`;
-
-          // Show position preference if available
-          const positionDisplay = document.getElementById('gamePartnerPositionDisplay');
-          console.log('[DEBUG] Partner position preference:', data.partnerCard.preferredPosition);
-
-          if (data.partnerCard.preferredPosition) {
-            const positionText = data.partnerCard.preferredPosition === 1
-              ? '1st player to play becomes Partner'
-              : '2nd player to play becomes Partner';
-            positionDisplay.textContent = positionText;
-            positionDisplay.style.color = '#ffd700';
-          } else {
-            positionDisplay.textContent = '';
-          }
-        } else {
-          document.getElementById('partnerCardIcon').textContent = '🤝';
-          document.getElementById('gamePartnerCardDisplay').textContent = 'Selecting...';
-          document.getElementById('gamePartnerPositionDisplay').textContent = '';
+        // Update Trump Display - with defensive checks
+        const trumpIcon = document.getElementById('trumpSuitIcon');
+        const trumpDisplay = document.getElementById('gameTrumpDisplay');
+        if (trumpIcon) trumpIcon.textContent = suitSymbols[data.trump] || '?';
+        if (trumpDisplay) {
+          trumpDisplay.textContent = `${data.trump.charAt(0).toUpperCase() + data.trump.slice(1)}`;
+          trumpDisplay.style.color = suitColors[data.trump] || '#ffd700';
         }
 
-        // Update Winning Bid Display
-        document.getElementById('gameBidDisplay').textContent = data.winningBid || '-';
-        document.getElementById('gameBidderDisplay').textContent = `by ${getPlayerName(data.leader)}`;
+        // Update Partner Card Display - with defensive checks
+        const partnerIcon = document.getElementById('partnerCardIcon');
+        const partnerDisplay = document.getElementById('gamePartnerCardDisplay');
+        const positionDisplay = document.getElementById('gamePartnerPositionDisplay');
+
+        if (data.partnerCard) {
+          if (partnerIcon) partnerIcon.textContent = suitSymbols[data.partnerCard.suit] || '🤝';
+          if (partnerDisplay) {
+            partnerDisplay.textContent = `${data.partnerCard.rank} of ${data.partnerCard.suit.charAt(0).toUpperCase() + data.partnerCard.suit.slice(1)}`;
+          }
+
+          // Show position preference if available
+          console.log('[DEBUG] Partner position preference:', data.partnerCard.preferredPosition);
+
+          if (positionDisplay) {
+            if (data.partnerCard.preferredPosition) {
+              const positionText = data.partnerCard.preferredPosition === 1
+                ? '1st player to play becomes Partner'
+                : '2nd player to play becomes Partner';
+              positionDisplay.textContent = positionText;
+              positionDisplay.style.color = '#ffd700';
+            } else {
+              positionDisplay.textContent = '';
+            }
+          }
+        } else {
+          if (partnerIcon) partnerIcon.textContent = '🤝';
+          if (partnerDisplay) partnerDisplay.textContent = 'Selecting...';
+          if (positionDisplay) positionDisplay.textContent = '';
+        }
+
+        // Update Winning Bid Display - with defensive checks
+        const bidDisplay = document.getElementById('gameBidDisplay');
+        const bidderDisplay = document.getElementById('gameBidderDisplay');
+        if (bidDisplay) bidDisplay.textContent = data.winningBid || '-';
+        if (bidderDisplay) bidderDisplay.textContent = `by ${getPlayerName(data.leader)}`;
 
         // Display partner card info
-        if (data.partnerCard) {
-          document.getElementById('gameTrumpDisplay').textContent = `${data.trump} ${suitSymbols[data.trump] || ''} | Partner Card: ${data.partnerCard.rank}${suitSymbols[data.partnerCard.suit]}`;
+        if (data.partnerCard && trumpDisplay) {
+          trumpDisplay.textContent = `${data.trump} ${suitSymbols[data.trump] || ''} | Partner Card: ${data.partnerCard.rank}${suitSymbols[data.partnerCard.suit]}`;
         }
 
         // Store winning bid for team score calculation
@@ -1838,6 +1863,11 @@
       currentTurnPlayerId = currentPlayerId;
       const turnBanner = document.getElementById('turnIndicator');
 
+      if (!turnBanner) {
+        console.warn('[DEBUG] turnIndicator element not found');
+        return;
+      }
+
       if (currentPlayerId === socket.id) {
         turnBanner.classList.add('your-turn');
         turnBanner.textContent = '🎯 Your Turn! Play a card';
@@ -1889,9 +1919,12 @@
 
       console.log('[DEBUG] Initializing bid information:', { totalPoints, winningBid, bidderNeeds, opponentNeeds });
 
-      // Update score targets
-      document.getElementById('bidderTarget').textContent = `Need: ${bidderNeeds} pts`;
-      document.getElementById('opponentTarget').textContent = `Need: ${opponentNeeds} pts`;
+      // Update score targets with defensive checks
+      const bidderTarget = document.getElementById('bidderTarget');
+      const opponentTarget = document.getElementById('opponentTarget');
+
+      if (bidderTarget) bidderTarget.textContent = `Need: ${bidderNeeds} pts`;
+      if (opponentTarget) opponentTarget.textContent = `Need: ${opponentNeeds} pts`;
     }
 
     function updateIndividualScores(playerScores) {
@@ -2044,14 +2077,30 @@
         if (response && response.success) {
           log('Next round started!', 'success');
 
-          // Reset UI for new round
-          document.getElementById('gamePanel').innerHTML = `
-            <h3>🎮 Game In Progress</h3>
-            <p>Starting next round...</p>
-          `;
+          // Reset UI for new round - show bidding panel, hide game panel
+          document.getElementById('gamePanel').classList.add('hidden');
+          document.getElementById('biddingPanel').classList.remove('hidden');
+          document.getElementById('selectionPanel').classList.add('hidden');
+
+          // Reset selection panel for new round
+          resetSelectionPanel();
 
           // Reset individual scores display
           updateIndividualScores([]);
+
+          // Reset partner assignment for new round
+          isPartner = false;
+          currentPartnerId = null;
+          document.getElementById('partnerMessage').classList.add('hidden');
+
+          // Clear player badges from previous round
+          document.querySelectorAll('.player-card').forEach(card => {
+            card.classList.remove('partner', 'opponent', 'leader');
+            const badges = card.querySelectorAll('.badge-partner, .badge-opponent, .badge-leader');
+            badges.forEach(badge => badge.parentElement.remove());
+          });
+
+          console.log('[DEBUG] UI reset for new round');
         } else {
           log(`Failed to start next round: ${response?.message || 'Unknown error'}`, 'error');
           // Revert round number on failure
@@ -2059,6 +2108,34 @@
           document.getElementById('currentRoundBadge').textContent = `Round ${currentRoundNumber}`;
         }
       });
+    }
+
+    /**
+     * Reset the selection panel for a new round
+     */
+    function resetSelectionPanel() {
+      // Reset trump selection
+      document.getElementById('trumpSelect').disabled = false;
+      document.getElementById('trumpSelect').value = '';
+
+      // Reset partner card selection
+      document.getElementById('partnerRank').disabled = false;
+      document.getElementById('partnerSuit').disabled = false;
+      document.getElementById('partnerPosition').disabled = false;
+
+      // Hide position group initially
+      document.getElementById('partnerPositionGroup').classList.add('hidden');
+
+      // Update card count info
+      document.getElementById('cardCountInfo').textContent = 'Select rank and suit to check your hand...';
+
+      // Reset start button
+      document.getElementById('startGameAfterSelection').classList.remove('hidden');
+
+      // Hide waiting message
+      document.getElementById('waitingForLeader').classList.add('hidden');
+
+      console.log('[DEBUG] Selection panel reset for new round');
     }
 
     function leaveRoom() {
@@ -2236,9 +2313,24 @@
       // Reset UI for new round
       document.getElementById('gamePanel').classList.add('hidden');
       document.getElementById('biddingPanel').classList.remove('hidden');
+      document.getElementById('selectionPanel').classList.add('hidden');
 
       // Reset individual scores display
       updateIndividualScores([]);
+
+      // Reset partner assignment for new round
+      isPartner = false;
+      currentPartnerId = null;
+      document.getElementById('partnerMessage').classList.add('hidden');
+
+      // Clear player badges from previous round
+      document.querySelectorAll('.player-card').forEach(card => {
+        card.classList.remove('partner', 'opponent', 'leader');
+        const badges = card.querySelectorAll('.badge-partner, .badge-opponent, .badge-leader');
+        badges.forEach(badge => badge.parentElement.remove());
+      });
+
+      console.log('[DEBUG] UI reset for new round');
     });
   </script>
 </body>
