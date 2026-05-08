@@ -693,6 +693,7 @@
     let currentBidWinner = null;
     let currentPartnerCard = null;
     let currentPartnerId = null; // Will be set when partner is found
+    let currentPhase = 'waiting'; // Track current game phase
 
     function log(message, type = 'info') {
       const logDiv = document.getElementById('eventLog');
@@ -704,6 +705,7 @@
     }
 
     function updatePhase(phase) {
+      currentPhase = phase; // Track current phase
       const banner = document.getElementById('phaseBanner');
       banner.className = 'phase-banner ' + phase;
 
