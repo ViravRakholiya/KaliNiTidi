@@ -1417,11 +1417,33 @@
       renderMyCards(false);
     }
 
+    // Sort cards by suit and rank for better visibility
+    function sortCards(cards) {
+      const suitOrder = { 'spades': 0, 'hearts': 1, 'diamonds': 2, 'clubs': 3 };
+      const rankOrder = {
+        'A': 14, 'K': 13, 'Q': 12, 'J': 11,
+        '10': 10, '9': 9, '8': 8, '7': 7,
+        '6': 6, '5': 5, '4': 4, '3': 3, '2': 2
+      };
+
+      return [...cards].sort((a, b) => {
+        // First sort by suit
+        const suitDiff = suitOrder[a.suit] - suitOrder[b.suit];
+        if (suitDiff !== 0) return suitDiff;
+
+        // Then sort by rank (descending - A first, then K, Q, J, 10, etc.)
+        return rankOrder[b.rank] - rankOrder[a.rank];
+      });
+    }
+
     function renderMyCards(clickable = false) {
       const grid = document.getElementById('myCards');
       grid.innerHTML = '';
 
-      myCards.forEach(card => {
+      // Sort cards before displaying
+      const sortedCards = sortCards(myCards);
+
+      sortedCards.forEach(card => {
         const cardEl = document.createElement('div');
         const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
         const isHighPoints = card.points >= 10;
