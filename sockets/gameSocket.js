@@ -603,11 +603,16 @@ export const handleGameSocket = (io, socket) => {
       return;
     }
 
+    // Debug: Log socket rooms
+    const rooms = socket.rooms;
+    logger.info(`Socket ${socket.id.substring(0, 8)}... rooms:`, Array.from(rooms));
+    logger.info(`Socket ${socket.id.substring(0, 8)}... is in room ${roomId}:`, rooms.has(roomId));
+
     const result = gameService.startGameplay(roomId, socket.id);
 
     if (result.success) {
       // Broadcast game started to room
-      io.to(roomId).emit('GAMEPLAY_STARTED', {
+      const eventData = {
         roomId,
         players: result.gameState.players.map(p => ({
           socketId: p.socketId,
@@ -619,7 +624,10 @@ export const handleGameSocket = (io, socket) => {
         leader: result.leader,
         winningBid: result.winningBid,
         totalPoints: result.gameState.totalPoints
-      });
+      };
+
+      logger.info(`Broadcasting GAMEPLAY_STARTED to room ${roomId} with data:`, JSON.stringify(eventData));
+      io.to(roomId).emit('GAMEPLAY_STARTED', eventData);
 
       if (typeof callback === 'function') callback(result);
 

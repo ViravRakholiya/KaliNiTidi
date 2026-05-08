@@ -997,48 +997,58 @@
     });
 
     socket.on('GAMEPLAY_STARTED', (data) => {
-      console.log('[DEBUG] GAMEPLAY_STARTED event received:', data);
-      console.log('[DEBUG] Winning bid:', data.winningBid, 'Total points:', data.totalPoints);
+      try {
+        console.log('[DEBUG] GAMEPLAY_STARTED event received:', data);
+        console.log('[DEBUG] Winning bid:', data.winningBid, 'Total points:', data.totalPoints);
+        console.log('[DEBUG] Current phase before update:', currentPhase);
 
-      updatePhase('playing');
-      document.getElementById('biddingPanel').classList.add('hidden');
-      document.getElementById('selectionPanel').classList.add('hidden');
-      document.getElementById('gamePanel').classList.remove('hidden');
+        updatePhase('playing');
+        document.getElementById('biddingPanel').classList.add('hidden');
+        document.getElementById('selectionPanel').classList.add('hidden');
+        document.getElementById('gamePanel').classList.remove('hidden');
 
-      const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+        console.log('[DEBUG] Game panel should now be visible');
 
-      document.getElementById('gameTrumpDisplay').textContent = `${data.trump} ${suitSymbols[data.trump] || ''}`;
-      document.getElementById('gameBidDisplay').textContent = data.winningBid || '-';
+        const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
 
-      // Display partner card info
-      if (data.partnerCard) {
-        document.getElementById('gameTrumpDisplay').textContent = `${data.trump} ${suitSymbols[data.trump] || ''} | Partner Card: ${data.partnerCard.rank}${suitSymbols[data.partnerCard.suit]}`;
+        document.getElementById('gameTrumpDisplay').textContent = `${data.trump} ${suitSymbols[data.trump] || ''}`;
+        document.getElementById('gameBidDisplay').textContent = data.winningBid || '-';
+
+        // Display partner card info
+        if (data.partnerCard) {
+          document.getElementById('gameTrumpDisplay').textContent = `${data.trump} ${suitSymbols[data.trump] || ''} | Partner Card: ${data.partnerCard.rank}${suitSymbols[data.partnerCard.suit]}`;
+        }
+
+        // Store winning bid for team score calculation
+        currentWinningBid = data.winningBid || 0;
+        currentBidWinner = data.leader;
+        currentPartnerCard = data.partnerCard;
+
+        // Log game start with safe partner card access
+        const partnerInfo = data.partnerCard
+          ? `Partner Card: ${data.partnerCard.rank} of ${data.partnerCard.suit}`
+          : 'Partner will be determined during gameplay';
+        log(`Gameplay started! Leader: ${getPlayerName(data.leader)}, Trump: ${data.trump}, ${partnerInfo}, Winning Bid: ${currentWinningBid}`, 'success');
+
+        markPlayerLeader(data.leader);
+
+        // Initialize bid information and team displays
+        initializeBidInformation(data);
+
+        // Initialize individual scores display
+        updateIndividualScores([]);
+
+        // Check if it's our turn
+        updateTurnIndicatorForGame(data.leader);
+
+        // Make cards clickable
+        renderMyCards(true);
+
+        console.log('[DEBUG] GAMEPLAY_STARTED processing completed successfully');
+      } catch (error) {
+        console.error('[ERROR] Error processing GAMEPLAY_STARTED event:', error);
+        log(`Error starting game: ${error.message}`, 'error');
       }
-
-      // Store winning bid for team score calculation
-      currentWinningBid = data.winningBid || 0;
-      currentBidWinner = data.leader;
-      currentPartnerCard = data.partnerCard;
-
-      // Log game start with safe partner card access
-      const partnerInfo = data.partnerCard
-        ? `Partner Card: ${data.partnerCard.rank} of ${data.partnerCard.suit}`
-        : 'Partner will be determined during gameplay';
-      log(`Gameplay started! Leader: ${getPlayerName(data.leader)}, Trump: ${data.trump}, ${partnerInfo}, Winning Bid: ${currentWinningBid}`, 'success');
-
-      markPlayerLeader(data.leader);
-
-      // Initialize bid information and team displays
-      initializeBidInformation(data);
-
-      // Initialize individual scores display
-      updateIndividualScores([]);
-
-      // Check if it's our turn
-      updateTurnIndicatorForGame(data.leader);
-
-      // Make cards clickable
-      renderMyCards(true);
     });
 
     socket.on('GAME_OVER', (data) => {
@@ -1246,10 +1256,16 @@
     }
 
     function startGameAfterSelection() {
+      console.log('[DEBUG] startGameAfterSelection called');
+      console.log('[DEBUG] Socket connected:', socket.connected);
+      console.log('[DEBUG] Current room:', currentRoom);
+
       const trump = document.getElementById('trumpSelect').value;
       const partnerRank = document.getElementById('partnerRank').value;
       const partnerSuit = document.getElementById('partnerSuit').value;
       const partnerPosition = document.getElementById('partnerPosition').value;
+
+      console.log('[DEBUG] Selected options:', { trump, partnerRank, partnerSuit, partnerPosition });
 
       if (!trump) {
         log('Please select a trump suit', 'error');
@@ -1612,7 +1628,8 @@
       const totalPoints = data.totalPoints || 500;
       const winningBid = data.winningBid || 0;
       const bidderNeeds = winningBid;
-      const opponentNeeds = totalPoints - winningBid;
+      // Opponent needs totalPoints - winningBid + 5 (slight advantage to bidder)
+      const opponentNeeds = totalPoints - winningBid + 5;
 
       console.log('[DEBUG] Initializing bid information:', { totalPoints, winningBid, bidderNeeds, opponentNeeds });
 
