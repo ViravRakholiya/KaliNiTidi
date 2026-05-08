@@ -998,6 +998,8 @@
 
     socket.on('GAMEPLAY_STARTED', (data) => {
       console.log('[DEBUG] GAMEPLAY_STARTED event received:', data);
+      console.log('[DEBUG] Winning bid:', data.winningBid, 'Total points:', data.totalPoints);
+
       updatePhase('playing');
       document.getElementById('biddingPanel').classList.add('hidden');
       document.getElementById('selectionPanel').classList.add('hidden');
@@ -1018,7 +1020,11 @@
       currentBidWinner = data.leader;
       currentPartnerCard = data.partnerCard;
 
-      log(`Gameplay started! Leader: ${getPlayerName(data.leader)}, Trump: ${data.trump}, Partner Card: ${data.partnerCard.rank} of ${data.partnerCard.suit}, Winning Bid: ${currentWinningBid}`, 'success');
+      // Log game start with safe partner card access
+      const partnerInfo = data.partnerCard
+        ? `Partner Card: ${data.partnerCard.rank} of ${data.partnerCard.suit}`
+        : 'Partner will be determined during gameplay';
+      log(`Gameplay started! Leader: ${getPlayerName(data.leader)}, Trump: ${data.trump}, ${partnerInfo}, Winning Bid: ${currentWinningBid}`, 'success');
 
       markPlayerLeader(data.leader);
 
@@ -1607,6 +1613,8 @@
       const winningBid = data.winningBid || 0;
       const bidderNeeds = winningBid;
       const opponentNeeds = totalPoints - winningBid;
+
+      console.log('[DEBUG] Initializing bid information:', { totalPoints, winningBid, bidderNeeds, opponentNeeds });
 
       // Update score targets
       document.getElementById('bidderTarget').textContent = `Need: ${bidderNeeds} pts`;

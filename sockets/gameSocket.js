@@ -616,7 +616,9 @@ export const handleGameSocket = (io, socket) => {
         })),
         trump: result.trump,
         partnerCard: result.partnerCard,
-        leader: result.leader
+        leader: result.leader,
+        winningBid: result.winningBid,
+        totalPoints: result.gameState.totalPoints
       });
 
       if (typeof callback === 'function') callback(result);
