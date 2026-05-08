@@ -576,6 +576,7 @@
                   <div>
                     <div style="color: #888; font-size: 0.7em; text-transform: uppercase; letter-spacing: 1px;">Winning Bid</div>
                     <div style="font-size: 1.3em; font-weight: bold; color: #00ff80;" id="gameBidDisplay">-</div>
+                    <div style="color: #888; font-size: 0.75em; font-style: italic;" id="gameBidderDisplay">by -</div>
                   </div>
                 </div>
               </div>
@@ -1051,8 +1052,8 @@
 
           if (data.partnerCard.preferredPosition) {
             const positionText = data.partnerCard.preferredPosition === 1
-              ? '1st player to play = Partner'
-              : '2nd player to play = Partner';
+              ? '1st player to play becomes Partner'
+              : '2nd player to play becomes Partner';
             positionDisplay.textContent = positionText;
             positionDisplay.style.color = '#ffd700';
           } else {
@@ -1066,6 +1067,7 @@
 
         // Update Winning Bid Display
         document.getElementById('gameBidDisplay').textContent = data.winningBid || '-';
+        document.getElementById('gameBidderDisplay').textContent = `by ${getPlayerName(data.leader)}`;
 
         // Display partner card info
         if (data.partnerCard) {
