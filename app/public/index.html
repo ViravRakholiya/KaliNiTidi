@@ -459,69 +459,73 @@
             </div>
           </div>
 
-          <div class="input-group">
-            <label>Select Trump Suit</label>
-            <select id="trumpSelect" onchange="selectTrump()">
-              <option value="">-- Choose Trump --</option>
-              <option value="spades">♠ Spades</option>
-              <option value="hearts">♥ Hearts</option>
-              <option value="diamonds">♦ Diamonds</option>
-              <option value="clubs">♣ Clubs</option>
-            </select>
-          </div>
-
-          <div class="input-group" style="margin-top: 15px;">
-            <label>Select Partner Card</label>
-            <div style="font-size: 0.85em; color: #888; margin-bottom: 8px;">
-              💡 Select a card to determine your partner during gameplay
+          <!-- Leader Only Controls - Hidden for non-leaders -->
+          <div id="leaderControls" class="hidden">
+            <div class="input-group">
+              <label>Select Trump Suit</label>
+              <select id="trumpSelect" onchange="selectTrump()">
+                <option value="">-- Choose Trump --</option>
+                <option value="spades">♠ Spades</option>
+                <option value="hearts">♥ Hearts</option>
+                <option value="diamonds">♦ Diamonds</option>
+                <option value="clubs">♣ Clubs</option>
+              </select>
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-              <div>
-                <select id="partnerRank" onchange="updatePartnerCardOptions()" style="width: 100%; padding: 10px; border: 2px solid rgba(255,255,255,0.1); background: rgba(15,52,96,0.5); color: #fff; border-radius: 10px;">
-                  <option value="A">Ace</option>
-                  <option value="K">King</option>
-                  <option value="Q">Queen</option>
-                  <option value="J">Jack</option>
-                  <option value="10">10</option>
-                  <option value="9">9</option>
-                  <option value="8">8</option>
-                  <option value="7">7</option>
-                  <option value="6">6</option>
-                  <option value="5">5</option>
-                  <option value="4">4</option>
-                  <option value="3">3</option>
-                  <option value="2">2</option>
-                </select>
+
+            <div class="input-group" style="margin-top: 15px;">
+              <label>Select Partner Card</label>
+              <div style="font-size: 0.85em; color: #888; margin-bottom: 8px;">
+                💡 Select a card to determine your partner during gameplay
               </div>
-              <div>
-                <select id="partnerSuit" onchange="updatePartnerCardOptions()" style="width: 100%; padding: 10px; border: 2px solid rgba(255,255,255,0.1); background: rgba(15,52,96,0.5); color: #fff; border-radius: 10px;">
-                  <option value="spades">♠ Spades</option>
-                  <option value="hearts">♥ Hearts</option>
-                  <option value="diamonds">♦ Diamonds</option>
-                  <option value="clubs">♣ Clubs</option>
-                </select>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                  <select id="partnerRank" onchange="updatePartnerCardOptions()" style="width: 100%; padding: 10px; border: 2px solid rgba(255,255,255,0.1); background: rgba(15,52,96,0.5); color: #fff; border-radius: 10px;">
+                    <option value="A">Ace</option>
+                    <option value="K">King</option>
+                    <option value="Q">Queen</option>
+                    <option value="J">Jack</option>
+                    <option value="10">10</option>
+                    <option value="9">9</option>
+                    <option value="8">8</option>
+                    <option value="7">7</option>
+                    <option value="6">6</option>
+                    <option value="5">5</option>
+                    <option value="4">4</option>
+                    <option value="3">3</option>
+                    <option value="2">2</option>
+                  </select>
+                </div>
+                <div>
+                  <select id="partnerSuit" onchange="updatePartnerCardOptions()" style="width: 100%; padding: 10px; border: 2px solid rgba(255,255,255,0.1); background: rgba(15,52,96,0.5); color: #fff; border-radius: 10px;">
+                    <option value="spades">♠ Spades</option>
+                    <option value="hearts">♥ Hearts</option>
+                    <option value="diamonds">♦ Diamonds</option>
+                    <option value="clubs">♣ Clubs</option>
+                  </select>
+                </div>
+              </div>
+              <div id="cardCountInfo" style="font-size: 0.85em; color: #00d9ff; margin-top: 8px;">
+                Checking your hand...
               </div>
             </div>
-            <div id="cardCountInfo" style="font-size: 0.85em; color: #00d9ff; margin-top: 8px;">
-              Checking your hand...
+
+            <div class="input-group hidden" id="partnerPositionGroup" style="margin-top: 15px;">
+              <label>Partner Position Preference</label>
+              <div style="font-size: 0.85em; color: #888; margin-bottom: 8px;">
+                🎯 Since you don't have this card, choose which player becomes your partner
+              </div>
+              <select id="partnerPosition" style="width: 100%; padding: 10px; border: 2px solid rgba(255,255,255,0.1); background: rgba(15,52,96,0.5); color: #fff; border-radius: 10px;">
+                <option value="1">1st player who plays this card → PARTNER ✅</option>
+                <option value="2">2nd player who plays this card → PARTNER ✅</option>
+              </select>
             </div>
+
+            <button class="btn btn-success" id="startGameAfterSelection" style="margin-top: 15px; width: 100%;" onclick="startGameAfterSelection()">
+              Start Game
+            </button>
           </div>
 
-          <div class="input-group hidden" id="partnerPositionGroup" style="margin-top: 15px;">
-            <label>Partner Position Preference</label>
-            <div style="font-size: 0.85em; color: #888; margin-bottom: 8px;">
-              🎯 Since you don't have this card, choose which player becomes your partner
-            </div>
-            <select id="partnerPosition" style="width: 100%; padding: 10px; border: 2px solid rgba(255,255,255,0.1); background: rgba(15,52,96,0.5); color: #fff; border-radius: 10px;">
-              <option value="1">1st player who plays this card → PARTNER ✅</option>
-              <option value="2">2nd player who plays this card → PARTNER ✅</option>
-            </select>
-          </div>
-
-          <button class="btn btn-success" id="startGameAfterSelection" style="margin-top: 15px; width: 100%;" onclick="startGameAfterSelection()">
-            Start Game
-          </button>
-
+          <!-- Waiting message for non-leaders -->
           <div id="waitingForLeader" class="hidden" style="text-align: center; padding: 20px; color: #888;">
             Waiting for leader to select trump and partner card...
           </div>
@@ -821,17 +825,23 @@
 
       if (data.leader === socket.id) {
         isLeader = true;
-        // Show leader controls
+        // Show leader controls (trump, partner, start button)
+        document.getElementById('leaderControls').classList.remove('hidden');
         document.getElementById('trumpSelect').disabled = false;
         document.getElementById('startGameAfterSelection').classList.remove('hidden');
         document.getElementById('waitingForLeader').classList.add('hidden');
         log(`You are the leader! Select trump and partner card to start the game.`, 'success');
       } else {
         isLeader = false;
-        // Hide leader controls, show waiting message
+        // Hide ALL leader controls for non-leaders (security fix)
+        document.getElementById('leaderControls').classList.add('hidden');
         document.getElementById('trumpSelect').disabled = true;
         document.getElementById('trumpSelect').value = '';
+        document.getElementById('partnerRank').disabled = true;
+        document.getElementById('partnerSuit').disabled = true;
+        document.getElementById('partnerPosition').disabled = true;
         document.getElementById('startGameAfterSelection').classList.add('hidden');
+        // Show waiting message for non-leaders
         document.getElementById('waitingForLeader').classList.remove('hidden');
         document.getElementById('waitingForLeader').innerHTML = `
           Waiting for <strong>${leaderName}</strong> (Leader) to select trump and partner card...<br>
@@ -849,7 +859,12 @@
       document.getElementById('trumpSelect').disabled = true;
 
       if (data.selectedBy !== socket.id) {
-        // Non-leader: show that trump was selected
+        // Non-leader: ensure leader controls are hidden (security)
+        document.getElementById('leaderControls').classList.add('hidden');
+        document.getElementById('partnerRank').disabled = true;
+        document.getElementById('partnerSuit').disabled = true;
+        document.getElementById('partnerPosition').disabled = true;
+        // Update waiting message
         document.getElementById('waitingForLeader').innerHTML = `
           <strong>${selector}</strong> selected <span style="color: #ffd700;">${data.suit}</span> as trump!<br>
           <small style="color: #888;">Waiting for partner card selection...</small>
@@ -863,7 +878,9 @@
       log(`Partner card selected: ${data.partnerCard.rank}${suitSymbols[data.partnerCard.suit]} by ${selector}`, 'info');
 
       if (data.selectedBy !== socket.id) {
-        // Non-leader: show that partner card was selected
+        // Non-leader: ensure leader controls remain hidden (security)
+        document.getElementById('leaderControls').classList.add('hidden');
+        // Update waiting message
         document.getElementById('waitingForLeader').innerHTML = `
           <strong>${selector}</strong> selected <span style="color: #00d9ff;">${data.partnerCard.rank}${suitSymbols[data.partnerCard.suit]}</span> as partner card!<br>
           <small style="color: #888;">Waiting for game to start...</small>
