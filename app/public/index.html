@@ -535,14 +535,49 @@
         <div class="card-panel hidden" id="gamePanel">
           <h3>🎮 Game In Progress</h3>
 
-          <div style="background: rgba(0, 217, 255, 0.1); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-              <span style="color: #888;">Trump:</span>
-              <strong style="color: #ffd700; font-size: 1.2em;" id="gameTrumpDisplay">-</strong>
+          <!-- Game Setup Information -->
+          <div style="background: linear-gradient(135deg, rgba(0, 217, 255, 0.15), rgba(255, 215, 0, 0.1)); padding: 20px; border-radius: 12px; margin-bottom: 15px; border: 1px solid rgba(255, 215, 0, 0.2);">
+            <div style="text-align: center; margin-bottom: 15px;">
+              <span style="color: #888; font-size: 0.85em; letter-spacing: 1px;">GAME SETUP</span>
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span style="color: #888;">Winning Bid:</span>
-              <strong style="color: #00ff80; font-size: 1.2em;" id="gameBidDisplay">-</strong>
+
+            <!-- Trump Suit -->
+            <div style="background: rgba(0, 0, 0, 0.4); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 1.5em;" id="trumpSuitIcon">♠</span>
+                  <div>
+                    <div style="color: #888; font-size: 0.7em; text-transform: uppercase; letter-spacing: 1px;">Trump Suit</div>
+                    <div style="font-size: 1.3em; font-weight: bold; color: #ffd700;" id="gameTrumpDisplay">-</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Partner Card -->
+            <div style="background: rgba(0, 0, 0, 0.4); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 1.5em;" id="partnerCardIcon">🤝</span>
+                  <div>
+                    <div style="color: #888; font-size: 0.7em; text-transform: uppercase; letter-spacing: 1px;">Partner Card</div>
+                    <div style="font-size: 1.3em; font-weight: bold; color: #00d9ff;" id="gamePartnerCardDisplay">-</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Winning Bid -->
+            <div style="background: rgba(0, 255, 128, 0.1); padding: 12px; border-radius: 8px; border: 1px solid rgba(0, 255, 128, 0.3);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 1.5em;">💰</span>
+                  <div>
+                    <div style="color: #888; font-size: 0.7em; text-transform: uppercase; letter-spacing: 1px;">Winning Bid</div>
+                    <div style="font-size: 1.3em; font-weight: bold; color: #00ff80;" id="gameBidDisplay">-</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -996,8 +1031,23 @@
         console.log('[DEBUG] Game panel should now be visible');
 
         const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+        const suitColors = { spades: '#ffd700', hearts: '#ff6b6b', diamonds: '#ff6b6b', clubs: '#00d9ff' };
 
-        document.getElementById('gameTrumpDisplay').textContent = `${data.trump} ${suitSymbols[data.trump] || ''}`;
+        // Update Trump Display
+        document.getElementById('trumpSuitIcon').textContent = suitSymbols[data.trump] || '?';
+        document.getElementById('gameTrumpDisplay').textContent = `${data.trump.charAt(0).toUpperCase() + data.trump.slice(1)}`;
+        document.getElementById('gameTrumpDisplay').style.color = suitColors[data.trump] || '#ffd700';
+
+        // Update Partner Card Display
+        if (data.partnerCard) {
+          document.getElementById('partnerCardIcon').textContent = suitSymbols[data.partnerCard.suit] || '🤝';
+          document.getElementById('gamePartnerCardDisplay').textContent = `${data.partnerCard.rank} of ${data.partnerCard.suit.charAt(0).toUpperCase() + data.partnerCard.suit.slice(1)}`;
+        } else {
+          document.getElementById('partnerCardIcon').textContent = '🤝';
+          document.getElementById('gamePartnerCardDisplay').textContent = 'Selecting...';
+        }
+
+        // Update Winning Bid Display
         document.getElementById('gameBidDisplay').textContent = data.winningBid || '-';
 
         // Display partner card info
