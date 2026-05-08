@@ -694,6 +694,7 @@
     let currentPartnerCard = null;
     let currentPartnerId = null; // Will be set when partner is found
     let currentPhase = 'waiting'; // Track current game phase
+    let currentPlayers = []; // Track all players in the room
 
     function log(message, type = 'info') {
       const logDiv = document.getElementById('eventLog');
@@ -753,6 +754,7 @@
     socket.on('ROOM_JOINED', (data) => {
       console.log('[DEBUG] ROOM_JOINED event received:', data);
       currentRoom = data.roomId;
+      currentPlayers = data.players || []; // Store players
       isHost = false;
       document.getElementById('roomId').textContent = data.roomId;
       document.getElementById('playerCount').textContent = `${data.players.length} joined`;
@@ -1003,6 +1005,12 @@
         console.log('[DEBUG] GAMEPLAY_STARTED event received:', data);
         console.log('[DEBUG] Winning bid:', data.winningBid, 'Total points:', data.totalPoints);
         console.log('[DEBUG] Current phase before update:', currentPhase);
+
+        // Store current players from game data
+        if (data.players && Array.isArray(data.players)) {
+          currentPlayers = data.players;
+          console.log('[DEBUG] Updated currentPlayers:', currentPlayers.length, 'players');
+        }
 
         updatePhase('playing');
         document.getElementById('biddingPanel').classList.add('hidden');
@@ -1649,8 +1657,8 @@
 
     // Update team member displays
     function updateTeamDisplays() {
-      // Use room players if available
-      const allPlayers = roomPlayers.map(p => ({
+      // Use current players if available
+      const allPlayers = currentPlayers.map(p => ({
         socketId: p.socketId,
         name: p.name
       }));

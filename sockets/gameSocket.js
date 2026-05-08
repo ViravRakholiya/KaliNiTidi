@@ -623,7 +623,7 @@ export const handleGameSocket = (io, socket) => {
         partnerCard: result.partnerCard,
         leader: result.leader,
         winningBid: result.winningBid,
-        totalPoints: result.gameState.totalPoints
+        totalPoints: result.gameState.totalCards // Fixed: was totalPoints, should be totalCards
       };
 
       logger.info(`Broadcasting GAMEPLAY_STARTED to room ${roomId} with data:`, JSON.stringify(eventData));
