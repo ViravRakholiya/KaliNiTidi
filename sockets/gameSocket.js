@@ -258,12 +258,15 @@ export const handleGameSocket = (io, socket) => {
           if (playerSocket) {
             const playerHand = gameService.getPlayerHand(roomId, player.socketId);
             if (playerHand.success) {
+              logger.info(`[DEBUG] Sending ${playerHand.cards.length} cards to player ${player.name} (${player.socketId.substring(0, 8)}...)`);
               playerSocket.emit('PLAYER_HAND', {
                 cards: playerHand.cards,
                 cardsPerPlayer: result.cardsPerPlayer,
                 totalCards: result.totalCards
               });
               logger.info(`Sent ${playerHand.cards.length} cards to player ${player.name} (${player.socketId.substring(0, 8)}...)`);
+            } else {
+              logger.error(`[DEBUG] Failed to get hand for player ${player.name}: ${playerHand.message}`);
             }
           } else {
             logger.warn(`Could not find socket for player ${player.name} (${player.socketId.substring(0, 8)}...)`);

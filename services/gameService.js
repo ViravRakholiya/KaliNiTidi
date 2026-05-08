@@ -78,10 +78,24 @@ class GameService {
 
       // Clean up any completed game before starting a new one
       const existingGame = this.activeGames.get(roomId);
-      if (existingGame && existingGame.phase === 'completed') {
-        logger.info(`[DEBUG] Cleaning up completed game in room ${roomId} before starting new game`);
-        biddingService.cleanup(roomId);
-        this.activeGames.delete(roomId);
+      if (existingGame) {
+        logger.info(`[DEBUG] Found existing game in room ${roomId}, phase: ${existingGame.phase}`);
+        // Check if game is completed or has no cards (both indicate a finished game)
+        const totalCardsInHands = Object.values(existingGame.hands || {}).reduce((sum, hand) => sum + hand.length, 0);
+        const isCompleted = existingGame.phase === 'completed' || totalCardsInHands === 0;
+
+        if (isCompleted) {
+          logger.info(`[DEBUG] Cleaning up completed/empty game in room ${roomId} before starting new game (phase: ${existingGame.phase}, cards in hands: ${totalCardsInHands})`);
+          biddingService.cleanup(roomId);
+          this.activeGames.delete(roomId);
+        } else {
+          logger.warn(`[DEBUG] Existing game in room ${roomId} is not completed (phase: ${existingGame.phase}, cards: ${totalCardsInHands})`);
+          return {
+            success: false,
+            error: 'VALIDATION_FAILED',
+            message: 'A game is already in progress'
+          };
+        }
       }
 
       // Generate deck with specified number of sets
@@ -391,13 +405,36 @@ class GameService {
    * Start gameplay after trump and partner card selection
    */
   startGameplay(roomId, socketId) {
+    logger.info(`[DEBUG] START_GAMEPLAY called for room ${roomId} by socket ${socketId.substring(0, 8)}...`);
+    logger.info(`[DEBUG] Active games: ${Array.from(this.activeGames.keys()).join(', ')}`);
+
     const gameState = this.activeGames.get(roomId);
 
     if (!gameState) {
+      logger.error(`[DEBUG] START_GAMEPLAY: No game state found for room ${roomId}`);
       return {
         success: false,
         error: 'GAME_NOT_FOUND',
         message: 'Game does not exist'
+      };
+    }
+
+    logger.info(`[DEBUG] START_GAMEPLAY: Found game state for room ${roomId}, phase: ${gameState.phase}, players: ${gameState.players.length}`);
+
+    // DEBUG: Check if hands have cards
+    logger.info(`[DEBUG] START_GAMEPLAY: Checking hands before starting gameplay...`);
+    Object.entries(gameState.hands).forEach(([playerSocketId, hand]) => {
+      const player = gameState.players.find(p => p.socketId === playerSocketId);
+      logger.info(`[DEBUG] START_GAMEPLAY: Player ${player?.name || playerSocketId.substring(0, 8)} has ${hand.length} cards`);
+    });
+
+    const totalCardsInHands = Object.values(gameState.hands).reduce((sum, hand) => sum + hand.length, 0);
+    if (totalCardsInHands === 0) {
+      logger.error(`[DEBUG] START_GAMEPLAY: ERROR - No cards in any hands! Cannot start gameplay.`);
+      return {
+        success: false,
+        error: 'NO_CARDS_DEALT',
+        message: 'No cards have been dealt. Cannot start gameplay.'
       };
     }
 
@@ -449,6 +486,13 @@ class GameService {
     // Track partner card plays for dynamic team assignment
     gameState.partnerCardPlays = []; // Will track who plays the partner card
     gameState.teamsAssigned = false; // Will be set to true after both partner card holders have played
+
+    // Debug: Log cards in each hand
+    logger.info(`[DEBUG] Cards in hands at START_GAMEPLAY:`);
+    Object.entries(gameState.hands).forEach(([socketId, hand]) => {
+      const player = gameState.players.find(p => p.socketId === socketId);
+      logger.info(`[DEBUG]   ${player?.name || socketId.substring(0, 8)}: ${hand.length} cards`);
+    });
 
     logger.info(`Gameplay started in room ${roomId}. Leader: ${socketId.substring(0, 8)}..., Trump: ${gameState.trump}, Partner Card: ${gameState.partnerCard.rank} of ${gameState.partnerCard.suit}, Bid: ${gameState.winningBid}`);
     logger.info(`[DEBUG] Partner card for tracking: Rank=${gameState.partnerCard.rank}, Suit=${gameState.partnerCard.suit}`);

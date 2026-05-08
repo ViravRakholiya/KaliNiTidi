@@ -1565,9 +1565,17 @@
         return;
       }
 
+      // Disable the button to prevent double-clicks
+      const startButton = document.getElementById('startGameAfterSelection');
+      if (startButton) {
+        startButton.disabled = true;
+        startButton.textContent = 'Starting...';
+      }
+
       // First select trump if not already selected
       socket.emit('SELECT_TRUMP', { roomId: currentRoom, suit: trump }, (trumpResponse) => {
         if (trumpResponse.success) {
+          console.log('[DEBUG] Trump selected successfully');
           // Then select partner card with position preference
           const partnerData = {
             roomId: currentRoom,
@@ -1582,21 +1590,41 @@
 
           socket.emit('SELECT_PARTNER_CARD', partnerData, (partnerResponse) => {
             if (partnerResponse.success) {
+              console.log('[DEBUG] Partner card selected successfully');
               log(`Partner card selected: ${partnerRank} of ${partnerSuit}${partnerPosition ? ` (Position: ${partnerPosition})` : ''}`, 'success');
               // Start the game
+              console.log('[DEBUG] Emitting START_GAMEPLAY...');
               socket.emit('START_GAMEPLAY', { roomId: currentRoom }, (gameResponse) => {
+                console.log('[DEBUG] START_GAMEPLAY response:', gameResponse);
                 if (gameResponse.success) {
                   log('Game started! Partner will be determined during gameplay.', 'success');
                 } else {
                   log(`Failed to start game: ${gameResponse.message}`, 'error');
+                  // Re-enable button on failure
+                  if (startButton) {
+                    startButton.disabled = false;
+                    startButton.textContent = 'Start Game';
+                  }
                 }
               });
             } else {
+              console.log('[DEBUG] Partner card selection failed:', partnerResponse);
               log(`Failed: ${partnerResponse.message}`, 'error');
+              // Re-enable button on failure
+              if (startButton) {
+                startButton.disabled = false;
+                startButton.textContent = 'Start Game';
+              }
             }
           });
         } else {
+          console.log('[DEBUG] Trump selection failed:', trumpResponse);
           log(`Failed: ${trumpResponse.message}`, 'error');
+          // Re-enable button on failure
+          if (startButton) {
+            startButton.disabled = false;
+            startButton.textContent = 'Start Game';
+          }
         }
       });
     }
@@ -1796,6 +1824,11 @@
 
     function renderMyCards(clickable = false) {
       const grid = document.getElementById('myCards');
+      if (!grid) {
+        console.warn('[DEBUG] myCards element not found');
+        return;
+      }
+
       grid.innerHTML = '';
 
       // Sort cards before displaying
@@ -1882,6 +1915,12 @@
     function addCardToTrick(playerId, playerName, card) {
       const trickDiv = document.getElementById('currentTrick');
       const trickCardsDiv = document.getElementById('trickCards');
+
+      if (!trickDiv || !trickCardsDiv) {
+        console.warn('[DEBUG] Trick display elements not found');
+        return;
+      }
+
       trickDiv.classList.remove('hidden');
 
       // Set led suit if this is the first card
@@ -1905,7 +1944,9 @@
 
     function clearTrickDisplay() {
       const trickCardsDiv = document.getElementById('trickCards');
-      trickCardsDiv.innerHTML = '';
+      if (trickCardsDiv) {
+        trickCardsDiv.innerHTML = '';
+      }
       ledSuit = null;
     }
 
@@ -1929,9 +1970,18 @@
 
     function updateIndividualScores(playerScores) {
       const scoresDiv = document.getElementById('individualScores');
-      document.getElementById('bidProgress').textContent = `Winning Bid: ${currentWinningBid}`;
+      const bidProgress = document.getElementById('bidProgress');
+
+      if (bidProgress) {
+        bidProgress.textContent = `Winning Bid: ${currentWinningBid}`;
+      }
 
       console.log('[DEBUG] updateIndividualScores called with:', playerScores);
+
+      if (!scoresDiv) {
+        console.warn('[DEBUG] individualScores element not found');
+        return;
+      }
 
       if (!playerScores || playerScores.length === 0) {
         scoresDiv.innerHTML = '<div style="text-align: center; color: #666;">Waiting for scores...</div>';
@@ -2014,9 +2064,18 @@
     }
 
     function showFinalScoreboard(scores, winnerId) {
-      const gamePanel = document.getElementById('gamePanel');
+      // Create a modal overlay instead of replacing game panel content
+      const existingModal = document.getElementById('finalScoreboardModal');
+      if (existingModal) {
+        existingModal.remove();
+      }
+
+      const modal = document.createElement('div');
+      modal.id = 'finalScoreboardModal';
+      modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 1000;';
+
       const scoreboard = document.createElement('div');
-      scoreboard.style.cssText = 'background: rgba(0, 0, 0, 0.5); padding: 30px; border-radius: 20px; text-align: center;';
+      scoreboard.style.cssText = 'background: rgba(22, 33, 62, 0.95); padding: 40px; border-radius: 20px; text-align: center; max-width: 500px; width: 90%; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);';
 
       const winnerName = getPlayerName(winnerId);
 
@@ -2045,13 +2104,36 @@
           ${scoresHtml}
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">
-          <button class="btn btn-success" onclick="startNextRound()">Next Round ➡️</button>
-          <button class="btn btn-secondary" onclick="leaveRoom()">Leave Room</button>
+          <button class="btn btn-success" onclick="closeFinalScoreboardAndStartNextRound()">Next Round ➡️</button>
+          <button class="btn btn-secondary" onclick="closeFinalScoreboardAndLeaveRoom()">Leave Room</button>
         </div>
       `;
 
-      gamePanel.innerHTML = '';
-      gamePanel.appendChild(scoreboard);
+      modal.appendChild(scoreboard);
+      document.body.appendChild(modal);
+
+      // Add click outside to close
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          // Don't close on outside click, user must choose an option
+        }
+      });
+    }
+
+    function closeFinalScoreboardAndStartNextRound() {
+      const modal = document.getElementById('finalScoreboardModal');
+      if (modal) {
+        modal.remove();
+      }
+      startNextRound();
+    }
+
+    function closeFinalScoreboardAndLeaveRoom() {
+      const modal = document.getElementById('finalScoreboardModal');
+      if (modal) {
+        modal.remove();
+      }
+      leaveRoom();
     }
 
     function startNextRound() {
