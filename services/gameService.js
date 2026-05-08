@@ -565,6 +565,10 @@ class GameService {
       if (gameState.partnerCard && playedCard) {
         isPartnerCard = playedCard.rank === gameState.partnerCard.rank &&
                         playedCard.suit === gameState.partnerCard.suit;
+
+        logger.info(`[PARTNER CHECK] Player played: ${playedCard.rank} of ${playedCard.suit}, Partner card: ${gameState.partnerCard.rank} of ${gameState.partnerCard.suit}, Match: ${isPartnerCard}`);
+      } else {
+        logger.info(`[PARTNER CHECK] Partner card not set (${!gameState.partnerCard}) or card not found`);
       }
 
       // Track partner card plays for dynamic team assignment
