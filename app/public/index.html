@@ -557,6 +557,46 @@
             </div>
           </div>
 
+          <!-- Bid Information & Team Display -->
+          <div style="background: rgba(0, 0, 0, 0.3); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+            <div style="color: #888; font-size: 0.9em; margin-bottom: 12px; text-align: center;">BID INFORMATION</div>
+
+            <!-- Score Targets -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+              <div style="background: rgba(0, 255, 128, 0.1); padding: 10px; border-radius: 8px; border-left: 3px solid #00ff80;">
+                <div style="color: #00ff80; font-size: 0.75em; margin-bottom: 5px;">BIDDER TEAM</div>
+                <div style="font-size: 1.1em; font-weight: bold;" id="bidderTarget">-</div>
+                <div style="font-size: 0.7em; color: #888;" id="bidderProgress">Collected: 0</div>
+              </div>
+              <div style="background: rgba(255, 100, 100, 0.1); padding: 10px; border-radius: 8px; border-left: 3px solid #ff6464;">
+                <div style="color: #ff6464; font-size: 0.75em; margin-bottom: 5px;">OPPONENT TEAM</div>
+                <div style="font-size: 1.1em; font-weight: bold;" id="opponentTarget">-</div>
+                <div style="font-size: 0.7em; color: #888;" id="opponentProgress">Collected: 0</div>
+              </div>
+            </div>
+
+            <!-- Team Members -->
+            <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
+              <div style="color: #888; font-size: 0.8em; margin-bottom: 8px;">TEAMS</div>
+
+              <!-- Bidder Team -->
+              <div style="margin-bottom: 10px;">
+                <div style="color: #00d9ff; font-size: 0.75em; margin-bottom: 5px;">BIDDER TEAM</div>
+                <div id="bidderTeamMembers" style="font-size: 0.85em; display: flex; flex-direction: column; gap: 4px;">
+                  <!-- Will be populated dynamically -->
+                </div>
+              </div>
+
+              <!-- Opponent Team -->
+              <div>
+                <div style="color: #ff6464; font-size: 0.75em; margin-bottom: 5px;">OPPONENT TEAM</div>
+                <div id="opponentTeamMembers" style="font-size: 0.85em; display: flex; flex-direction: column; gap: 4px;">
+                  <!-- Will be populated dynamically -->
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div id="turnIndicator" class="turn-banner">
             Waiting for game to start...
           </div>
@@ -651,6 +691,8 @@
     let isPartner = false;
     let currentWinningBid = 0;
     let currentBidWinner = null;
+    let currentPartnerCard = null;
+    let currentPartnerId = null; // Will be set when partner is found
 
     function log(message, type = 'info') {
       const logDiv = document.getElementById('eventLog');
@@ -897,6 +939,12 @@
         log(`🤝 PARTNER ASSIGNED: ${data.partnerName} is now the partner!`, 'success');
         markPlayerPartner(data.partnerId);
 
+        // Store partner ID and update team displays
+        currentPartnerId = data.partnerId;
+
+        // Update team displays to show the found partner
+        updateTeamDisplaysAfterPartnerFound(data);
+
         if (data.partnerId === socket.id) {
           isPartner = true;
           document.getElementById('partnerMessage').classList.remove('hidden');
@@ -933,6 +981,9 @@
       // Update individual scores display
       updateIndividualScores(data.currentScores);
 
+      // Update score progress displays
+      updateScoreProgress(data.currentScores);
+
       // Show scoreboard after each trick
       showScoreboard(data.currentScores, data.points, data.winner);
 
@@ -965,10 +1016,14 @@
       // Store winning bid for team score calculation
       currentWinningBid = data.winningBid || 0;
       currentBidWinner = data.leader;
+      currentPartnerCard = data.partnerCard;
 
       log(`Gameplay started! Leader: ${getPlayerName(data.leader)}, Trump: ${data.trump}, Partner Card: ${data.partnerCard.rank} of ${data.partnerCard.suit}, Winning Bid: ${currentWinningBid}`, 'success');
 
       markPlayerLeader(data.leader);
+
+      // Initialize bid information and team displays
+      initializeBidInformation(data);
 
       // Initialize individual scores display
       updateIndividualScores([]);
@@ -1544,6 +1599,131 @@
       const trickCardsDiv = document.getElementById('trickCards');
       trickCardsDiv.innerHTML = '';
       ledSuit = null;
+    }
+
+    // Initialize bid information and team displays
+    function initializeBidInformation(data) {
+      const totalPoints = data.totalPoints || 500;
+      const winningBid = data.winningBid || 0;
+      const bidderNeeds = winningBid;
+      const opponentNeeds = totalPoints - winningBid;
+
+      // Update score targets
+      document.getElementById('bidderTarget').textContent = `Need: ${bidderNeeds} pts`;
+      document.getElementById('opponentTarget').textContent = `Need: ${opponentNeeds} pts`;
+
+      // Initialize team displays
+      updateTeamDisplays();
+
+      // Initialize progress displays
+      document.getElementById('bidderProgress').textContent = 'Collected: 0';
+      document.getElementById('opponentProgress').textContent = 'Collected: 0';
+    }
+
+    // Update team member displays
+    function updateTeamDisplays() {
+      // Use room players if available
+      const allPlayers = roomPlayers.map(p => ({
+        socketId: p.socketId,
+        name: p.name
+      }));
+
+      const bidderId = currentBidWinner;
+
+      // Separate into bidder team and opponent team
+      const bidderTeam = [];
+      const opponentTeam = [];
+
+      allPlayers.forEach(player => {
+        if (player.socketId === bidderId) {
+          bidderTeam.push({ ...player, role: 'Bidder', found: true });
+        } else if (player.socketId === currentPartnerId) {
+          bidderTeam.push({ ...player, role: 'Partner', found: true });
+        } else {
+          opponentTeam.push({ ...player, role: 'Opponent', found: true });
+        }
+      });
+
+      // Update bidder team display
+      const bidderTeamDiv = document.getElementById('bidderTeamMembers');
+      let bidderHtml = '';
+
+      bidderTeam.forEach(member => {
+        const isBidder = member.role === 'Bidder';
+        const badge = isBidder ? '⭐ Bidder' : '✓ Partner';
+        const color = isBidder ? '#ffd700' : '#00ff80';
+        bidderHtml += `
+          <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 5px; background: rgba(0, 217, 255, 0.1);">
+            <span style="color: ${color}; font-weight: bold;">${member.name}</span>
+            <span style="color: ${color}; font-size: 0.7em;">${badge}</span>
+          </div>
+        `;
+      });
+
+      // Add partner placeholder if not found yet
+      if (currentPartnerId === null && bidderTeam.length === 1) {
+        bidderHtml += `
+          <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 5px; background: rgba(255, 215, 0, 0.1);">
+            <span style="color: #888; font-style: italic;">Searching for partner...</span>
+            <span style="color: #888;">🔍</span>
+          </div>
+        `;
+      }
+
+      bidderTeamDiv.innerHTML = bidderHtml || '<div style="color: #666;">No members yet</div>';
+
+      // Update opponent team display
+      const opponentTeamDiv = document.getElementById('opponentTeamMembers');
+      let opponentHtml = '';
+
+      opponentTeam.forEach(member => {
+        opponentHtml += `
+          <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 5px; background: rgba(255, 100, 100, 0.1);">
+            <span style="color: #ff6464;">${member.name}</span>
+          </div>
+        `;
+      });
+
+      opponentTeamDiv.innerHTML = opponentHtml || '<div style="color: #666;">No opponents yet</div>';
+    }
+
+    // Update score progress displays
+    function updateScoreProgress(playerScores) {
+      if (!playerScores || playerScores.length === 0) return;
+
+      let bidderScore = 0;
+      let opponentScore = 0;
+
+      playerScores.forEach(player => {
+        if (player.socketId === currentBidWinner || player.socketId === currentPartnerId) {
+          bidderScore += player.score;
+        } else {
+          opponentScore += player.score;
+        }
+      });
+
+      document.getElementById('bidderProgress').textContent = `Collected: ${bidderScore}`;
+      document.getElementById('opponentProgress').textContent = `Collected: ${opponentScore}`;
+    }
+
+    // Update team displays after partner is found
+    function updateTeamDisplaysAfterPartnerFound(data) {
+      const bidderTeamDiv = document.getElementById('bidderTeamMembers');
+      const partnerName = data.partnerName || 'Unknown';
+
+      // Update bidder team display with partner
+      let bidderHtml = `
+        <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 5px; background: rgba(0, 217, 255, 0.1);">
+          <span style="color: #ffd700; font-weight: bold;">${getPlayerName(currentBidWinner)}</span>
+          <span style="color: #ffd700; font-size: 0.7em;">⭐ Bidder</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 5px; background: rgba(0, 255, 128, 0.1);">
+          <span style="color: #00ff80; font-weight: bold;">${partnerName}</span>
+          <span style="color: #00ff80; font-size: 0.7em;">✓ Partner</span>
+        </div>
+      `;
+
+      bidderTeamDiv.innerHTML = bidderHtml;
     }
 
     function updateIndividualScores(playerScores) {
