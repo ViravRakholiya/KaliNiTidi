@@ -661,6 +661,16 @@ class GameService {
 
       // Check if trick is complete
       if (gameState.currentTrick.cards.length === gameState.players.length) {
+        // Ensure ledSuit is properly set before determining winner
+        if (!gameState.currentTrick.ledSuit && gameState.currentTrick.cards.length > 0) {
+          gameState.currentTrick.ledSuit = gameState.currentTrick.cards[0].card.suit;
+        }
+
+        logger.info(`[Trick Evaluation] Led suit: ${gameState.currentTrick.ledSuit}, Trump: ${gameState.trump}`);
+        gameState.currentTrick.cards.forEach((played, idx) => {
+          logger.info(`  [Card ${idx + 1}] ${played.card.rank} of ${played.card.suit} by Player ${played.playerId.substring(0, 8)}...`);
+        });
+
         const trickWinner = this.determineTrickWinner(gameState.currentTrick, gameState.trump);
         const trickPoints = this.calculateTrickPoints(gameState.currentTrick.cards);
 
@@ -759,59 +769,70 @@ class GameService {
    * Determine the winner of a trick
    */
   determineTrickWinner(trick, trump) {
+    // Defensive: Ensure trump and ledSuit are strings and lowercase
+    const normalizedTrump = trump ? String(trump).toLowerCase() : null;
+    const normalizedLedSuit = trick.ledSuit ? String(trick.ledSuit).toLowerCase() : null;
+
+    logger.info(`[Trick Winner Determination] Led suit: ${normalizedLedSuit}, Trump: ${normalizedTrump}`);
+
     const winningCard = trick.cards.reduce((winner, played, index) => {
       const card = played.card;
+      // Defensive: Normalize card suit
+      const normalizedCardSuit = card.suit ? String(card.suit).toLowerCase() : null;
+      const normalizedWinnerSuit = winner?.card?.suit ? String(winner.card.suit).toLowerCase() : null;
 
       // If no winner yet, this card wins
       if (!winner) {
-        logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${card.suit} - First card, becomes winner`);
+        logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} - First card, becomes winner`);
         return played;
       }
 
-      // Trump beats non-trump
-      if (card.suit === trump && winner.card.suit !== trump) {
-        logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${card.suit} (TRUMP) beats ${winner.card.rank} of ${winner.card.suit}`);
+      // Trump beats non-trump (DEFENSIVE: Use normalized values)
+      if (normalizedTrump && normalizedCardSuit === normalizedTrump && normalizedWinnerSuit !== normalizedTrump) {
+        logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (TRUMP: ${normalizedTrump}) beats ${winner.card.rank} of ${normalizedWinnerSuit}`);
         return played;
       }
 
       // If both are trump, higher rank wins
-      if (card.suit === trump && winner.card.suit === trump) {
+      if (normalizedTrump && normalizedCardSuit === normalizedTrump && normalizedWinnerSuit === normalizedTrump) {
         const rankComparison = this.compareRanks(card.rank, winner.card.rank);
         if (rankComparison > 0) {
-          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${card.suit} (TRUMP) beats ${winner.card.rank} of ${winner.card.suit}`);
+          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (TRUMP) beats ${winner.card.rank} of ${normalizedWinnerSuit}`);
           return played;
         } else if (rankComparison === 0) {
           // SAME CARD TIEBREAKER: Second card played wins
-          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${card.suit} (TRUMP) TIES with ${winner.card.rank} of ${winner.card.suit} - Second card wins`);
+          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (TRUMP) TIES with ${winner.card.rank} of ${normalizedWinnerSuit} - Second card wins`);
           return played; // New card wins (second card played)
         }
       }
 
       // If neither is trump
-      if (card.suit === trick.ledSuit && winner.card.suit !== trick.ledSuit) {
-        logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${card.suit} (LED SUIT) beats ${winner.card.rank} of ${winner.card.suit} (off-suit)`);
+      if (normalizedLedSuit && normalizedCardSuit === normalizedLedSuit && normalizedWinnerSuit !== normalizedLedSuit) {
+        logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (LED SUIT: ${normalizedLedSuit}) beats ${winner.card.rank} of ${normalizedWinnerSuit} (off-suit)`);
         return played;
       }
 
       // If both are led suit, higher rank wins
-      if (card.suit === trick.ledSuit && winner.card.suit === trick.ledSuit) {
+      if (normalizedLedSuit && normalizedCardSuit === normalizedLedSuit && normalizedWinnerSuit === normalizedLedSuit) {
         const rankComparison = this.compareRanks(card.rank, winner.card.rank);
         if (rankComparison > 0) {
-          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${card.suit} (LED SUIT) beats ${winner.card.rank} of ${winner.card.suit}`);
+          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (LED SUIT) beats ${winner.card.rank} of ${normalizedWinnerSuit}`);
           return played;
         } else if (rankComparison === 0) {
           // SAME CARD TIEBREAKER: Second card played wins
-          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${card.suit} (LED SUIT) TIES with ${winner.card.rank} of ${winner.card.suit} - Second card wins`);
+          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (LED SUIT) TIES with ${winner.card.rank} of ${normalizedWinnerSuit} - Second card wins`);
           return played; // New card wins (second card played)
         }
       }
 
       // Otherwise, current winner still wins
-      logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${card.suit} loses to current winner ${winner.card.rank} of ${winner.card.suit}`);
+      logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} loses to current winner ${winner.card.rank} of ${normalizedWinnerSuit}`);
       return winner;
     }, null);
 
-    return winningCard.playerId;
+    const winnerId = winningCard.playerId;
+    logger.info(`[Trick Winner] Player ${winnerId.substring(0, 8)}... with ${winningCard.card.rank} of ${winningCard.card.suit}`);
+    return winnerId;
   }
 
   /**
