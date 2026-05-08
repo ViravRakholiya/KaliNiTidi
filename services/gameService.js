@@ -700,6 +700,22 @@ class GameService {
 
           logger.info(`All cards played. Calculating final scores...`);
 
+          // DEBUG: Log partner assignment status
+          if (!gameState.partnerId) {
+            logger.warn(`[PARTNER ASSIGNMENT WARNING] No partner assigned! Partner card plays: ${JSON.stringify(gameState.partnerCardPlays?.map(p => ({ name: p.playerName, card: `${p.card.rank} of ${p.card.suit}` }))) || '[]'}`);
+
+            // FALLBACK: Try to assign partner based on who played the partner card
+            if (gameState.partnerCardPlays && gameState.partnerCardPlays.length > 0) {
+              const nonBidderPlays = gameState.partnerCardPlays.filter(p => p.playerId !== gameState.bidWinner);
+              if (nonBidderPlays.length > 0) {
+                // Assign the first non-bidder who played the partner card as the partner
+                const fallbackPartner = nonBidderPlays[0];
+                gameState.partnerId = fallbackPartner.playerId;
+                logger.warn(`[PARTNER FALLBACK] Assigned ${fallbackPartner.playerName} (${fallbackPartner.playerId.substring(0, 8)}...) as partner (fallback assignment)`);
+              }
+            }
+          }
+
           // Calculate final team scores
           const finalScores = this.calculateFinalScores(roomId);
 
@@ -918,7 +934,10 @@ class GameService {
     const bidderTeamPoints = bidderTeam.reduce((sum, socketId) => sum + (playerPoints[socketId] || 0), 0);
     const opponentTeamPoints = opponentTeam.reduce((sum, socketId) => sum + (playerPoints[socketId] || 0), 0);
 
-    logger.info(`Team Points - Bidder Team: ${bidderTeamPoints}, Opponent Team: ${opponentTeamPoints}, Winning Bid: ${gameState.winningBid}`);
+    logger.info(`[Final Scores] Bidder: ${gameState.bidWinner?.substring(0, 8)}..., Partner: ${gameState.partnerId?.substring(0, 8) || 'NOT ASSIGNED'}`);
+    logger.info(`[Final Scores] Bidder Team: [${bidderTeam.map(id => id.substring(0, 8)).join(', ')}] = ${bidderTeamPoints} points`);
+    logger.info(`[Final Scores] Opponent Team: [${opponentTeam.map(id => id.substring(0, 8)).join(', ')}] = ${opponentTeamPoints} points`);
+    logger.info(`[Final Scores] Winning Bid: ${gameState.winningBid}, Made Bid: ${bidderTeamPoints >= gameState.winningBid}`);
 
     // Calculate scores based on whether bid was made
     const madeBid = bidderTeamPoints >= gameState.winningBid;
@@ -929,28 +948,28 @@ class GameService {
         // Bidder
         if (madeBid) {
           finalScores[player.socketId] = gameState.winningBid * 2;
-          logger.info(`${player.name} (Bidder) MADE BID ${gameState.winningBid}: Score = ${gameState.winningBid * 2}`);
+          logger.info(`[SCORE] ${player.name} (Bidder) MADE BID ${gameState.winningBid}: Score = ${gameState.winningBid * 2}`);
         } else {
           finalScores[player.socketId] = -gameState.winningBid * 2;
-          logger.info(`${player.name} (Bidder) FAILED BID ${gameState.winningBid}: Score = -${gameState.winningBid * 2}`);
+          logger.info(`[SCORE] ${player.name} (Bidder) FAILED BID ${gameState.winningBid}: Score = -${gameState.winningBid * 2}`);
         }
       } else if (player.socketId === gameState.partnerId) {
         // Partner
         if (madeBid) {
           finalScores[player.socketId] = gameState.winningBid;
-          logger.info(`${player.name} (Partner) MADE BID ${gameState.winningBid}: Score = ${gameState.winningBid}`);
+          logger.info(`[SCORE] ${player.name} (Partner) MADE BID ${gameState.winningBid}: Score = ${gameState.winningBid}`);
         } else {
           finalScores[player.socketId] = 0;
-          logger.info(`${player.name} (Partner) FAILED BID ${gameState.winningBid}: Score = 0`);
+          logger.info(`[SCORE] ${player.name} (Partner) FAILED BID ${gameState.winningBid}: Score = 0`);
         }
       } else {
         // Opponents
         if (!madeBid) {
           finalScores[player.socketId] = gameState.winningBid;
-          logger.info(`${player.name} (Opponent) Bidder FAILED: Score = ${gameState.winningBid}`);
+          logger.info(`[SCORE] ${player.name} (Opponent) Bidder FAILED: Score = ${gameState.winningBid}`);
         } else {
           finalScores[player.socketId] = 0;
-          logger.info(`${player.name} (Opponent) Bidder MADE BID: Score = 0`);
+          logger.info(`[SCORE] ${player.name} (Opponent) Bidder MADE BID: Score = 0`);
         }
       }
     });
