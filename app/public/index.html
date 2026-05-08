@@ -936,10 +936,12 @@
 
     socket.on('CARD_PLAYED', (data) => {
       console.log('[DEBUG] CARD_PLAYED event received:', data);
+      console.log('[DEBUG] Partner card played:', data.partnerCardPlayed, 'Partner assigned:', data.partnerAssigned, 'Partner ID:', data.partnerId);
       log(`${data.playerName} played ${data.card.rank} of ${data.card.suit}`, 'info');
 
       // Handle dynamic partner assignment
       if (data.partnerCardPlayed && data.partnerAssigned) {
+        console.log('[DEBUG] Partner assignment detected!');
         log(`🤝 PARTNER ASSIGNED: ${data.partnerName} is now the partner!`, 'success');
         markPlayerPartner(data.partnerId);
 
@@ -953,6 +955,8 @@
           isPartner = true;
           document.getElementById('partnerMessage').classList.remove('hidden');
         }
+      } else {
+        console.log('[DEBUG] No partner assignment yet. Partner card played:', data.partnerCardPlayed, 'Partner assigned:', data.partnerAssigned);
       }
 
       if (data.partnerCardPlayed && data.secondPartnerCardPlayed) {
@@ -980,6 +984,7 @@
 
     socket.on('TRICK_COMPLETE', (data) => {
       console.log('[DEBUG] TRICK_COMPLETE event received:', data);
+      console.log('[DEBUG] Current scores data:', data.currentScores);
       log(`${data.winnerName} won the trick with ${data.points} points!`, 'success');
 
       // Update individual scores display
@@ -1765,6 +1770,8 @@
       const scoresDiv = document.getElementById('individualScores');
       document.getElementById('bidProgress').textContent = `Winning Bid: ${currentWinningBid}`;
 
+      console.log('[DEBUG] updateIndividualScores called with:', playerScores);
+
       if (!playerScores || playerScores.length === 0) {
         scoresDiv.innerHTML = '<div style="text-align: center; color: #666;">Waiting for scores...</div>';
         return;
@@ -1772,6 +1779,8 @@
 
       // Sort by score (highest first)
       const sortedScores = [...playerScores].sort((a, b) => b.score - a.score);
+
+      console.log('[DEBUG] Sorted scores:', sortedScores);
 
       let html = '';
       sortedScores.forEach(player => {
