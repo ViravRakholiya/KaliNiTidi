@@ -332,6 +332,178 @@
     .status-item .label { color: #888; }
     .status-item .value { color: #00d9ff; font-weight: bold; }
 
+    /* Cumulative Scores Table */
+    .scores-table-container {
+      background: rgba(22, 33, 62, 0.9);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 25px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      margin-bottom: 30px;
+    }
+
+    .scores-table-container h3 {
+      color: #00d9ff;
+      margin-bottom: 20px;
+      text-align: center;
+      font-size: 1.5em;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .scores-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9em;
+    }
+
+    .scores-table thead {
+      background: linear-gradient(135deg, rgba(0, 217, 255, 0.2), rgba(0, 255, 128, 0.1));
+      border-radius: 10px 10px 0 0;
+    }
+
+    .scores-table thead th {
+      padding: 15px 10px;
+      text-align: center;
+      color: #00d9ff;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-size: 0.8em;
+      border-bottom: 2px solid rgba(0, 217, 255, 0.3);
+    }
+
+    .scores-table thead th.total-header {
+      background: linear-gradient(135deg, rgba(255, 215, 0, 0.3), rgba(255, 165, 0, 0.2));
+      color: #ffd700;
+      font-size: 1em;
+    }
+
+    .scores-table tbody tr {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      transition: all 0.3s;
+    }
+
+    .scores-table tbody tr:hover {
+      background: rgba(0, 217, 255, 0.05);
+    }
+
+    .scores-table tbody td {
+      padding: 12px 10px;
+      text-align: center;
+      color: #eee;
+    }
+
+    .scores-table tbody td.player-name {
+      text-align: left;
+      font-weight: bold;
+      color: #00d9ff;
+      padding-left: 15px;
+    }
+
+    .scores-table tbody td.player-name.you {
+      color: #00ff80;
+    }
+
+    .scores-table tbody td.total-score {
+      font-weight: bold;
+      font-size: 1.1em;
+      background: rgba(255, 215, 0, 0.1);
+      color: #ffd700;
+    }
+
+    .scores-table tbody td.total-score.positive {
+      color: #00ff80;
+    }
+
+    .scores-table tbody td.total-score.negative {
+      color: #e94560;
+    }
+
+    .scores-table tbody td.round-score {
+      font-family: 'Courier New', monospace;
+      font-size: 0.95em;
+    }
+
+    .scores-table tbody td.round-score.empty {
+      color: #666;
+      font-style: italic;
+    }
+
+    .scores-table .player-row {
+      position: relative;
+    }
+
+    .scores-table .player-row.you-row {
+      background: rgba(0, 255, 128, 0.05);
+      border-left: 3px solid #00ff80;
+    }
+
+    .scores-table .player-row.leader-row {
+      background: rgba(255, 215, 0, 0.05);
+      border-left: 3px solid #ffd700;
+    }
+
+    .no-scores-message {
+      text-align: center;
+      color: #888;
+      padding: 30px;
+      font-style: italic;
+    }
+
+    .round-number-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 0.8em;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+
+    /* Responsive scores table */
+    @media (max-width: 768px) {
+      .scores-table-container {
+        padding: 15px;
+        margin-bottom: 20px;
+      }
+
+      .scores-table-container h3 {
+        font-size: 1.2em;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      .scores-table {
+        font-size: 0.75em;
+      }
+
+      .scores-table thead th,
+      .scores-table tbody td {
+        padding: 8px 5px;
+      }
+
+      .scores-table thead th {
+        font-size: 0.7em;
+      }
+
+      .scores-table tbody td.player-name {
+        padding-left: 10px;
+        max-width: 100px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .scores-table tbody td.total-score {
+        font-size: 1em;
+      }
+    }
+
     .selection-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -377,6 +549,19 @@
       <div class="status-item">
         <span class="label">Players:</span>
         <span class="value" id="playerCount">0 (min 4)</span>
+      </div>
+    </div>
+
+    <!-- Cumulative Scores Table -->
+    <div class="scores-table-container" id="scoresTableContainer">
+      <h3>
+        📊 Scoreboard
+        <span class="round-number-badge" id="currentRoundBadge">Round 1</span>
+      </h3>
+      <div id="scoresTableContent">
+        <div class="no-scores-message">
+          Scores will appear here after the first round completes
+        </div>
       </div>
     </div>
 
@@ -709,6 +894,8 @@
     let currentPartnerId = null; // Will be set when partner is found
     let currentPhase = 'waiting'; // Track current game phase
     let currentPlayers = []; // Track all players in the room
+    let cumulativeScores = {}; // Track cumulative scores across rounds: { socketId: { name: string, rounds: [round1Score, round2Score, ...], total: number } }
+    let currentRoundNumber = 1; // Track current round number
 
     function log(message, type = 'info') {
       const logDiv = document.getElementById('eventLog');
@@ -759,6 +946,12 @@
       document.getElementById('setupPanel').classList.add('hidden');
       document.getElementById('gameControls').classList.remove('hidden');
       updatePlayersList(data.players);
+
+      // Reset and initialize cumulative scores for new room
+      resetCumulativeScores();
+      initializeCumulativeScores(data.players);
+      updateScoresTable();
+
       log(`Room created: ${data.roomId}`, 'success');
 
       // Confirm we're in the room by listening for room-specific events
@@ -774,6 +967,11 @@
       document.getElementById('playerCount').textContent = `${data.players.length} joined`;
       document.getElementById('setupPanel').classList.add('hidden');
       updatePlayersList(data.players);
+
+      // Initialize cumulative scores for joined room
+      initializeCumulativeScores(data.players);
+      updateScoresTable();
+
       log(`Joined room: ${data.roomId}`, 'success');
 
       // Test: Emit a test event to see if we receive broadcasts
@@ -1110,6 +1308,9 @@
       console.log('[DEBUG] GAME_OVER event received:', data);
       updatePhase('waiting');
       log(`Game Over! Winner: ${getPlayerName(data.winner)}`, 'success');
+
+      // Add round scores to cumulative tracking
+      addRoundScores(data.scores);
 
       // Show final scoreboard
       showFinalScoreboard(data.scores, data.winner);
@@ -1786,18 +1987,28 @@
 
       const winnerName = getPlayerName(winnerId);
 
-      let scoresHtml = scores.map(s => `
-        <div style="display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-          <span>${s.name} ${s.socketId === winnerId ? '👑' : ''}</span>
-          <strong style="color: #00d9ff;">${s.score} points</strong>
+      let scoresHtml = scores.map(s => {
+        const cumulativeTotal = cumulativeScores[s.socketId]?.total || 0;
+        const cumulativeClass = cumulativeTotal > 0 ? '#00ff80' : (cumulativeTotal < 0 ? '#e94560' : '#888');
+        return `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+          <div style="text-align: left;">
+            <div style="font-weight: bold;">${s.name} ${s.socketId === winnerId ? '👑' : ''}</div>
+            <div style="font-size: 0.8em; color: ${cumulativeClass};">Cumulative: ${cumulativeTotal > 0 ? '+' : ''}${cumulativeTotal}</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="color: #00d9ff; font-weight: bold; font-size: 1.1em;">${s.score > 0 ? '+' : ''}${s.score}</div>
+            <div style="font-size: 0.75em; color: #888;">This Round</div>
+          </div>
         </div>
-      `).join('');
+      `;
+      }).join('');
 
       scoreboard.innerHTML = `
-        <h2 style="color: #ffd700; margin-bottom: 20px;">🏆 Round Complete!</h2>
+        <h2 style="color: #ffd700; margin-bottom: 15px;">🏆 Round ${currentRoundNumber} Complete!</h2>
         <p style="color: #00ff80; font-size: 1.2em; margin-bottom: 20px;">Winner: ${winnerName}</p>
         <div style="background: rgba(0, 0, 0, 0.3); border-radius: 10px; padding: 15px; margin-bottom: 20px;">
-          <h3 style="color: #888; margin-bottom: 10px; font-size: 1em;">Round Scores</h3>
+          <h3 style="color: #888; margin-bottom: 10px; font-size: 1em;">Round Scores (with Cumulative Totals)</h3>
           ${scoresHtml}
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">
@@ -1817,6 +2028,9 @@
       }
 
       log('Starting next round...', 'info');
+
+      // Increment round number
+      incrementRoundNumber();
 
       // Use same settings as previous round
       const cardsPerPlayer = 13; // Could be stored from previous round
@@ -1840,6 +2054,9 @@
           updateIndividualScores([]);
         } else {
           log(`Failed to start next round: ${response?.message || 'Unknown error'}`, 'error');
+          // Revert round number on failure
+          currentRoundNumber--;
+          document.getElementById('currentRoundBadge').textContent = `Round ${currentRoundNumber}`;
         }
       });
     }
@@ -1855,10 +2072,166 @@
       }
     }
 
+    // ==================== CUMULATIVE SCORES TABLE FUNCTIONS ====================
+
+    /**
+     * Initialize or update the cumulative scores data structure
+     */
+    function initializeCumulativeScores(players) {
+      if (!players || players.length === 0) return;
+
+      // Initialize scores for new players
+      players.forEach(player => {
+        if (!cumulativeScores[player.socketId]) {
+          cumulativeScores[player.socketId] = {
+            name: player.name,
+            socketId: player.socketId,
+            rounds: [],
+            total: 0
+          };
+        } else {
+          // Update name in case it changed
+          cumulativeScores[player.socketId].name = player.name;
+        }
+      });
+
+      console.log('[DEBUG] Initialized cumulative scores:', cumulativeScores);
+    }
+
+    /**
+     * Add round scores to the cumulative tracking
+     */
+    function addRoundScores(roundScores) {
+      if (!roundScores || roundScores.length === 0) return;
+
+      console.log('[DEBUG] Adding round scores:', roundScores);
+
+      roundScores.forEach(playerData => {
+        const socketId = playerData.socketId;
+        const score = playerData.score; // The score field from getFinalScores
+
+        if (cumulativeScores[socketId]) {
+          cumulativeScores[socketId].rounds.push(score);
+          cumulativeScores[socketId].total += score;
+          console.log(`[DEBUG] Updated ${cumulativeScores[socketId].name}: added ${score}, total: ${cumulativeScores[socketId].total}`);
+        } else {
+          // Player might have joined during the round, initialize their scores
+          cumulativeScores[socketId] = {
+            name: playerData.name,
+            socketId: socketId,
+            rounds: [score],
+            total: score
+          };
+          console.log(`[DEBUG] Initialized ${playerData.name}: added ${score}, total: ${score}`);
+        }
+      });
+
+      // Update the display
+      updateScoresTable();
+    }
+
+    /**
+     * Update the scores table display with current cumulative scores
+     */
+    function updateScoresTable() {
+      const tableContent = document.getElementById('scoresTableContent');
+      const roundBadge = document.getElementById('currentRoundBadge');
+
+      if (!tableContent) return;
+
+      // Update round badge
+      roundBadge.textContent = `Round ${currentRoundNumber}`;
+
+      const playersArray = Object.values(cumulativeScores);
+
+      if (playersArray.length === 0) {
+        tableContent.innerHTML = '<div class="no-scores-message">Scores will appear here after the first round completes</div>';
+        return;
+      }
+
+      // Sort players by total score (highest first)
+      const sortedPlayers = playersArray.sort((a, b) => b.total - a.total);
+
+      // Get the maximum number of rounds played
+      const maxRounds = Math.max(...sortedPlayers.map(p => p.rounds.length), 0);
+
+      if (maxRounds === 0) {
+        tableContent.innerHTML = '<div class="no-scores-message">Scores will appear here after the first round completes</div>';
+        return;
+      }
+
+      // Build the table HTML
+      let html = '<table class="scores-table">';
+
+      // Table header
+      html += '<thead><tr>';
+      html += '<th>Player</th>';
+      for (let i = 1; i <= maxRounds; i++) {
+        html += `<th>Round ${i}</th>`;
+      }
+      html += '<th class="total-header">Total</th>';
+      html += '</tr></thead>';
+
+      // Table body
+      html += '<tbody>';
+      sortedPlayers.forEach(player => {
+        const isYou = player.socketId === socket.id;
+        const rowClass = isYou ? 'player-row you-row' : 'player-row';
+
+        html += `<tr class="${rowClass}">`;
+        html += `<td class="player-name ${isYou ? 'you' : ''}">${player.name}${isYou ? ' (You)' : ''}</td>`;
+
+        // Round scores
+        for (let i = 0; i < maxRounds; i++) {
+          const score = player.rounds[i] !== undefined ? player.rounds[i] : null;
+          const scoreClass = score > 0 ? 'positive' : (score < 0 ? 'negative' : '');
+
+          if (score !== null) {
+            html += `<td class="round-score ${scoreClass}">${score > 0 ? '+' : ''}${score}</td>`;
+          } else {
+            html += '<td class="round-score empty">-</td>';
+          }
+        }
+
+        // Total score
+        const totalClass = player.total > 0 ? 'positive' : (player.total < 0 ? 'negative' : '');
+        html += `<td class="total-score ${totalClass}">${player.total > 0 ? '+' : ''}${player.total}</td>`;
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+
+      tableContent.innerHTML = html;
+
+      console.log('[DEBUG] Scores table updated with', sortedPlayers.length, 'players and', maxRounds, 'rounds');
+    }
+
+    /**
+     * Reset cumulative scores (for new room)
+     */
+    function resetCumulativeScores() {
+      cumulativeScores = {};
+      currentRoundNumber = 1;
+      updateScoresTable();
+      console.log('[DEBUG] Cumulative scores reset');
+    }
+
+    /**
+     * Increment round number and update badge
+     */
+    function incrementRoundNumber() {
+      currentRoundNumber++;
+      document.getElementById('currentRoundBadge').textContent = `Round ${currentRoundNumber}`;
+      console.log('[DEBUG] Round number incremented to', currentRoundNumber);
+    }
+
     // Listen for next round events
     socket.on('NEXT_ROUND_STARTED', (data) => {
       log(`Round ${data.roundNumber} started!`, 'success');
       updatePhase('bidding');
+
+      // Update round number for non-host players
+      currentRoundNumber = data.roundNumber;
+      document.getElementById('currentRoundBadge').textContent = `Round ${currentRoundNumber}`;
 
       // Reset UI for new round
       document.getElementById('gamePanel').classList.add('hidden');

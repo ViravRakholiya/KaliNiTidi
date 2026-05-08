@@ -18,9 +18,12 @@ class GameService {
       errors.push('Only the host can start the game');
     }
 
-    // Allow starting a game if room is in 'waiting' status OR if there's no active game (for subsequent rounds)
-    const hasActiveGame = this.activeGames.has(room.roomId);
-    if (room.status !== 'waiting' && hasActiveGame) {
+    // Allow starting a new game if there's no active game state (or only a completed game)
+    // This works for both first game and subsequent rounds
+    const existingGame = this.activeGames.get(room.roomId);
+    const hasActiveGame = existingGame && existingGame.phase !== 'completed';
+    logger.info(`[DEBUG] validateGameStart: room=${room.roomId}, status=${room.status}, hasActiveGame=${hasActiveGame}, existingGamePhase=${existingGame?.phase}, activeGamesSize=${this.activeGames.size}`);
+    if (hasActiveGame) {
       errors.push('Game has already been started');
     }
 
@@ -72,6 +75,15 @@ class GameService {
 
     try {
       logger.info('[DEBUG] About to generate deck...');
+
+      // Clean up any completed game before starting a new one
+      const existingGame = this.activeGames.get(roomId);
+      if (existingGame && existingGame.phase === 'completed') {
+        logger.info(`[DEBUG] Cleaning up completed game in room ${roomId} before starting new game`);
+        biddingService.cleanup(roomId);
+        this.activeGames.delete(roomId);
+      }
+
       // Generate deck with specified number of sets
       const deck = deckService.generateDeckWithSets(validation.totalCards, numberOfSets);
       logger.info('[DEBUG] Deck generated successfully');
@@ -808,41 +820,51 @@ class GameService {
         return played;
       }
 
-      // Trump beats non-trump (DEFENSIVE: Use normalized values)
-      if (normalizedTrump && normalizedCardSuit === normalizedTrump && normalizedWinnerSuit !== normalizedTrump) {
-        logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (TRUMP: ${normalizedTrump}) beats ${winner.card.rank} of ${normalizedWinnerSuit}`);
+      // DEBUG: Check trump comparison
+      const cardIsTrump = normalizedCardSuit === normalizedTrump;
+      const winnerIsTrump = normalizedWinnerSuit === normalizedTrump;
+
+      logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (isTrump: ${cardIsTrump}), Current winner: ${winner.card.rank} of ${normalizedWinnerSuit} (isTrump: ${winnerIsTrump})`);
+
+      // FIX: Priority-based winner determination
+      // 1. Trump always beats non-trump (regardless of led suit)
+      if (cardIsTrump && !winnerIsTrump) {
+        logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (TRUMP: ${normalizedTrump}) beats ${winner.card.rank} of ${normalizedWinnerSuit} (non-trump) - TRUMP WINS`);
         return played;
       }
 
-      // If both are trump, higher rank wins
-      if (normalizedTrump && normalizedCardSuit === normalizedTrump && normalizedWinnerSuit === normalizedTrump) {
+      // 2. If both are trump, higher rank wins (second card wins tie)
+      if (cardIsTrump && winnerIsTrump) {
         const rankComparison = this.compareRanks(card.rank, winner.card.rank);
         if (rankComparison > 0) {
-          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (TRUMP) beats ${winner.card.rank} of ${normalizedWinnerSuit}`);
+          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (TRUMP) beats ${winner.card.rank} of ${normalizedWinnerSuit} (higher rank)`);
           return played;
         } else if (rankComparison === 0) {
           // SAME CARD TIEBREAKER: Second card played wins
           logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (TRUMP) TIES with ${winner.card.rank} of ${normalizedWinnerSuit} - Second card wins`);
-          return played; // New card wins (second card played)
+          return played;
         }
       }
 
-      // If neither is trump
-      if (normalizedLedSuit && normalizedCardSuit === normalizedLedSuit && normalizedWinnerSuit !== normalizedLedSuit) {
-        logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (LED SUIT: ${normalizedLedSuit}) beats ${winner.card.rank} of ${normalizedWinnerSuit} (off-suit)`);
-        return played;
-      }
-
-      // If both are led suit, higher rank wins
-      if (normalizedLedSuit && normalizedCardSuit === normalizedLedSuit && normalizedWinnerSuit === normalizedLedSuit) {
-        const rankComparison = this.compareRanks(card.rank, winner.card.rank);
-        if (rankComparison > 0) {
-          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (LED SUIT) beats ${winner.card.rank} of ${normalizedWinnerSuit}`);
+      // 3. If neither is trump, check led suit
+      if (!cardIsTrump && !winnerIsTrump) {
+        // Led suit beats off-suit
+        if (normalizedLedSuit && normalizedCardSuit === normalizedLedSuit && normalizedWinnerSuit !== normalizedLedSuit) {
+          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (LED SUIT: ${normalizedLedSuit}) beats ${winner.card.rank} of ${normalizedWinnerSuit} (off-suit)`);
           return played;
-        } else if (rankComparison === 0) {
-          // SAME CARD TIEBREAKER: Second card played wins
-          logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (LED SUIT) TIES with ${winner.card.rank} of ${normalizedWinnerSuit} - Second card wins`);
-          return played; // New card wins (second card played)
+        }
+
+        // If both are led suit, higher rank wins (second card wins tie)
+        if (normalizedLedSuit && normalizedCardSuit === normalizedLedSuit && normalizedWinnerSuit === normalizedLedSuit) {
+          const rankComparison = this.compareRanks(card.rank, winner.card.rank);
+          if (rankComparison > 0) {
+            logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (LED SUIT) beats ${winner.card.rank} of ${normalizedWinnerSuit} (higher rank)`);
+            return played;
+          } else if (rankComparison === 0) {
+            // SAME CARD TIEBREAKER: Second card played wins
+            logger.info(`  [Trick Card ${index + 1}] ${card.rank} of ${normalizedCardSuit} (LED SUIT) TIES with ${winner.card.rank} of ${normalizedWinnerSuit} - Second card wins`);
+            return played;
+          }
         }
       }
 
@@ -1024,9 +1046,11 @@ class GameService {
    * End game and clean up (but keep room active for next round)
    */
   endGame(roomId) {
+    logger.info(`[DEBUG] endGame called for room ${roomId}`);
     const gameState = this.activeGames.get(roomId);
 
     if (!gameState) {
+      logger.warn(`[DEBUG] endGame: No game state found for room ${roomId}`);
       return {
         success: false,
         error: 'GAME_NOT_FOUND',
