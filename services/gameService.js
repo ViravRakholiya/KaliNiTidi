@@ -439,6 +439,7 @@ class GameService {
     gameState.teamsAssigned = false; // Will be set to true after both partner card holders have played
 
     logger.info(`Gameplay started in room ${roomId}. Leader: ${socketId.substring(0, 8)}..., Trump: ${gameState.trump}, Partner Card: ${gameState.partnerCard.rank} of ${gameState.partnerCard.suit}, Bid: ${gameState.winningBid}`);
+    logger.info(`[DEBUG] Partner card for tracking: Rank=${gameState.partnerCard.rank}, Suit=${gameState.partnerCard.suit}`);
 
     return {
       success: true,
