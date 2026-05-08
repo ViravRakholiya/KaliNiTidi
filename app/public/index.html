@@ -562,6 +562,7 @@
                   <div>
                     <div style="color: #888; font-size: 0.7em; text-transform: uppercase; letter-spacing: 1px;">Partner Card</div>
                     <div style="font-size: 1.3em; font-weight: bold; color: #00d9ff;" id="gamePartnerCardDisplay">-</div>
+                    <div style="color: #888; font-size: 0.75em; font-style: italic;" id="gamePartnerPositionDisplay"></div>
                   </div>
                 </div>
               </div>
@@ -1015,6 +1016,7 @@
       try {
         console.log('[DEBUG] GAMEPLAY_STARTED event received:', data);
         console.log('[DEBUG] Winning bid:', data.winningBid, 'Total points:', data.totalPoints);
+        console.log('[DEBUG] Partner card data:', data.partnerCard);
         console.log('[DEBUG] Current phase before update:', currentPhase);
 
         // Store current players from game data
@@ -1042,9 +1044,24 @@
         if (data.partnerCard) {
           document.getElementById('partnerCardIcon').textContent = suitSymbols[data.partnerCard.suit] || '🤝';
           document.getElementById('gamePartnerCardDisplay').textContent = `${data.partnerCard.rank} of ${data.partnerCard.suit.charAt(0).toUpperCase() + data.partnerCard.suit.slice(1)}`;
+
+          // Show position preference if available
+          const positionDisplay = document.getElementById('gamePartnerPositionDisplay');
+          console.log('[DEBUG] Partner position preference:', data.partnerCard.preferredPosition);
+
+          if (data.partnerCard.preferredPosition) {
+            const positionText = data.partnerCard.preferredPosition === 1
+              ? '1st player to play = Partner'
+              : '2nd player to play = Partner';
+            positionDisplay.textContent = positionText;
+            positionDisplay.style.color = '#ffd700';
+          } else {
+            positionDisplay.textContent = '';
+          }
         } else {
           document.getElementById('partnerCardIcon').textContent = '🤝';
           document.getElementById('gamePartnerCardDisplay').textContent = 'Selecting...';
+          document.getElementById('gamePartnerPositionDisplay').textContent = '';
         }
 
         // Update Winning Bid Display

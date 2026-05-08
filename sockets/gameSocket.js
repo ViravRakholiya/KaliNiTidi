@@ -620,12 +620,13 @@ export const handleGameSocket = (io, socket) => {
           isHost: p.isHost
         })),
         trump: result.trump,
-        partnerCard: result.partnerCard,
+        partnerCard: result.partnerCard, // Includes preferredPosition if set
         leader: result.leader,
         winningBid: result.winningBid,
         totalPoints: result.gameState.totalPointsInDeck // Fixed: Send actual total points, not card count
       };
 
+      logger.info(`Broadcasting GAMEPLAY_STARTED to room ${roomId} with partnerCard:`, JSON.stringify(eventData.partnerCard));
       logger.info(`Broadcasting GAMEPLAY_STARTED to room ${roomId} with data:`, JSON.stringify(eventData));
       io.to(roomId).emit('GAMEPLAY_STARTED', eventData);
 
