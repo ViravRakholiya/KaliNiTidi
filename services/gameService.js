@@ -18,7 +18,9 @@ class GameService {
       errors.push('Only the host can start the game');
     }
 
-    if (room.status !== 'waiting') {
+    // Allow starting a game if room is in 'waiting' status OR if there's no active game (for subsequent rounds)
+    const hasActiveGame = this.activeGames.has(room.roomId);
+    if (room.status !== 'waiting' && hasActiveGame) {
       errors.push('Game has already been started');
     }
 
@@ -587,7 +589,11 @@ class GameService {
             const bidding = biddingService.activeBiddings.get(roomId);
             const preferredPosition = bidding?.partnerCards[0]?.preferredPosition;
 
-            if (preferredPosition && gameState.partnerCardPlays.length === preferredPosition) {
+            // Count non-bidder partner card plays
+            const nonBidderPlays = gameState.partnerCardPlays.filter(p => p.playerId !== gameState.bidWinner);
+            const playCount = nonBidderPlays.length;
+
+            if (preferredPosition && playCount === preferredPosition) {
               // Leader's preferred position player becomes partner
               gameState.partnerId = socketId;
               gameState.partnerAssignedAt = Date.now();
@@ -595,18 +601,18 @@ class GameService {
               logger.info(`PARTNER ASSIGNED (Preferred Position ${preferredPosition}): ${player.name} (${socketId.substring(0, 8)}...) is now the partner!`);
 
               gameState.teamsAssigned = true;
-            } else if (gameState.partnerCardPlays.length === 1 && !preferredPosition) {
-              // First player to play partner card becomes partner (no preference)
+            } else if (playCount === 1 && !preferredPosition) {
+              // First non-bidder player to play partner card becomes partner (no preference)
               gameState.partnerId = socketId;
               gameState.partnerAssignedAt = Date.now();
 
               logger.info(`PARTNER ASSIGNED: ${player.name} (${socketId.substring(0, 8)}...) is now the partner!`);
-            } else if (gameState.partnerCardPlays.length === 2 && !preferredPosition) {
-              // Second player to play partner card becomes opponent
+            } else if (playCount === 2 && !preferredPosition) {
+              // Second non-bidder player to play partner card becomes opponent
               logger.info(`SECOND PARTNER CARD PLAYED: ${player.name} (${socketId.substring(0, 8)}...) is now an opponent!`);
               gameState.teamsAssigned = true;
-            } else if (gameState.partnerCardPlays.length === 2 && preferredPosition) {
-              // Second player played (not the preferred position) - becomes opponent
+            } else if (playCount === 2 && preferredPosition) {
+              // Second non-bidder player played (not the preferred position) - becomes opponent
               logger.info(`SECOND PARTNER CARD PLAYED: ${player.name} (${socketId.substring(0, 8)}...) is now an opponent!`);
               gameState.teamsAssigned = true;
             }
@@ -700,6 +706,9 @@ class GameService {
           result.madeBid = finalScores.madeBid;
           result.bidderTeamPoints = finalScores.bidderTeamPoints;
           result.opponentTeamPoints = finalScores.opponentTeamPoints;
+
+          // Store final scores in game state for retrieval
+          gameState.finalScores = finalScores;
 
           // Determine game winner
           let gameWinner = null;
@@ -948,8 +957,13 @@ class GameService {
     const gameState = this.activeGames.get(roomId);
     if (!gameState) return null;
 
-    // Calculate final team scores
-    const finalScores = this.calculateFinalScores(roomId);
+    // Use stored final scores if available, otherwise calculate
+    const finalScores = gameState.finalScores || this.calculateFinalScores(roomId);
+
+    // Store if not already stored
+    if (!gameState.finalScores) {
+      gameState.finalScores = finalScores;
+    }
 
     return gameState.players.map(p => ({
       socketId: p.socketId,
