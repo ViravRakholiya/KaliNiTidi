@@ -1,0 +1,59 @@
+#!/bin/bash
+set -euxo pipefail
+exec > /var/log/init-script.log 2>&1
+
+# === 1️⃣ Update system and install dependencies ===
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y ca-certificates curl gnupg lsb-release git
+
+# === 2️⃣ Add Docker’s official GPG key ===
+mkdir -p /etc/apt/keyrings
+if [ ! -f /etc/apt/keyrings/docker.gpg ]; then
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+fi
+
+# === 3️⃣ Add Docker repository ===
+if [ ! -f /etc/apt/sources.list.d/docker.list ]; then
+  echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+    https://download.docker.com/linux/ubuntu \
+    $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+fi
+
+# === 4️⃣ Install Docker Engine + Compose plugin ===
+apt-get update -y
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# === 5️⃣ Enable and start Docker ===
+systemctl enable docker
+systemctl start docker
+
+# === 6️⃣ Allow running docker without sudo ===
+usermod -aG docker ubuntu || true
+
+# === 7️⃣ Clone your GitHub repository ===
+cd /home/ubuntu
+if [ ! -d "Judgment-DeepSeek" ]; then
+  git clone https://github.com/BhavinDalsaniya/KaliNiTidi.git
+fi
+cd Judgment-DeepSeek
+
+# === 8️⃣ Create Dockerfile if missing ===
+if [ ! -f Dockerfile ]; then
+  cat <<EOF > Dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+EXPOSE 3000
+CMD ["npm", "start"]
+EOF
+fi
+
+# === 9️⃣ Build Docker image ===
+docker build -t judgment-deepseek .
+
+# === 🔟 Run container on port 3000 ===
+docker run -d -p 3000:3000 --restart=always --name judgment-app judgment-deepseek
