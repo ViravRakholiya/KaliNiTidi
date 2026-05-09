@@ -873,10 +873,20 @@
   </div>
 
   <script>
-    const socket = io('http://localhost:3001', {
+    // Dynamic WebSocket URL - works in both development and production
+    const getWebSocketUrl = () => {
+      // If we're in production, use the current origin (Render URL)
+      // If we're in development, use localhost
+      const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+      return isProduction ? window.location.origin : 'http://localhost:3001';
+    };
+
+    const socket = io(getWebSocketUrl(), {
       transports: ['websocket', 'polling'],
       reconnection: true
     });
+
+    console.log('Connecting to WebSocket server:', getWebSocketUrl());
 
     // Debug: Log all incoming events
     socket.onAny((eventName, ...args) => {
