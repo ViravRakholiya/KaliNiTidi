@@ -1287,7 +1287,9 @@
               positionDisplay.textContent = positionText;
               positionDisplay.style.color = '#ffd700';
             } else {
-              positionDisplay.textContent = '';
+              // No position preference means FIXED PARTNER
+              positionDisplay.textContent = '🤝 FIXED PARTNER (determined during gameplay)';
+              positionDisplay.style.color = '#00ff80';
             }
           }
         } else {
@@ -1568,9 +1570,14 @@
         return;
       }
 
-      // Check if position is required and provided
+      // Count how many of the partner card we have
+      const cardCount = myCards.filter(c => c.rank === partnerRank && c.suit === partnerSuit).length;
+
+      // Check if position is required (only when we have 0 cards)
       const positionGroup = document.getElementById('partnerPositionGroup');
-      if (!positionGroup.classList.contains('hidden') && !partnerPosition) {
+      const isFixedPartner = cardCount >= 1; // Fixed partner when we have at least one card
+
+      if (!isFixedPartner && !partnerPosition) {
         log('Please select partner position preference', 'error');
         return;
       }
@@ -1593,15 +1600,19 @@
             suit: partnerSuit
           };
 
-          // Add position preference if provided
-          if (partnerPosition) {
+          // Only add position preference if NOT fixed partner
+          if (!isFixedPartner && partnerPosition) {
             partnerData.preferredPosition = parseInt(partnerPosition);
           }
+          // If fixed partner, don't send preferredPosition (it will be null)
 
           socket.emit('SELECT_PARTNER_CARD', partnerData, (partnerResponse) => {
             if (partnerResponse.success) {
               console.log('[DEBUG] Partner card selected successfully');
-              log(`Partner card selected: ${partnerRank} of ${partnerSuit}${partnerPosition ? ` (Position: ${partnerPosition})` : ''}`, 'success');
+              const partnerMsg = isFixedPartner
+                ? `Fixed Partner: ${partnerRank} of ${partnerSuit}`
+                : `Partner card selected: ${partnerRank} of ${partnerSuit} (Position: ${partnerPosition})`;
+              log(partnerMsg, 'success');
               // Start the game
               console.log('[DEBUG] Emitting START_GAMEPLAY...');
               socket.emit('START_GAMEPLAY', { roomId: currentRoom }, (gameResponse) => {
@@ -1655,18 +1666,18 @@
       // Count how many of this card we have
       const cardCount = myCards.filter(c => c.rank === partnerRank && c.suit === partnerSuit).length;
 
-      // Update info text
+      // Update info text - Fixed Partner when we have at least one card
       if (cardCount === 2) {
-        cardCountInfo.textContent = `✅ You have BOTH ${partnerRank} of ${partnerSuit} - You can choose which one to play during gameplay`;
+        cardCountInfo.innerHTML = `🤝 <strong>FIXED PARTNER</strong> - You have BOTH ${partnerRank} of ${partnerSuit}`;
         cardCountInfo.style.color = '#00ff80';
 
-        // Hide position dropdown since leader has both cards
+        // Hide position dropdown since partner is fixed
         positionGroup.classList.add('hidden');
       } else if (cardCount === 1) {
-        cardCountInfo.textContent = `✅ You have ONE ${partnerRank} of ${partnerSuit} - Your partner will be the player with the other one`;
-        cardCountInfo.style.color = '#00d9ff';
+        cardCountInfo.innerHTML = `🤝 <strong>FIXED PARTNER</strong> - You have ONE ${partnerRank} of ${partnerSuit}, partner is the player with the other one`;
+        cardCountInfo.style.color = '#00ff80';
 
-        // Hide position dropdown since leader has one card
+        // Hide position dropdown since partner is fixed
         positionGroup.classList.add('hidden');
       } else {
         cardCountInfo.textContent = `⚠️ You don't have ${partnerRank} of ${partnerSuit} - Choose which player becomes your partner`;
