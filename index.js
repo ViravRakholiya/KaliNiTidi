@@ -1,9 +1,41 @@
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import app from './app/index.js';
-import { initializeSocket } from './sockets/handler.js';
-import { logger } from './utils/logger.js';
-import { config } from './config/index.js';
+
+// Add startup logging
+console.log('🚀 Starting KaliNiTidi server...');
+console.log('📝 Node version:', process.version);
+console.log('🌍 Environment:', process.env.NODE_ENV || 'development');
+console.log('🔑 Supabase URL configured:', !!process.env.SUPABASE_URL);
+console.log('🔑 Supabase Key configured:', !!process.env.SUPABASE_KEY);
+
+try {
+  var app = await import('./app/index.js');
+  app = app.default;
+  console.log('✅ App loaded successfully');
+} catch (error) {
+  console.error('❌ Failed to load app:', error.message);
+  console.error(error.stack);
+  process.exit(1);
+}
+
+try {
+  var { initializeSocket } = await import('./sockets/handler.js');
+  console.log('✅ Socket handlers loaded');
+} catch (error) {
+  console.error('❌ Failed to load socket handlers:', error.message);
+  console.error(error.stack);
+  process.exit(1);
+}
+
+try {
+  var { logger } = await import('./utils/logger.js');
+  var { config } = await import('./config/index.js');
+  console.log('✅ Config loaded');
+} catch (error) {
+  console.error('❌ Failed to load config:', error.message);
+  console.error(error.stack);
+  process.exit(1);
+}
 
 // Create HTTP server
 const httpServer = createServer(app);
