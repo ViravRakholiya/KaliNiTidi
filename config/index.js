@@ -50,19 +50,22 @@ const config = {
 };
 
 // Validate required environment variables
-const requiredEnvVars = ['SUPABASE_URL', 'SUPABASE_KEY'];
-const missingEnvVars = requiredEnvVars.filter(envVar => {
-  const value = config.supabase[envVar.toLowerCase() || envVar];
+const requiredEnvVars = [
+  { name: 'SUPABASE_URL', value: config.supabase.url },
+  { name: 'SUPABASE_KEY', value: config.supabase.key }
+];
+const missingEnvVars = requiredEnvVars.filter(({ name, value }) => {
   return !value || value.includes('placeholder');
 });
 
-if (missingEnvVars.length > 0 && config.env === 'production') {
-  throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
-}
-
-if (missingEnvVars.length > 0 && config.env !== 'production') {
-  console.warn(`Warning: Using placeholder values for: ${missingEnvVars.join(', ')}`);
-  console.warn('Set up your .env file with proper Supabase credentials.');
+if (missingEnvVars.length > 0) {
+  const missingNames = missingEnvVars.map(v => v.name).join(', ');
+  if (config.env === 'production') {
+    throw new Error(`Missing required environment variables: ${missingNames}`);
+  } else {
+    console.warn(`Warning: Using placeholder values for: ${missingNames}`);
+    console.warn('Set up your .env file with proper Supabase credentials.');
+  }
 }
 
 export { config };

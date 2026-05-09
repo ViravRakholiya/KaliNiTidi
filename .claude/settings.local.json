@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"^\\(package\\\\.json|index\\\\.js|Dockerfile|\\\\.env\\\\.example\\)$\")",
+      "Bash(grep -E \"^\\(app/|config/|controllers/|sockets/|utils/|services/\\)$\")",
+      "Bash(npm list *)",
+      "Bash(node -e \"import\\('./index.js'\\).then\\(\\(\\) => console.log\\('✅ Imports successful'\\)\\).catch\\(e => console.log\\('❌ Import error:', e.message\\)\\)\")",
+      "Bash(grep -v \"^$\")",
+      "Bash(bash project-health-check.sh)"
+    ]
+  }
+}
