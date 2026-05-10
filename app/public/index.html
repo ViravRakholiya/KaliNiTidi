@@ -545,21 +545,20 @@
 
     /* Mobile Optimization - Compact UI */
     @media (max-width: 768px) {
-      /* Reorder sections for mobile: Scoreboard -> Current Trick -> Hand */
+      /* Reorder sections for mobile: Scoreboard -> Current Trick -> Hand -> Game Panel -> Players -> Event Log */
       .main-grid {
         display: flex;
         flex-direction: column;
       }
 
-      /* Move scoreboard to top */
+      /* 1. Scoreboard (already first in layout) */
       #scoresTableContainer { order: 1; }
 
-      /* Move current trick below scoreboard */
-      #gamePanel { order: 2; }
-      #currentTrick { order: 3; }
+      /* 2. Current Trick */
+      #currentTrick { order: 2; }
 
-      /* Move hand section to bottom, no scroll */
-      .main-grid > div:last-child { order: 4; }
+      /* 3. Your Hand */
+      #handPanel { order: 3; }
       .cards-display {
         max-height: none !important;
         overflow-y: visible !important;
@@ -567,6 +566,15 @@
         gap: 4px !important;
         padding: 5px !important;
       }
+
+      /* 4. Game Panel */
+      #gamePanel { order: 4; }
+
+      /* 5. Players Section */
+      #playersPanel { order: 5; }
+
+      /* 6. Event Log */
+      #eventLogPanel { order: 6; }
 
       /* Compact header */
       .header h1 { font-size: 2em; margin-bottom: 5px; }
@@ -972,7 +980,7 @@
 
       <!-- Right Panel -->
       <div>
-        <div class="card-panel">
+        <div class="card-panel" id="playersPanel">
           <h3>👥 Players <span id="playerCountBadge">(min 4)</span></h3>
           <div class="players-grid" id="playersList"></div>
           <div style="margin-top: 15px; text-align: center;" id="gameControls" class="hidden">
@@ -1003,7 +1011,7 @@
           </div>
         </div>
 
-        <div class="card-panel">
+        <div class="card-panel" id="handPanel">
           <h3>🃏 Your Hand <span id="handCount">(0 cards)</span></h3>
           <div class="hand-summary">
             <div>
@@ -1018,7 +1026,7 @@
           <div class="cards-display" id="myCards"></div>
         </div>
 
-        <div class="card-panel">
+        <div class="card-panel" id="eventLogPanel">
           <h3>📋 Event Log</h3>
           <div class="event-log" id="eventLog"></div>
         </div>
