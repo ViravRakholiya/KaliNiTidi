@@ -468,39 +468,40 @@
     /* Responsive scores table */
     @media (max-width: 768px) {
       .scores-table-container {
-        padding: 15px;
-        margin-bottom: 20px;
+        padding: 10px;
+        margin-bottom: 10px;
       }
 
       .scores-table-container h3 {
-        font-size: 1.2em;
+        font-size: 1em;
         flex-direction: column;
-        gap: 5px;
+        gap: 3px;
+        padding: 8px;
       }
 
       .scores-table {
-        font-size: 0.75em;
+        font-size: 0.7em;
       }
 
       .scores-table thead th,
       .scores-table tbody td {
-        padding: 8px 5px;
+        padding: 6px 3px;
       }
 
       .scores-table thead th {
-        font-size: 0.7em;
+        font-size: 0.65em;
       }
 
       .scores-table tbody td.player-name {
-        padding-left: 10px;
-        max-width: 100px;
+        padding-left: 8px;
+        max-width: 80px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
       .scores-table tbody td.total-score {
-        font-size: 1em;
+        font-size: 0.9em;
       }
     }
 
@@ -528,12 +529,121 @@
       .bidding-display { grid-template-columns: 1fr; }
       .bid-controls { grid-template-columns: repeat(2, 1fr); }
     }
+
+    /* Mobile Optimization - Compact UI */
+    @media (max-width: 768px) {
+      /* Compact header */
+      .header h1 { font-size: 2em; margin-bottom: 5px; }
+      .phase-banner { padding: 10px 20px; font-size: 1em; }
+
+      /* Compact status bar */
+      .status-bar { gap: 10px; margin-bottom: 10px; }
+      .status-item { padding: 8px 15px; font-size: 0.85em; }
+
+      /* Compact panels */
+      .card-panel { padding: 15px; margin-bottom: 15px; }
+      .card-panel h3 { font-size: 1.1em; margin-bottom: 15px; }
+
+      /* Compact forms and inputs */
+      .input-group label { font-size: 0.8em; }
+      .input-group input, .input-group select { padding: 10px; font-size: 0.9em; }
+      .btn { padding: 10px 20px; font-size: 0.9em; }
+
+      /* Compact bidding display */
+      .bidding-display { grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+      .bid-stat { padding: 12px; }
+      .bid-stat .label { font-size: 0.7em; }
+      .bid-stat .value { font-size: 1.5em; }
+      .bid-controls { gap: 6px; }
+
+      /* Compact turn banner */
+      .turn-banner { padding: 10px; font-size: 0.9em; margin-bottom: 10px; }
+
+      /* Compact player cards */
+      .players-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+      .player-card { padding: 10px; font-size: 0.85em; }
+
+      /* Keep current trick and hand display normal size */
+      #currentTrick { padding: 12px; margin-bottom: 10px; }
+      .cards-display { gap: 6px; max-height: 300px; }
+
+      /* Compact scores table */
+      .scores-table-container { padding: 15px; margin-bottom: 15px; }
+      .scores-table-container h3 { font-size: 1.1em; padding: 10px; }
+
+      /* Compact event log */
+      .event-log { height: 150px; font-size: 0.75em; padding: 10px; }
+      .log-entry { padding: 5px 8px; margin-bottom: 3px; }
+
+      /* Compact hand summary */
+      .hand-summary { padding: 10px; margin-bottom: 10px; }
+      .hand-summary .label { font-size: 0.75em; }
+      .hand-summary .value { font-size: 1.2em; }
+
+      /* Compact game info section */
+      .card-panel > div[style*="background: linear-gradient"] { padding: 12px !important; margin-bottom: 10px !important; }
+      .card-panel > div[style*="background: rgba"] { padding: 10px !important; margin-bottom: 10px !important; }
+
+      /* Compact playing cards in hand */
+      .playing-card { padding: 8px; }
+      .playing-card .rank { font-size: 1.2em; }
+      .playing-card .suit { font-size: 1.5em; }
+
+      /* Reduce gaps and margins */
+      .main-grid { gap: 15px; margin-top: 15px; }
+      .container { padding: 10px; }
+
+      /* Compact buttons */
+      .btn-primary, .btn-success, .btn-danger, .btn-warning { padding: 12px; }
+    }
+
+    /* Extra compact for very small screens */
+    @media (max-width: 480px) {
+      /* Ultra compact header */
+      .header h1 { font-size: 1.5em; }
+      .phase-banner { padding: 8px 15px; font-size: 0.9em; }
+
+      /* Ultra compact panels */
+      .card-panel { padding: 10px; }
+      .card-panel h3 { font-size: 1em; margin-bottom: 10px; }
+
+      /* Minimal forms */
+      .input-group label { font-size: 0.75em; }
+      .input-group input, .input-group select { padding: 8px; font-size: 0.85em; }
+      .btn { padding: 8px 15px; font-size: 0.85em; }
+
+      /* Compact bidding */
+      .bid-stat { padding: 8px; }
+      .bid-stat .label { font-size: 0.65em; }
+      .bid-stat .value { font-size: 1.2em; }
+
+      /* Keep trick and hand usable */
+      .cards-display { gap: 4px; max-height: 250px; }
+      .playing-card { padding: 6px; min-width: 50px; }
+
+      /* Minimal status */
+      .status-bar { gap: 5px; flex-wrap: wrap; }
+      .status-item { padding: 5px 10px; font-size: 0.75em; }
+
+      /* Compact players */
+      .player-card { padding: 8px; font-size: 0.75em; }
+
+      /* Tiny event log */
+      .event-log { height: 120px; font-size: 0.7em; padding: 8px; }
+
+      /* Reduce all margins and gaps */
+      .main-grid { gap: 10px; margin-top: 10px; }
+      .container { padding: 5px; }
+
+      /* Compact cards display */
+      .cards-display { padding: 5px; }
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>♠ Blacks 3 ♥</h1>
+      <h1>♠ Bhavin Creation Blacks 3 ♥</h1>
       <div id="phaseBanner" class="phase-banner waiting">Waiting to Start</div>
     </div>
 
