@@ -246,6 +246,19 @@
       padding: 10px;
     }
 
+    /* Turn highlight for hand section */
+    .cards-display.my-turn {
+      border: 3px solid #ffd700;
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+      animation: turnPulse 1.5s infinite;
+    }
+
+    @keyframes turnPulse {
+      0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
+      50% { box-shadow: 0 0 40px rgba(255, 215, 0, 0.8); }
+    }
+
     .playing-card {
       background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
       color: #333;
@@ -532,6 +545,29 @@
 
     /* Mobile Optimization - Compact UI */
     @media (max-width: 768px) {
+      /* Reorder sections for mobile: Scoreboard -> Current Trick -> Hand */
+      .main-grid {
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* Move scoreboard to top */
+      #scoresTableContainer { order: 1; }
+
+      /* Move current trick below scoreboard */
+      #gamePanel { order: 2; }
+      #currentTrick { order: 3; }
+
+      /* Move hand section to bottom, no scroll */
+      .main-grid > div:last-child { order: 4; }
+      .cards-display {
+        max-height: none !important;
+        overflow-y: visible !important;
+        grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)) !important;
+        gap: 4px !important;
+        padding: 5px !important;
+      }
+
       /* Compact header */
       .header h1 { font-size: 2em; margin-bottom: 5px; }
       .phase-banner { padding: 10px 20px; font-size: 1em; }
@@ -563,9 +599,8 @@
       .players-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
       .player-card { padding: 10px; font-size: 0.85em; }
 
-      /* Keep current trick and hand display normal size */
+      /* Keep current trick visible but compact */
       #currentTrick { padding: 12px; margin-bottom: 10px; }
-      .cards-display { gap: 6px; max-height: 300px; }
 
       /* Compact scores table */
       .scores-table-container { padding: 15px; margin-bottom: 15px; }
@@ -585,9 +620,10 @@
       .card-panel > div[style*="background: rgba"] { padding: 10px !important; margin-bottom: 10px !important; }
 
       /* Compact playing cards in hand */
-      .playing-card { padding: 8px; }
-      .playing-card .rank { font-size: 1.2em; }
-      .playing-card .suit { font-size: 1.5em; }
+      .playing-card { padding: 6px; }
+      .playing-card .rank { font-size: 1em; }
+      .playing-card .suit { font-size: 1.3em; }
+      .playing-card .points { font-size: 0.6em; }
 
       /* Reduce gaps and margins */
       .main-grid { gap: 15px; margin-top: 15px; }
@@ -617,9 +653,20 @@
       .bid-stat .label { font-size: 0.65em; }
       .bid-stat .value { font-size: 1.2em; }
 
-      /* Keep trick and hand usable */
-      .cards-display { gap: 4px; max-height: 250px; }
-      .playing-card { padding: 6px; min-width: 50px; }
+      /* No scroll for cards - show all cards */
+      .cards-display {
+        gap: 3px !important;
+        max-height: none !important;
+        overflow-y: visible !important;
+        grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)) !important;
+        padding: 3px !important;
+      }
+
+      /* Ultra compact cards */
+      .playing-card { padding: 4px; min-width: 45px; }
+      .playing-card .rank { font-size: 0.9em; }
+      .playing-card .suit { font-size: 1.2em; }
+      .playing-card .points { font-size: 0.5em; display: none; } /* Hide points on tiny screens */
 
       /* Minimal status */
       .status-bar { gap: 5px; flex-wrap: wrap; }
@@ -634,9 +681,6 @@
       /* Reduce all margins and gaps */
       .main-grid { gap: 10px; margin-top: 10px; }
       .container { padding: 5px; }
-
-      /* Compact cards display */
-      .cards-display { padding: 5px; }
     }
   </style>
 </head>
@@ -2026,6 +2070,7 @@
     function updateTurnIndicatorForGame(currentPlayerId) {
       currentTurnPlayerId = currentPlayerId;
       const turnBanner = document.getElementById('turnIndicator');
+      const cardsDisplay = document.getElementById('myCards');
 
       if (!turnBanner) {
         console.warn('[DEBUG] turnIndicator element not found');
@@ -2035,10 +2080,18 @@
       if (currentPlayerId === socket.id) {
         turnBanner.classList.add('your-turn');
         turnBanner.textContent = '🎯 Your Turn! Play a card';
+        // Add yellow highlight to hand section
+        if (cardsDisplay) {
+          cardsDisplay.classList.add('my-turn');
+        }
         renderMyCards(true); // Make cards clickable
       } else {
         turnBanner.classList.remove('your-turn');
         turnBanner.textContent = `Waiting for ${getPlayerName(currentPlayerId)}...`;
+        // Remove highlight from hand section
+        if (cardsDisplay) {
+          cardsDisplay.classList.remove('my-turn');
+        }
         renderMyCards(false); // Make cards non-clickable
       }
     }
