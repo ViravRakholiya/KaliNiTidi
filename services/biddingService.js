@@ -331,8 +331,9 @@ class BiddingService {
   /**
    * Select partner card (only leader can do this)
    * Supports position preference for leaders without the card
+   * @param {number} leaderCardCount - Number of copies of this card the leader has (0, 1, or 2)
    */
-  selectPartnerCard(roomId, socketId, rank, suit, preferredPosition = null) {
+  selectPartnerCard(roomId, socketId, rank, suit, preferredPosition = null, leaderCardCount = 0) {
     const bidding = this.activeBiddings.get(roomId);
     if (!bidding) {
       return { success: false, error: 'BIDDING_NOT_FOUND', message: 'Bidding not found' };
@@ -388,13 +389,16 @@ class BiddingService {
       };
     }
 
+    // Calculate max position based on number of sets and leader's card count
+    const maxPosition = bidding.numberOfSets - leaderCardCount;
+
     // Validate preferred position (only if provided)
     if (preferredPosition !== null) {
-      if (preferredPosition !== 1 && preferredPosition !== 2) {
+      if (preferredPosition < 1 || preferredPosition > maxPosition) {
         return {
           success: false,
           error: 'INVALID_POSITION',
-          message: 'Preferred position must be 1 or 2'
+          message: `Preferred position must be between 1 and ${maxPosition}`
         };
       }
     }

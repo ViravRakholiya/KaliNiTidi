@@ -827,6 +827,7 @@
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div>
                   <select id="partnerRank" onchange="updatePartnerCardOptions()" style="width: 100%; padding: 10px; border: 2px solid rgba(255,255,255,0.1); background: rgba(15,52,96,0.5); color: #fff; border-radius: 10px;">
+                    <option value="" disabled selected>Select Rank</option>
                     <option value="A">Ace</option>
                     <option value="K">King</option>
                     <option value="Q">Queen</option>
@@ -844,6 +845,7 @@
                 </div>
                 <div>
                   <select id="partnerSuit" onchange="updatePartnerCardOptions()" style="width: 100%; padding: 10px; border: 2px solid rgba(255,255,255,0.1); background: rgba(15,52,96,0.5); color: #fff; border-radius: 10px;">
+                    <option value="" disabled selected>Select Suit</option>
                     <option value="spades">♠ Spades</option>
                     <option value="hearts">♥ Hearts</option>
                     <option value="diamonds">♦ Diamonds</option>
@@ -1068,6 +1070,7 @@
     let currentPlayers = []; // Track all players in the room
     let cumulativeScores = {}; // Track cumulative scores across rounds: { socketId: { name: string, rounds: [round1Score, round2Score, ...], total: number } }
     let currentRoundNumber = 1; // Track current round number
+    let numberOfSets = 2; // Track number of card sets in play (2-6)
 
     function log(message, type = 'info') {
       const logDiv = document.getElementById('eventLog');
@@ -1208,6 +1211,12 @@
       // Update phase
       updatePhase('bidding');
 
+      // Store number of sets if available
+      if (data.numberOfSets) {
+        numberOfSets = data.numberOfSets;
+        console.log('[DEBUG] Number of sets:', numberOfSets);
+      }
+
       // Update bidding display
       document.getElementById('currentBid').textContent = data.minBid;
       document.getElementById('minBid').textContent = data.minBid;
@@ -1266,8 +1275,15 @@
         // Reset form values
         document.getElementById('trumpSelect').value = '';
         document.getElementById('partnerPositionGroup').classList.add('hidden');
+        document.getElementById('cardCountInfo').textContent = 'Select rank and suit to check your hand...';
 
-        log(`You are the leader! Select trump and partner card to start the game.`, 'success');
+        // Populate partner card dropdown with only cards that are in play
+        if (data.cardPool && data.cardPool.length > 0) {
+          populatePartnerCardDropdown(data.cardPool);
+          log(`You are the leader! Select trump and partner card from ${data.cardPool.length} available cards.`, 'success');
+        } else {
+          log(`You are the leader! Select trump and partner card to start the game.`, 'success');
+        }
       } else {
         isLeader = false;
         // Hide ALL leader controls for non-leaders (security fix)
@@ -1819,6 +1835,7 @@
       const partnerSuit = document.getElementById('partnerSuit').value;
       const cardCountInfo = document.getElementById('cardCountInfo');
       const positionGroup = document.getElementById('partnerPositionGroup');
+      const positionSelect = document.getElementById('partnerPosition');
 
       if (!partnerRank || !partnerSuit) {
         cardCountInfo.textContent = 'Select rank and suit to check your hand...';
@@ -1828,26 +1845,147 @@
       // Count how many of this card we have
       const cardCount = myCards.filter(c => c.rank === partnerRank && c.suit === partnerSuit).length;
 
-      // Update info text - Fixed Partner when we have at least one card
-      if (cardCount === 2) {
-        cardCountInfo.innerHTML = `🤝 <strong>FIXED PARTNER</strong> - You have BOTH ${partnerRank} of ${partnerSuit}`;
+      // Calculate max position based on number of sets and leader's card count
+      const maxPosition = numberOfSets - cardCount;
+
+      // Update info text - Only show FIXED PARTNER when leader has ALL copies
+      if (cardCount === numberOfSets) {
+        cardCountInfo.innerHTML = `🤝 <strong>FIXED PARTNER</strong> - You have ALL ${cardCount} ${partnerRank} of ${partnerSuit} cards`;
         cardCountInfo.style.color = '#00ff80';
 
-        // Hide position dropdown since partner is fixed
+        // Hide position dropdown since partner is fixed (only one other player can have it)
         positionGroup.classList.add('hidden');
-      } else if (cardCount === 1) {
-        cardCountInfo.innerHTML = `🤝 <strong>FIXED PARTNER</strong> - You have ONE ${partnerRank} of ${partnerSuit}, partner is the player with the other one`;
-        cardCountInfo.style.color = '#00ff80';
-
-        // Hide position dropdown since partner is fixed
-        positionGroup.classList.add('hidden');
-      } else {
+      } else if (cardCount === 0) {
         cardCountInfo.textContent = `⚠️ You don't have ${partnerRank} of ${partnerSuit} - Choose which player becomes your partner`;
         cardCountInfo.style.color = '#ffd700';
 
-        // Show position dropdown since leader has neither card
+        // Show position dropdown since leader has no cards
         positionGroup.classList.remove('hidden');
+
+        // Dynamically generate position options based on maxPosition
+        positionSelect.innerHTML = '';
+        for (let i = 1; i <= maxPosition; i++) {
+          const option = document.createElement('option');
+          option.value = i;
+
+          // Generate position text with appropriate ordinal (1st, 2nd, 3rd, etc.)
+          let ordinal;
+          if (i === 1) ordinal = '1st';
+          else if (i === 2) ordinal = '2nd';
+          else if (i === 3) ordinal = '3rd';
+          else ordinal = `${i}th`;
+
+          option.textContent = `${ordinal} player who plays this card → PARTNER ✅`;
+          positionSelect.appendChild(option);
+        }
+      } else {
+        // Leader has some cards but not all (e.g., 1 out of 3 sets, 2 out of 4 sets, etc.)
+        cardCountInfo.innerHTML = `You have ${cardCount} of ${numberOfSets} ${partnerRank} of ${partnerSuit} - Choose position preference`;
+        cardCountInfo.style.color = '#00d9ff';
+
+        // Show position dropdown since there are still other copies in play
+        positionGroup.classList.remove('hidden');
+
+        // Dynamically generate position options based on maxPosition
+        positionSelect.innerHTML = '';
+        for (let i = 1; i <= maxPosition; i++) {
+          const option = document.createElement('option');
+          option.value = i;
+
+          // Generate position text with appropriate ordinal (1st, 2nd, 3rd, etc.)
+          let ordinal;
+          if (i === 1) ordinal = '1st';
+          else if (i === 2) ordinal = '2nd';
+          else if (i === 3) ordinal = '3rd';
+          else ordinal = `${i}th`;
+
+          option.textContent = `${ordinal} player who plays this card → PARTNER ✅`;
+          positionSelect.appendChild(option);
+        }
       }
+    }
+
+    /**
+     * Populate partner card dropdown with only cards that are in play
+     * @param {string[]} cardPool - Array of card identifiers in format "rank_suit" (e.g., "A_spades", "K_hearts")
+     */
+    function populatePartnerCardDropdown(cardPool) {
+      // Parse card pool to extract unique ranks and suits
+      const uniqueRanks = new Set();
+      const uniqueSuits = new Set();
+      const suitRanksMap = {
+        spades: new Set(),
+        hearts: new Set(),
+        diamonds: new Set(),
+        clubs: new Set()
+      };
+
+      // Process each card in the pool
+      for (const cardId of cardPool) {
+        const [rank, suit] = cardId.split('_');
+        uniqueRanks.add(rank);
+        uniqueSuits.add(suit);
+        if (suitRanksMap[suit]) {
+          suitRanksMap[suit].add(rank);
+        }
+      }
+
+      // Sort ranks in descending order (A, K, Q, J, 10, 9, 8, 7, 6, 5, 4, 3, 2)
+      const rankOrder = {
+        'A': 14, 'K': 13, 'Q': 12, 'J': 11,
+        '10': 10, '9': 9, '8': 8, '7': 7,
+        '6': 6, '5': 5, '4': 4, '3': 3, '2': 2
+      };
+
+      const sortedRanks = Array.from(uniqueRanks).sort((a, b) => rankOrder[b] - rankOrder[a]);
+      const sortedSuits = Array.from(uniqueSuits).sort();
+
+      // Populate rank dropdown
+      const rankSelect = document.getElementById('partnerRank');
+      rankSelect.innerHTML = '';
+
+      // Add blank default option
+      const blankRankOption = document.createElement('option');
+      blankRankOption.value = '';
+      blankRankOption.textContent = 'Select Rank';
+      blankRankOption.disabled = true;
+      blankRankOption.selected = true;
+      rankSelect.appendChild(blankRankOption);
+
+      for (const rank of sortedRanks) {
+        const option = document.createElement('option');
+        option.value = rank;
+        option.textContent = rank;
+        rankSelect.appendChild(option);
+      }
+
+      // Populate suit dropdown
+      const suitSelect = document.getElementById('partnerSuit');
+      suitSelect.innerHTML = '';
+
+      // Add blank default option
+      const blankSuitOption = document.createElement('option');
+      blankSuitOption.value = '';
+      blankSuitOption.textContent = 'Select Suit';
+      blankSuitOption.disabled = true;
+      blankSuitOption.selected = true;
+      suitSelect.appendChild(blankSuitOption);
+
+      const suitSymbols = {
+        spades: '♠',
+        hearts: '♥',
+        diamonds: '♦',
+        clubs: '♣'
+      };
+
+      for (const suit of sortedSuits) {
+        const option = document.createElement('option');
+        option.value = suit;
+        option.textContent = `${suitSymbols[suit] || suit} ${suit.charAt(0).toUpperCase() + suit.slice(1)}`;
+        suitSelect.appendChild(option);
+      }
+
+      console.log(`[DEBUG] Populated partner card dropdown: ${sortedRanks.length} ranks, ${sortedSuits.length} suits from ${cardPool.length} cards`);
     }
 
     function updateTurnIndicator(currentTurnSocketId) {
@@ -2392,10 +2530,13 @@
       document.getElementById('trumpSelect').disabled = false;
       document.getElementById('trumpSelect').value = '';
 
-      // Reset partner card selection
+      // Reset partner card selection to blank
       document.getElementById('partnerRank').disabled = false;
+      document.getElementById('partnerRank').value = '';
       document.getElementById('partnerSuit').disabled = false;
+      document.getElementById('partnerSuit').value = '';
       document.getElementById('partnerPosition').disabled = false;
+      document.getElementById('partnerPosition').value = '';
 
       // Hide position group initially
       document.getElementById('partnerPositionGroup').classList.add('hidden');

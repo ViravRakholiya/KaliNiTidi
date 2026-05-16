@@ -302,10 +302,11 @@ export const handleGameSocket = (io, socket) => {
         const biddingStartedData = {
           minBid: result.bidding.minimumBid,
           totalPoints: result.bidding.totalPoints,
-          currentTurn: result.bidding.playersOrder[result.bidding.currentTurnIndex]
+          currentTurn: result.bidding.playersOrder[result.bidding.currentTurnIndex],
+          numberOfSets: result.bidding.numberOfSets
         };
 
-        logger.info(`Emitting BIDDING_STARTED to room ${roomId}: minBid=${biddingStartedData.minBid}, currentTurn=${biddingStartedData.currentTurn.substring(0, 8)}...`);
+        logger.info(`Emitting BIDDING_STARTED to room ${roomId}: minBid=${biddingStartedData.minBid}, currentTurn=${biddingStartedData.currentTurn.substring(0, 8)}..., numberOfSets=${biddingStartedData.numberOfSets}`);
 
         io.to(roomId).emit('BIDDING_STARTED', biddingStartedData);
         logger.info(`[DEBUG] Emitted BIDDING_STARTED to room ${roomId}`);
@@ -442,15 +443,34 @@ export const handleGameSocket = (io, socket) => {
 
       // Check if bidding ended
       if (result.biddingEnded) {
+        // Collect all cards in play for the partner selection dropdown
+        const gameState = gameService.activeGames.get(roomId);
+        const cardPool = new Set(); // Use Set to avoid duplicates
+
+        if (gameState && gameState.hands) {
+          // Collect all unique cards from all hands
+          for (const socketId in gameState.hands) {
+            const hand = gameState.hands[socketId];
+            for (const card of hand) {
+              // Add unique card identifier (rank + suit)
+              cardPool.add(`${card.rank}_${card.suit}`);
+            }
+          }
+        }
+
+        // Convert Set to array for JSON serialization
+        const cardPoolArray = Array.from(cardPool).sort();
+
         io.to(roomId).emit('BIDDING_ENDED', {
           roomId,
           leader: result.endResult.leader,
           winningBid: result.endResult.winningBid,
           minimumBid: result.endResult.minimumBid,
-          totalPoints: result.endResult.totalPoints
+          totalPoints: result.endResult.totalPoints,
+          cardPool: cardPoolArray
         });
 
-        logger.info(`Bidding ended in room ${roomId}. Leader: ${result.endResult.leader.substring(0, 8)}..., Bid: ${result.endResult.winningBid}`);
+        logger.info(`Bidding ended in room ${roomId}. Leader: ${result.endResult.leader.substring(0, 8)}..., Bid: ${result.endResult.winningBid}, Card pool size: ${cardPoolArray.length}`);
       }
 
       if (typeof callback === 'function') callback(result);
@@ -660,15 +680,31 @@ export const handleGameSocket = (io, socket) => {
       return;
     }
 
-    const result = biddingService.selectPartnerCard(roomId, socket.id, rank, suit, preferredPosition);
+    // Get game state to calculate leader's card count
+    const gameState = gameService.activeGames.get(roomId);
+    let leaderCardCount = 0;
+
+    if (gameState && gameState.hands) {
+      const leaderHand = gameState.hands[socket.id] || [];
+      leaderCardCount = leaderHand.filter(c => c.rank === rank && c.suit === suit).length;
+    }
+
+    const result = biddingService.selectPartnerCard(roomId, socket.id, rank, suit, preferredPosition, leaderCardCount);
 
     if (result.success) {
+      // Calculate max position for frontend
+      const bidding = biddingService.activeBiddings.get(roomId);
+      const maxPosition = bidding ? (bidding.numberOfSets - leaderCardCount) : 2;
+
       // Just emit that partner card was selected - leader will start game manually
       io.to(roomId).emit('PARTNER_CARD_SELECTED', {
         roomId,
         partnerCard: result.partnerCard,
         selectedBy: socket.id,
-        preferredPosition: preferredPosition
+        preferredPosition: preferredPosition,
+        leaderCardCount: leaderCardCount,
+        maxPosition: maxPosition,
+        numberOfSets: bidding?.numberOfSets || 2
       });
 
       logger.info(`Partner card selected in room ${roomId}: ${rank} of ${suit} by ${socket.id.substring(0, 8)}...` + (preferredPosition ? ` (Preferred position: ${preferredPosition})` : ''));
