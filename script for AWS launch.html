@@ -1,59 +1,88 @@
 #!/bin/bash
-set -euxo pipefail
-exec > /var/log/init-script.log 2>&1
+###################################################################################################
+# KaliNiTidi Game - EC2 Deployment Script
+# Based on actual commands tested on EC2
+# Usage: chmod +x deploy-ec2.sh && ./deploy-ec2.sh
+###################################################################################################
 
-# === 1️⃣ Update system and install dependencies ===
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -y
-apt-get install -y ca-certificates curl gnupg lsb-release git
+set -euo pipefail
 
-# === 2️⃣ Add Docker’s official GPG key ===
-mkdir -p /etc/apt/keyrings
-if [ ! -f /etc/apt/keyrings/docker.gpg ]; then
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "=========================================="
+echo "KaliNiTidi EC2 Deployment"
+echo "=========================================="
+
+# === Step 1: Update System ===
+echo "[1/8] Updating system packages..."
+sudo apt-get update -y
+
+# === Step 2: Install Dependencies ===
+echo "[2/8] Installing dependencies..."
+sudo apt-get install -y ca-certificates curl gnupg lsb-release git
+
+# === Step 3: Setup Docker GPG Key ===
+echo "[3/8] Adding Docker GPG key..."
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+# === Step 4: Add Docker Repository ===
+echo "[4/8] Adding Docker repository..."
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# === Step 5: Install Docker ===
+echo "[5/8] Installing Docker..."
+sudo apt-get update -y
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# === Step 6: Start Docker ===
+echo "[6/8] Starting Docker service..."
+sudo systemctl enable docker
+sudo systemctl start docker
+sudo usermod -aG docker ubuntu
+
+# === Step 7: Clone Repository ===
+echo "[7/8] Cloning repository..."
+cd ~
+if [ -d "KaliNiTidi" ]; then
+  echo "Removing existing directory..."
+  rm -rf KaliNiTidi
 fi
+git clone https://github.com/BhavinDalsaniya/KaliNiTidi.git
+cd KaliNiTidi
 
-# === 3️⃣ Add Docker repository ===
-if [ ! -f /etc/apt/sources.list.d/docker.list ]; then
-  echo \
-    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-    https://download.docker.com/linux/ubuntu \
-    $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
-fi
+# === Step 8: Build and Run ===
+echo "[8/8] Building and starting container..."
+docker build -t kalanitidi-game .
 
-# === 4️⃣ Install Docker Engine + Compose plugin ===
-apt-get update -y
-apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+# Stop and remove old container if exists
+docker stop kalanitidi-app 2>/dev/null || true
+docker rm kalanitidi-app 2>/dev/null || true
 
-# === 5️⃣ Enable and start Docker ===
-systemctl enable docker
-systemctl start docker
+# Run new container
+docker run -d \
+  --name kalanitidi-app \
+  --restart unless-stopped \
+  -p 3000:3000 \
+  kalanitidi-game
 
-# === 6️⃣ Allow running docker without sudo ===
-usermod -aG docker ubuntu || true
+# === Verification ===
+echo ""
+echo "=========================================="
+echo "Deployment Complete!"
+echo "=========================================="
 
-# === 7️⃣ Clone your GitHub repository ===
-cd /home/ubuntu
-if [ ! -d "Judgment-DeepSeek" ]; then
-  git clone https://github.com/BhavinDalsaniya/KaliNiTidi.git
-fi
-cd Judgment-DeepSeek
+# Get EC2 public IP
+INSTANCE_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "YOUR_EC2_IP")
 
-# === 8️⃣ Create Dockerfile if missing ===
-if [ ! -f Dockerfile ]; then
-  cat <<EOF > Dockerfile
-FROM node:18-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-EXPOSE 3000
-CMD ["npm", "start"]
-EOF
-fi
+echo "Container Status:"
+docker ps
 
-# === 9️⃣ Build Docker image ===
-docker build -t judgment-deepseek .
-
-# === 🔟 Run container on port 3000 ===
-docker run -d -p 3000:3000 --restart=always --name judgment-app judgment-deepseek
+echo ""
+echo "Application URL: http://$INSTANCE_IP:3000"
+echo ""
+echo "View logs: docker logs -f kalanitidi-app"
+echo "=========================================="
