@@ -1,7 +1,87 @@
 import { logger } from '../utils/logger.js';
 import { gameManager } from '../services/gameManager.js';
+import { reconnectionManager } from '../services/reconnectionManager.js';
 
 export const handleGameEvents = (io, socket) => {
+  // Rejoin event - allow disconnected players to reconnect
+  socket.on('game:rejoin', async (data) => {
+    try {
+      const { userId } = data;
+
+      if (!userId) {
+        socket.emit('game:error', { message: 'User ID required' });
+        return;
+      }
+
+      // Check if player can reconnect (within grace period)
+      if (!reconnectionManager.canReconnect(userId)) {
+        socket.emit('game:rejoin_failed', {
+          message: 'Reconnection period expired or player not found',
+          canReconnect: false
+        });
+        logger.info(`Rejoin failed for user ${userId}: grace period expired`);
+        return;
+      }
+
+      // Get previous game data
+      const reconnectionData = reconnectionManager.getReconnectionData(userId);
+
+      if (!reconnectionData) {
+        socket.emit('game:rejoin_failed', {
+          message: 'Reconnection data not found',
+          canReconnect: false
+        });
+        return;
+      }
+
+      const { gameId } = reconnectionData;
+
+      // Verify game still exists
+      const game = gameManager.getGame(gameId);
+      if (!game) {
+        reconnectionManager.clearDisconnected(userId);
+        socket.emit('game:rejoin_failed', {
+          message: 'Game no longer exists',
+          canReconnect: false
+        });
+        return;
+      }
+
+      // Update socket data
+      socket.data.userId = userId;
+      socket.data.gameId = gameId;
+
+      // Rejoin socket room
+      socket.join(`game:${gameId}`);
+
+      // Update player's socketId in the game
+      const player = game.players.find(p => p.userId === userId);
+      if (player) {
+        player.socketId = socket.id;
+      }
+
+      // Clear from disconnected list
+      reconnectionManager.clearDisconnected(userId);
+
+      // Notify all players about reconnection
+      io.to(`game:${gameId}`).emit('player:reconnected', {
+        userId,
+        gameId,
+        timestamp: new Date().toISOString()
+      });
+
+      // Send updated game state to reconnected player
+      socket.emit('game:rejoined', {
+        game,
+        message: 'Successfully reconnected to the game'
+      });
+
+      logger.info(`User ${userId} reconnected to game ${gameId}`);
+    } catch (error) {
+      logger.error('Rejoin error:', error);
+      socket.emit('game:error', { message: error.message });
+    }
+  });
   socket.on('game:create', async (data) => {
     try {
       const { userId } = socket.data;

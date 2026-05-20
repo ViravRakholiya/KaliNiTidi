@@ -1047,7 +1047,10 @@
 
     const socket = io(getWebSocketUrl(), {
       transports: ['websocket', 'polling'],
-      reconnection: true
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      maxReconnectionAttempts: 10
     });
 
     console.log('Connecting to WebSocket server:', getWebSocketUrl());
@@ -1055,6 +1058,62 @@
     // Debug: Log all incoming events
     socket.onAny((eventName, ...args) => {
       console.log(`[DEBUG ALL EVENTS] Received: ${eventName}`, args);
+    });
+
+    // Reconnection handling variables
+    let savedUserId = null;
+    let savedUsername = null;
+    let savedGameId = null;
+    let reconnectTimeout = null;
+
+    // Save user credentials for reconnection
+    function saveCredentials(userId, username, gameId) {
+      savedUserId = userId;
+      savedUsername = username;
+      savedGameId = gameId;
+      console.log('[RECONNECT] Credentials saved for', username);
+    }
+
+    // Clear saved credentials
+    function clearCredentials() {
+      savedUserId = null;
+      savedUsername = null;
+      savedGameId = null;
+      console.log('[RECONNECT] Credentials cleared');
+    }
+
+    // Attempt to reconnect with saved credentials
+    function attemptReconnect() {
+      if (!savedUserId || !savedUsername || !savedGameId) {
+        console.log('[RECONNECT] No credentials to reconnect');
+        return;
+      }
+
+      console.log('[RECONNECT] Attempting to rejoin as', savedUsername);
+      log('Attempting to reconnect...', 'info');
+
+      socket.emit('game:rejoin', {
+        userId: savedUserId
+      });
+    }
+
+    // Handle page visibility changes (mobile lock/unlock)
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        console.log('[RECONNECT] Page hidden (app backgrounded)');
+      } else {
+        console.log('[RECONNECT] Page visible (app foregrounded)');
+        if (!socket.connected && savedUserId) {
+          console.log('[RECONNECT] Socket disconnected, attempting to reconnect...');
+          attemptReconnect();
+        }
+      }
+    });
+
+    // Handle beforeunload (user closing tab)
+    window.addEventListener('beforeunload', () => {
+      console.log('[RECONNECT] Page unloading, clearing credentials');
+      clearCredentials();
     });
 
     let currentRoom = null;
@@ -1071,6 +1130,7 @@
     let cumulativeScores = {}; // Track cumulative scores across rounds: { socketId: { name: string, rounds: [round1Score, round2Score, ...], total: number } }
     let currentRoundNumber = 1; // Track current round number
     let numberOfSets = 2; // Track number of card sets in play (2-6)
+    let myUsername = null; // Store username for reconnection
 
     function log(message, type = 'info') {
       const logDiv = document.getElementById('eventLog');
@@ -1100,16 +1160,80 @@
       document.getElementById('connectionStatus').textContent = 'Connected';
       document.getElementById('connectionStatus').style.color = '#00ff80';
       log('Connected to server', 'success');
+
+      // Clear reconnection timeout if any
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+        reconnectTimeout = null;
+      }
+
+      // Update credentials with new socket ID if reconnecting
+      if (savedUsername && savedGameId) {
+        saveCredentials(socket.id, savedUsername, savedGameId);
+      }
     });
 
     socket.on('disconnect', () => {
       document.getElementById('connectionStatus').textContent = 'Disconnected';
       document.getElementById('connectionStatus').style.color = '#e94560';
       log('Disconnected from server', 'error');
+
+      // Attempt to reconnect if we have credentials
+      if (savedUserId && savedGameId) {
+        log('You have 90 seconds to return...', 'warning');
+
+        // Attempt automatic reconnection
+        reconnectTimeout = setTimeout(() => {
+          if (!socket.connected) {
+            console.log('[RECONNECT] Attempting automatic reconnection...');
+            attemptReconnect();
+          }
+        }, 2000);
+      }
     });
 
     socket.on('CONNECTED', (data) => {
       log(`Connected as ${data.socketId.substring(0, 8)}...`, 'info');
+    });
+
+    // Reconnection event handlers
+    socket.on('player:disconnected', (data) => {
+      log(`${data.userId} disconnected. Can reconnect within ${Math.ceil(data.gracePeriodMs / 1000)} seconds`, 'warning');
+    });
+
+    socket.on('player:reconnected', (data) => {
+      log(`${data.userId} reconnected!`, 'success');
+    });
+
+    socket.on('game:rejoined', (data) => {
+      log('Successfully reconnected to the game!', 'success');
+      log(data.message, 'success');
+
+      // Update game state with reconnection data
+      if (data.game) {
+        currentRoom = data.game.id;
+        currentPlayers = data.game.players || [];
+
+        // Update UI with new game state
+        document.getElementById('roomId').textContent = data.game.id;
+        updatePlayersList(data.game.players);
+
+        // Clear reconnection timeout
+        if (reconnectTimeout) {
+          clearTimeout(reconnectTimeout);
+          reconnectTimeout = null;
+        }
+      }
+    });
+
+    socket.on('game:rejoin_failed', (data) => {
+      log(`Rejoin failed: ${data.message}`, 'error');
+
+      // Clear credentials if rejoin failed
+      if (data.canReconnect === false) {
+        clearCredentials();
+        log('Game session lost. Please refresh to start a new game.', 'error');
+      }
     });
 
     socket.on('ROOM_CREATED', (data) => {
@@ -1126,6 +1250,13 @@
       resetCumulativeScores();
       initializeCumulativeScores(data.players);
       updateScoresTable();
+
+      // Save credentials for reconnection
+      const myPlayer = data.players.find(p => p.socketId === socket.id);
+      if (myPlayer) {
+        myUsername = myPlayer.name;
+        saveCredentials(socket.id, myPlayer.name, data.roomId);
+      }
 
       log(`Room created: ${data.roomId}`, 'success');
 
@@ -1146,6 +1277,13 @@
       // Initialize cumulative scores for joined room
       initializeCumulativeScores(data.players);
       updateScoresTable();
+
+      // Save credentials for reconnection
+      const myPlayer = data.players.find(p => p.socketId === socket.id);
+      if (myPlayer) {
+        myUsername = myPlayer.name;
+        saveCredentials(socket.id, myPlayer.name, data.roomId);
+      }
 
       log(`Joined room: ${data.roomId}`, 'success');
 

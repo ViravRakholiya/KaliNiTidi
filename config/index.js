@@ -44,8 +44,15 @@ const config = {
   },
 
   socket: {
-    pingTimeout: 60000,
-    pingInterval: 25000
+    // Reduced timeouts for better connection stability on Render.com
+    // More frequent heartbeats prevent proxy idle timeouts
+    pingTimeout: 30000,        // Time to wait for pong response (was 60000)
+    pingInterval: 10000,       // Send ping every 10s (was 25000)
+    // Reconnection settings
+    reconnection: true,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    maxReconnectionAttempts: 10
   }
 };
 
