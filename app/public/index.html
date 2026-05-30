@@ -273,6 +273,25 @@
 
     .playing-card.red { color: #e94560; }
     .playing-card.black { color: #333; }
+    .playing-card.trump {
+      border: 3px solid #ffd700 !important;
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+      background: linear-gradient(135deg, #fff 0%, #fffacd 100%) !important;
+    }
+    .playing-card.trump::after {
+      content: '👑';
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      font-size: 1.2em;
+      background: #ffd700;
+      border-radius: 50%;
+      width: 25px;
+      height: 25px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
     .playing-card .rank { font-size: 1.5em; font-weight: bold; }
     .playing-card .suit { font-size: 2em; }
@@ -1131,6 +1150,9 @@
     let currentRoundNumber = 1; // Track current round number
     let numberOfSets = 2; // Track number of card sets in play (2-6)
     let myUsername = null; // Store username for reconnection
+    let lastCardsPerPlayer = 13; // Store cards per player from previous round for next rounds
+    let lastNumberOfSets = 2; // Store number of sets from previous round for next rounds
+    let currentTrumpSuit = null; // Track current trump suit for highlighting
 
     function log(message, type = 'info') {
       const logDiv = document.getElementById('eventLog');
@@ -1445,6 +1467,9 @@
       const selector = getPlayerName(data.selectedBy);
       log(`Trump selected: ${data.suit} by ${selector}`, 'success');
 
+      // Track trump suit for highlighting
+      currentTrumpSuit = data.suit;
+
       // Show trump selection to everyone
       document.getElementById('trumpSelect').value = data.suit;
       document.getElementById('trumpSelect').disabled = true;
@@ -1551,6 +1576,9 @@
         console.log('[DEBUG] Partner card data:', data.partnerCard);
         console.log('[DEBUG] Current phase before update:', currentPhase);
 
+        // Store trump suit for highlighting
+        currentTrumpSuit = data.trump;
+
         // Store current players from game data
         if (data.players && Array.isArray(data.players)) {
           currentPlayers = data.players;
@@ -1599,13 +1627,14 @@
             if (data.partnerCard.preferredPosition) {
               const positionText = data.partnerCard.preferredPosition === 1
                 ? '1st player to play becomes Partner'
-                : '2nd player to play becomes Partner';
+                : `${data.partnerCard.preferredPosition}th player to play becomes Partner`;
               positionDisplay.textContent = positionText;
               positionDisplay.style.color = '#ffd700';
             } else {
-              // No position preference means FIXED PARTNER
-              positionDisplay.textContent = '🤝 FIXED PARTNER (determined during gameplay)';
-              positionDisplay.style.color = '#00ff80';
+              // No position preference - partner will be determined dynamically during gameplay
+              // (first non-bidder to play this card becomes partner)
+              positionDisplay.textContent = 'Partner determined during gameplay (first to play card)';
+              positionDisplay.style.color = '#00d9ff';
             }
           }
         } else {
@@ -1660,13 +1689,29 @@
     socket.on('GAME_OVER', (data) => {
       console.log('[DEBUG] GAME_OVER event received:', data);
       updatePhase('waiting');
-      log(`Game Over! Winner: ${getPlayerName(data.winner)}`, 'success');
+
+      const winnerName = getPlayerName(data.winner);
+      log(`Round ${currentRoundNumber} Complete! Winner: ${winnerName}`, 'success');
 
       // Add round scores to cumulative tracking
       addRoundScores(data.scores);
 
-      // Show final scoreboard
-      showFinalScoreboard(data.scores, data.winner);
+      // Log round results in event log
+      const scoresLog = data.scores.map(s => {
+        const scoreText = s.score > 0 ? `+${s.score}` : s.score;
+        return `${s.name}: ${scoreText}`;
+      }).join(', ');
+      log(`Round Scores: ${scoresLog}`, 'info');
+
+      // Automatically start next round after delay (if host)
+      if (isHost) {
+        log('Starting next round automatically in 5 seconds...', 'info');
+        setTimeout(() => {
+          startNextRound();
+        }, 5000);
+      } else {
+        log('Waiting for host to start next round...', 'info');
+      }
     });
 
     socket.on('ROOM_ERROR', (error) => {
@@ -1720,6 +1765,10 @@
       if (isHost) {
         const cardsPerPlayer = parseInt(document.getElementById('cardsPerPlayer').value) || 13;
         const numberOfSets = parseInt(document.getElementById('numberOfSets').value) || 2;
+
+        // Save settings for next round
+        lastCardsPerPlayer = cardsPerPlayer;
+        lastNumberOfSets = numberOfSets;
 
         console.log(`Starting game: cardsPerPlayer=${cardsPerPlayer}, numberOfSets=${numberOfSets}, isHost=${isHost}`);
         log('Starting game...', 'info');
@@ -1889,9 +1938,15 @@
       // Count how many of the partner card we have
       const cardCount = myCards.filter(c => c.rank === partnerRank && c.suit === partnerSuit).length;
 
-      // Check if position is required (only when we have 0 cards)
+      // Calculate max position based on number of sets and leader's card count
+      const maxPosition = numberOfSets - cardCount;
+
+      // Check if position is required
+      // Position is NOT required when:
+      // 1. We have ALL copies (cardCount === numberOfSets) - only one other player can have it
+      // 2. Only ONE copy remains in play (maxPosition === 1) - first to play becomes partner
       const positionGroup = document.getElementById('partnerPositionGroup');
-      const isFixedPartner = cardCount >= 1; // Fixed partner when we have at least one card
+      const isFixedPartner = (cardCount === numberOfSets) || (maxPosition === 1);
 
       if (!isFixedPartner && !partnerPosition) {
         log('Please select partner position preference', 'error');
@@ -1986,12 +2041,18 @@
       // Calculate max position based on number of sets and leader's card count
       const maxPosition = numberOfSets - cardCount;
 
-      // Update info text - Only show FIXED PARTNER when leader has ALL copies
-      if (cardCount === numberOfSets) {
-        cardCountInfo.innerHTML = `🤝 <strong>FIXED PARTNER</strong> - You have ALL ${cardCount} ${partnerRank} of ${partnerSuit} cards`;
+      // Update info text - Show FIXED PARTNER in two cases:
+      // 1. Leader has ALL copies (cardCount === numberOfSets)
+      // 2. Only ONE copy remains in play (maxPosition === 1) - in this case, the first player to play it becomes partner
+      if (cardCount === numberOfSets || maxPosition === 1) {
+        if (cardCount === numberOfSets) {
+          cardCountInfo.innerHTML = `🤝 <strong>FIXED PARTNER</strong> - You have ALL ${cardCount} ${partnerRank} of ${partnerSuit} cards`;
+        } else {
+          cardCountInfo.innerHTML = `🤝 <strong>FIRST TO PLAY = PARTNER</strong> - Only 1 other ${partnerRank} of ${partnerSuit} in play (you have ${cardCount} of ${numberOfSets})`;
+        }
         cardCountInfo.style.color = '#00ff80';
 
-        // Hide position dropdown since partner is fixed (only one other player can have it)
+        // Hide position dropdown since partner is fixed (first to play the other copy becomes partner)
         positionGroup.classList.add('hidden');
       } else if (cardCount === 0) {
         cardCountInfo.textContent = `⚠️ You don't have ${partnerRank} of ${partnerSuit} - Choose which player becomes your partner`;
@@ -2297,13 +2358,19 @@
         const cardEl = document.createElement('div');
         const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
         const isHighPoints = card.points >= 10;
+        const isTrump = currentTrumpSuit && card.suit === currentTrumpSuit;
         const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
 
-        cardEl.className = `playing-card ${isRed ? 'red' : 'black'}`;
+        let cardClass = `playing-card ${isRed ? 'red' : 'black'}`;
+        if (isTrump) cardClass += ' trump';
+        cardEl.className = cardClass;
         if (clickable) {
           cardEl.style.cursor = 'pointer';
           cardEl.onclick = () => playCard(card);
         }
+
+        // Add position:relative for trump badge positioning
+        cardEl.style.position = 'relative';
 
         cardEl.innerHTML = `
           <div class="rank">${card.rank}</div>
@@ -2532,75 +2599,18 @@
     }
 
     function showFinalScoreboard(scores, winnerId) {
-      // Create a modal overlay instead of replacing game panel content
-      const existingModal = document.getElementById('finalScoreboardModal');
-      if (existingModal) {
-        existingModal.remove();
-      }
-
-      const modal = document.createElement('div');
-      modal.id = 'finalScoreboardModal';
-      modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); display: flex; justify-content: center; align-items: center; z-index: 1000;';
-
-      const scoreboard = document.createElement('div');
-      scoreboard.style.cssText = 'background: rgba(22, 33, 62, 0.95); padding: 40px; border-radius: 20px; text-align: center; max-width: 500px; width: 90%; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);';
-
-      const winnerName = getPlayerName(winnerId);
-
-      let scoresHtml = scores.map(s => {
-        const cumulativeTotal = cumulativeScores[s.socketId]?.total || 0;
-        const cumulativeClass = cumulativeTotal > 0 ? '#00ff80' : (cumulativeTotal < 0 ? '#e94560' : '#888');
-        return `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-          <div style="text-align: left;">
-            <div style="font-weight: bold;">${s.name} ${s.socketId === winnerId ? '👑' : ''}</div>
-            <div style="font-size: 0.8em; color: ${cumulativeClass};">Cumulative: ${cumulativeTotal > 0 ? '+' : ''}${cumulativeTotal}</div>
-          </div>
-          <div style="text-align: right;">
-            <div style="color: #00d9ff; font-weight: bold; font-size: 1.1em;">${s.score > 0 ? '+' : ''}${s.score}</div>
-            <div style="font-size: 0.75em; color: #888;">This Round</div>
-          </div>
-        </div>
-      `;
-      }).join('');
-
-      scoreboard.innerHTML = `
-        <h2 style="color: #ffd700; margin-bottom: 15px;">🏆 Round ${currentRoundNumber} Complete!</h2>
-        <p style="color: #00ff80; font-size: 1.2em; margin-bottom: 20px;">Winner: ${winnerName}</p>
-        <div style="background: rgba(0, 0, 0, 0.3); border-radius: 10px; padding: 15px; margin-bottom: 20px;">
-          <h3 style="color: #888; margin-bottom: 10px; font-size: 1em;">Round Scores (with Cumulative Totals)</h3>
-          ${scoresHtml}
-        </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px;">
-          <button class="btn btn-success" onclick="closeFinalScoreboardAndStartNextRound()">Next Round ➡️</button>
-          <button class="btn btn-secondary" onclick="closeFinalScoreboardAndLeaveRoom()">Leave Room</button>
-        </div>
-      `;
-
-      modal.appendChild(scoreboard);
-      document.body.appendChild(modal);
-
-      // Add click outside to close
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-          // Don't close on outside click, user must choose an option
-        }
-      });
+      // This function is no longer used - scores are automatically added to the scoreboard table
+      // Kept for backward compatibility
+      console.log('[DEBUG] showFinalScoreboard called but auto-progression is enabled');
     }
 
     function closeFinalScoreboardAndStartNextRound() {
-      const modal = document.getElementById('finalScoreboardModal');
-      if (modal) {
-        modal.remove();
-      }
+      // This function is no longer used - auto-progression is enabled
       startNextRound();
     }
 
     function closeFinalScoreboardAndLeaveRoom() {
-      const modal = document.getElementById('finalScoreboardModal');
-      if (modal) {
-        modal.remove();
-      }
+      // This function is no longer used - players can leave via the room controls
       leaveRoom();
     }
 
@@ -2611,13 +2621,14 @@
       }
 
       log('Starting next round...', 'info');
+      updatePhase('bidding');
 
       // Increment round number
       incrementRoundNumber();
 
       // Use same settings as previous round
-      const cardsPerPlayer = 13; // Could be stored from previous round
-      const numberOfSets = 2; // Could be stored from previous round
+      const cardsPerPlayer = lastCardsPerPlayer || 13;
+      const numberOfSets = lastNumberOfSets || 2;
 
       socket.emit('START_GAME', {
         roomId: currentRoom,
@@ -2641,6 +2652,7 @@
           // Reset partner assignment for new round
           isPartner = false;
           currentPartnerId = null;
+          currentTrumpSuit = null; // Reset trump suit for new round
           document.getElementById('partnerMessage').classList.add('hidden');
 
           // Clear player badges from previous round
@@ -2861,6 +2873,7 @@
 
       // Update round number for non-host players
       currentRoundNumber = data.roundNumber;
+      currentTrumpSuit = null; // Reset trump suit for new round
       document.getElementById('currentRoundBadge').textContent = `Round ${currentRoundNumber}`;
 
       // Reset UI for new round

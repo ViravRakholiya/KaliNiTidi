@@ -150,9 +150,9 @@ class GameService {
       });
       logger.info('[DEBUG] Hands mapped successfully');
 
-      // Initialize bidding with number of sets
+      // Initialize bidding with number of sets and round number
       logger.info('[DEBUG] About to initialize bidding...');
-      const biddingState = biddingService.initializeBidding(roomId, gameState, numberOfSets);
+      const biddingState = biddingService.initializeBidding(roomId, gameState, numberOfSets, gameState.roundNumber || 1);
       logger.info('[DEBUG] Bidding initialized successfully');
       gameState.bidding = biddingState;
 
@@ -645,6 +645,9 @@ class GameService {
           // Prevent bidder from becoming their own partner
           if (socketId === gameState.bidWinner) {
             logger.info(`Skipping partner assignment - bidder cannot be their own partner`);
+          } else if (gameState.partnerId) {
+            // Partner already assigned, log but don't re-assign
+            logger.info(`Partner already assigned to ${gameState.partnerId.substring(0, 8)}... - skipping re-assignment for ${player.name} (${socketId.substring(0, 8)}...)`);
           } else {
             // Check partner assignment based on preferred position
             const bidding = biddingService.activeBiddings.get(roomId);
@@ -654,6 +657,8 @@ class GameService {
             const nonBidderPlays = gameState.partnerCardPlays.filter(p => p.playerId !== gameState.bidWinner);
             const playCount = nonBidderPlays.length;
 
+            logger.info(`[PARTNER ASSIGNMENT CHECK] Player: ${player.name}, PlayCount: ${playCount}, PreferredPosition: ${preferredPosition || 'none'}`);
+
             if (preferredPosition && playCount === preferredPosition) {
               // Leader's preferred position player becomes partner
               gameState.partnerId = socketId;
@@ -662,20 +667,40 @@ class GameService {
               logger.info(`PARTNER ASSIGNED (Preferred Position ${preferredPosition}): ${player.name} (${socketId.substring(0, 8)}...) is now the partner!`);
 
               gameState.teamsAssigned = true;
+
+              // Set partner assignment info for result (to be sent to clients)
+              result.partnerAssigned = true;
+              result.partnerId = socketId;
+              result.partnerName = player.name;
             } else if (playCount === 1 && !preferredPosition) {
               // First non-bidder player to play partner card becomes partner (no preference)
               gameState.partnerId = socketId;
               gameState.partnerAssignedAt = Date.now();
 
               logger.info(`PARTNER ASSIGNED: ${player.name} (${socketId.substring(0, 8)}...) is now the partner!`);
+
+              // Set partner assignment info for result (to be sent to clients)
+              result.partnerAssigned = true;
+              result.partnerId = socketId;
+              result.partnerName = player.name;
             } else if (playCount === 2 && !preferredPosition) {
               // Second non-bidder player to play partner card becomes opponent
               logger.info(`SECOND PARTNER CARD PLAYED: ${player.name} (${socketId.substring(0, 8)}...) is now an opponent!`);
               gameState.teamsAssigned = true;
+
+              // Set opponent assignment info for result
+              result.secondPartnerCardPlayed = true;
+              result.opponentId = socketId;
+              result.opponentName = player.name;
             } else if (playCount === 2 && preferredPosition) {
               // Second non-bidder player played (not the preferred position) - becomes opponent
               logger.info(`SECOND PARTNER CARD PLAYED: ${player.name} (${socketId.substring(0, 8)}...) is now an opponent!`);
               gameState.teamsAssigned = true;
+
+              // Set opponent assignment info for result
+              result.secondPartnerCardPlayed = true;
+              result.opponentId = socketId;
+              result.opponentName = player.name;
             }
           }
         }

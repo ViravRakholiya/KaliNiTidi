@@ -40,7 +40,7 @@ class BiddingService {
   /**
    * Initialize bidding state for a room
    */
-  initializeBidding(roomId, gameState, numberOfSets = 2) {
+  initializeBidding(roomId, gameState, numberOfSets = 2, roundNumber = 1) {
     const hands = gameState.hands;
     const players = gameState.players;
 
@@ -55,11 +55,15 @@ class BiddingService {
     // Create player order in join sequence
     const playersOrder = players.map(p => p.socketId);
 
+    // Calculate starting index based on round number (rotate starting player each round)
+    // Round 1: start at index 0, Round 2: start at index 1, etc.
+    const startingIndex = (roundNumber - 1) % players.length;
+
     // Initialize bidding state
     const biddingState = {
       currentBid: minimumBid,
-      highestBidder: playersOrder[0], // First player is initial bidder
-      currentTurnIndex: 0,
+      highestBidder: playersOrder[startingIndex], // Starting player is initial bidder
+      currentTurnIndex: startingIndex,
       playersOrder: playersOrder,
       passedPlayers: [],
       completed: false,
@@ -68,12 +72,13 @@ class BiddingService {
       numberOfPartners: numberOfPartners,
       partnerCards: [], // Array to store multiple partner cards
       playerCount: players.length,
-      numberOfSets: numberOfSets
+      numberOfSets: numberOfSets,
+      roundNumber: roundNumber
     };
 
     this.activeBiddings.set(roomId, biddingState);
 
-    logger.info(`Bidding initialized for room ${roomId}: minBid=${minimumBid}, totalPoints=${totalPoints}, partners=${numberOfPartners}, sets=${numberOfSets}`);
+    logger.info(`Bidding initialized for room ${roomId}: round=${roundNumber}, startingIndex=${startingIndex}, minBid=${minimumBid}, totalPoints=${totalPoints}, partners=${numberOfPartners}, sets=${numberOfSets}`);
 
     return biddingState;
   }
