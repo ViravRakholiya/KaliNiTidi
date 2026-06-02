@@ -456,6 +456,18 @@ export const handleGameSocket = (io, socket) => {
               cardPool.add(`${card.rank}_${card.suit}`);
             }
           }
+          logger.info(`Collected ${cardPool.size} unique cards from ${Object.keys(gameState.hands).length} players for card pool`);
+        } else {
+          logger.error(`[BUG] Cannot generate cardPool - gameState: ${!!gameState}, hands: ${!!gameState?.hands}`);
+          // Fallback: Create a standard deck card pool if hands are not available
+          const standardDeck = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
+          const suits = ['spades', 'hearts', 'diamonds', 'clubs'];
+          for (const rank of standardDeck) {
+            for (const suit of suits) {
+              cardPool.add(`${rank}_${suit}`);
+            }
+          }
+          logger.info(`Using fallback standard deck card pool with ${cardPool.size} cards`);
         }
 
         // Convert Set to array for JSON serialization

@@ -2044,8 +2044,9 @@
       // Update info text - Show FIXED PARTNER in two cases:
       // 1. Leader has ALL copies (cardCount === numberOfSets)
       // 2. Only ONE copy remains in play (maxPosition === 1) - in this case, the first player to play it becomes partner
-      if (cardCount === numberOfSets || maxPosition === 1) {
-        if (cardCount === numberOfSets) {
+      // 3. maxPosition <= 0 - Leader has all or more copies than sets (edge case with 2 sets)
+      if (cardCount === numberOfSets || maxPosition === 1 || maxPosition <= 0) {
+        if (cardCount === numberOfSets || maxPosition <= 0) {
           cardCountInfo.innerHTML = `🤝 <strong>FIXED PARTNER</strong> - You have ALL ${cardCount} ${partnerRank} of ${partnerSuit} cards`;
         } else {
           cardCountInfo.innerHTML = `🤝 <strong>FIRST TO PLAY = PARTNER</strong> - Only 1 other ${partnerRank} of ${partnerSuit} in play (you have ${cardCount} of ${numberOfSets})`;
@@ -2063,7 +2064,9 @@
 
         // Dynamically generate position options based on maxPosition
         positionSelect.innerHTML = '';
-        for (let i = 1; i <= maxPosition; i++) {
+        // Ensure maxPosition is at least 1 for the dropdown
+        const actualMaxPosition = Math.max(1, maxPosition);
+        for (let i = 1; i <= actualMaxPosition; i++) {
           const option = document.createElement('option');
           option.value = i;
 
@@ -2087,7 +2090,9 @@
 
         // Dynamically generate position options based on maxPosition
         positionSelect.innerHTML = '';
-        for (let i = 1; i <= maxPosition; i++) {
+        // Ensure maxPosition is at least 1 for the dropdown
+        const actualMaxPosition = Math.max(1, maxPosition);
+        for (let i = 1; i <= actualMaxPosition; i++) {
           const option = document.createElement('option');
           option.value = i;
 
@@ -2109,6 +2114,22 @@
      * @param {string[]} cardPool - Array of card identifiers in format "rank_suit" (e.g., "A_spades", "K_hearts")
      */
     function populatePartnerCardDropdown(cardPool) {
+      console.log('[DEBUG] populatePartnerCardDropdown called with cardPool:', cardPool?.length, 'cards');
+
+      // Defensive check: If cardPool is empty, null, or undefined, use fallback
+      if (!cardPool || cardPool.length === 0) {
+        console.warn('[BUG] cardPool is empty! Using fallback standard deck.');
+        // Fallback to standard deck
+        cardPool = [];
+        const standardDeck = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
+        const suits = ['spades', 'hearts', 'diamonds', 'clubs'];
+        for (const rank of standardDeck) {
+          for (const suit of suits) {
+            cardPool.push(`${rank}_${suit}`);
+          }
+        }
+      }
+
       // Parse card pool to extract unique ranks and suits
       const uniqueRanks = new Set();
       const uniqueSuits = new Set();
@@ -2185,6 +2206,10 @@
       }
 
       console.log(`[DEBUG] Populated partner card dropdown: ${sortedRanks.length} ranks, ${sortedSuits.length} suits from ${cardPool.length} cards`);
+
+      // Defensive check: Ensure dropdowns are enabled
+      if (rankSelect) rankSelect.disabled = false;
+      if (suitSelect) suitSelect.disabled = false;
     }
 
     function updateTurnIndicator(currentTurnSocketId) {
@@ -2722,15 +2747,25 @@
     function initializeCumulativeScores(players) {
       if (!players || players.length === 0) return;
 
-      // Initialize scores for new players
-      players.forEach(player => {
+      // Store player order to maintain consistent display
+      if (!window.playerOrder) {
+        window.playerOrder = [];
+      }
+
+      // Initialize scores for new players and track their join order
+      players.forEach((player, index) => {
         if (!cumulativeScores[player.socketId]) {
           cumulativeScores[player.socketId] = {
             name: player.name,
             socketId: player.socketId,
             rounds: [],
-            total: 0
+            total: 0,
+            joinIndex: window.playerOrder.length // Track join order for consistent display
           };
+          // Add to player order if not already present
+          if (!window.playerOrder.includes(player.socketId)) {
+            window.playerOrder.push(player.socketId);
+          }
         } else {
           // Update name in case it changed
           cumulativeScores[player.socketId].name = player.name;
@@ -2738,6 +2773,7 @@
       });
 
       console.log('[DEBUG] Initialized cumulative scores:', cumulativeScores);
+      console.log('[DEBUG] Player order:', window.playerOrder);
     }
 
     /**
@@ -2762,8 +2798,13 @@
             name: playerData.name,
             socketId: socketId,
             rounds: [score],
-            total: score
+            total: score,
+            joinIndex: window.playerOrder ? window.playerOrder.length : 0
           };
+          // Add to player order if not already present
+          if (window.playerOrder && !window.playerOrder.includes(socketId)) {
+            window.playerOrder.push(socketId);
+          }
           console.log(`[DEBUG] Initialized ${playerData.name}: added ${score}, total: ${score}`);
         }
       });
@@ -2791,11 +2832,19 @@
         return;
       }
 
-      // Sort players by total score (highest first)
-      const sortedPlayers = playersArray.sort((a, b) => b.total - a.total);
+      // Keep players in consistent order (by join order, NOT by score)
+      // This prevents player names from shuffling between rounds
+      const orderedPlayers = playersArray.sort((a, b) => {
+        // Use the stored join order if available
+        if (a.joinIndex !== undefined && b.joinIndex !== undefined) {
+          return a.joinIndex - b.joinIndex;
+        }
+        // Fallback to socketId comparison for consistency
+        return a.socketId.localeCompare(b.socketId);
+      });
 
       // Get the maximum number of rounds played
-      const maxRounds = Math.max(...sortedPlayers.map(p => p.rounds.length), 0);
+      const maxRounds = Math.max(...orderedPlayers.map(p => p.rounds.length), 0);
 
       if (maxRounds === 0) {
         tableContent.innerHTML = '<div class="no-scores-message">Scores will appear here after the first round completes</div>';
@@ -2816,7 +2865,7 @@
 
       // Table body
       html += '<tbody>';
-      sortedPlayers.forEach(player => {
+      orderedPlayers.forEach(player => {
         const isYou = player.socketId === socket.id;
         const rowClass = isYou ? 'player-row you-row' : 'player-row';
 
@@ -2835,7 +2884,14 @@
           }
         }
 
-        // Total score
+        // Total score - recalculate to ensure accuracy
+        const recalculatedTotal = player.rounds.reduce((sum, roundScore) => sum + (roundScore || 0), 0);
+        // Update the stored total if it differs from recalculated
+        if (player.total !== recalculatedTotal) {
+          console.log(`[DEBUG] Correcting total for ${player.name}: was ${player.total}, should be ${recalculatedTotal}`);
+          player.total = recalculatedTotal;
+        }
+
         const totalClass = player.total > 0 ? 'positive' : (player.total < 0 ? 'negative' : '');
         html += `<td class="total-score ${totalClass}">${player.total > 0 ? '+' : ''}${player.total}</td>`;
         html += '</tr>';
@@ -2844,7 +2900,8 @@
 
       tableContent.innerHTML = html;
 
-      console.log('[DEBUG] Scores table updated with', sortedPlayers.length, 'players and', maxRounds, 'rounds');
+      console.log('[DEBUG] Scores table updated with', orderedPlayers.length, 'players and', maxRounds, 'rounds');
+      console.log('[DEBUG] Player order maintained:', orderedPlayers.map(p => p.name));
     }
 
     /**
@@ -2852,6 +2909,7 @@
      */
     function resetCumulativeScores() {
       cumulativeScores = {};
+      window.playerOrder = []; // Reset player order
       currentRoundNumber = 1;
       updateScoresTable();
       console.log('[DEBUG] Cumulative scores reset');
