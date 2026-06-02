@@ -443,14 +443,9 @@ export const handleGameSocket = (io, socket) => {
 
       // Check if bidding ended
       if (result.biddingEnded) {
-        // Handle the case where everyone passed
-        if (result.allPassed || result.endResult?.allPassed) {
-          logger.info(`All players passed in room ${roomId} - restarting bidding`);
-          io.to(roomId).emit('BIDDING_ALL_PASSED', {
-            roomId,
-            message: 'All players passed. Bidding will restart...'
-          });
-
+        // If no leader (shouldn't happen with new logic), handle as error
+        if (!result.endResult?.leader) {
+          logger.error(`Bidding ended in room ${roomId} with no leader`);
           if (typeof callback === 'function') callback(result);
           return;
         }

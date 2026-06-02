@@ -1892,7 +1892,8 @@
         if (response.success) {
           log(`You bid ${newBid}`, 'bid');
         } else {
-          log(`Bid failed: ${response.message}`, 'error');
+          // Error will be logged by ROOM_ERROR listener, no need to log here
+          console.log(`Bid failed: ${response.message}`);
         }
       });
     }
@@ -1908,7 +1909,8 @@
             if (response.success) {
               log(`You bid ${bidValue}`, 'bid');
             } else {
-              log(`Bid failed: ${response.message}`, 'error');
+              // Error will be logged by ROOM_ERROR listener, no need to log here
+              console.log(`Bid failed: ${response.message}`);
             }
           });
         }
@@ -1920,7 +1922,8 @@
         if (response.success) {
           log('You passed', 'info');
         } else {
-          log(`Pass failed: ${response.message}`, 'error');
+          // Error will be logged by ROOM_ERROR listener, no need to log here
+          console.log(`Pass failed: ${response.message}`);
         }
       });
     }
@@ -1933,7 +1936,8 @@
             log(`Trump selected: ${suit}`, 'success');
             document.getElementById('trumpSelect').disabled = true;
           } else {
-            log(`Failed: ${response.message}`, 'error');
+            // Error will be logged by ROOM_ERROR listener, no need to log here
+            console.log(`Trump selection failed: ${response.message}`);
           }
         });
       }

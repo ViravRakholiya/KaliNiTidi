@@ -360,13 +360,13 @@ class GameService {
       if (biddingService.shouldEndBidding(roomId)) {
         const endResult = biddingService.endBidding(roomId);
 
-        // Handle the case where everyone passed
-        if (endResult.allPassed || !endResult.leader) {
+        // If no leader (shouldn't happen with new logic), return error
+        if (!endResult.leader) {
           return {
             ...result,
             biddingEnded: true,
             endResult: endResult,
-            allPassed: true
+            noLeader: true
           };
         }
 
