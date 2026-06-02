@@ -150,9 +150,14 @@ class GameService {
       });
       logger.info('[DEBUG] Hands mapped successfully');
 
+      // Calculate round number BEFORE initializing bidding (important for rotation)
+      const isSubsequentRound = room.status === 'playing';
+      const roundNumber = isSubsequentRound ? (room.currentRound || 1) + 1 : 1;
+      gameState.roundNumber = roundNumber;
+
       // Initialize bidding with number of sets and round number
       logger.info('[DEBUG] About to initialize bidding...');
-      const biddingState = biddingService.initializeBidding(roomId, gameState, numberOfSets, gameState.roundNumber || 1);
+      const biddingState = biddingService.initializeBidding(roomId, gameState, numberOfSets, roundNumber);
       logger.info('[DEBUG] Bidding initialized successfully');
       gameState.bidding = biddingState;
 
@@ -167,11 +172,6 @@ class GameService {
       logger.info('[DEBUG] Room status updated successfully');
 
       logger.info(`Game started in room ${roomId} with ${numberOfPlayers} players, ${numberOfSets} sets, phase: bidding`);
-
-      // Track if this is a subsequent round (not first game)
-      const isSubsequentRound = room.status === 'playing';
-      const roundNumber = isSubsequentRound ? (room.currentRound || 1) + 1 : 1;
-      gameState.roundNumber = roundNumber;
 
       return {
         success: true,
@@ -358,11 +358,23 @@ class GameService {
     if (result.success) {
       // Check if bidding should end
       if (biddingService.shouldEndBidding(roomId)) {
+        const endResult = biddingService.endBidding(roomId);
+
+        // Handle the case where everyone passed
+        if (endResult.allPassed || !endResult.leader) {
+          return {
+            ...result,
+            biddingEnded: true,
+            endResult: endResult,
+            allPassed: true
+          };
+        }
+
         gameState.phase = 'selection';
         return {
           ...result,
           biddingEnded: true,
-          endResult: biddingService.endBidding(roomId)
+          endResult: endResult
         };
       }
     }

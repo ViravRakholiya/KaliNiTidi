@@ -443,6 +443,18 @@ export const handleGameSocket = (io, socket) => {
 
       // Check if bidding ended
       if (result.biddingEnded) {
+        // Handle the case where everyone passed
+        if (result.allPassed || result.endResult?.allPassed) {
+          logger.info(`All players passed in room ${roomId} - restarting bidding`);
+          io.to(roomId).emit('BIDDING_ALL_PASSED', {
+            roomId,
+            message: 'All players passed. Bidding will restart...'
+          });
+
+          if (typeof callback === 'function') callback(result);
+          return;
+        }
+
         // Collect all cards in play for the partner selection dropdown
         const gameState = gameService.activeGames.get(roomId);
         const cardPool = new Set(); // Use Set to avoid duplicates
@@ -482,7 +494,7 @@ export const handleGameSocket = (io, socket) => {
           cardPool: cardPoolArray
         });
 
-        logger.info(`Bidding ended in room ${roomId}. Leader: ${result.endResult.leader.substring(0, 8)}..., Bid: ${result.endResult.winningBid}, Card pool size: ${cardPoolArray.length}`);
+        logger.info(`Bidding ended in room ${roomId}. Leader: ${result.endResult.leader?.substring(0, 8)}..., Bid: ${result.endResult.winningBid}, Card pool size: ${cardPoolArray.length}`);
       }
 
       if (typeof callback === 'function') callback(result);

@@ -62,7 +62,7 @@ class BiddingService {
     // Initialize bidding state
     const biddingState = {
       currentBid: minimumBid,
-      highestBidder: playersOrder[startingIndex], // Starting player is initial bidder
+      highestBidder: null, // No initial bidder - first player must bid to become highest bidder
       currentTurnIndex: startingIndex,
       playersOrder: playersOrder,
       passedPlayers: [],
@@ -224,6 +224,25 @@ class BiddingService {
       };
     }
 
+    // Add to passed players
+    bidding.passedPlayers.push(socketId);
+
+    // Check if all players have passed (special case: everyone passes)
+    const allPlayersPassed = bidding.passedPlayers.length === bidding.playersOrder.length;
+    if (allPlayersPassed) {
+      // Everyone passed - bidding ends with no winner (should restart bidding)
+      logger.info(`All players passed in room ${roomId} - no winner`);
+      bidding.completed = true;
+      bidding.allPassed = true; // Flag to indicate everyone passed
+
+      return {
+        success: true,
+        passedPlayer: socketId,
+        allPassed: true,
+        message: 'All players passed - bidding will restart'
+      };
+    }
+
     // Check if all players except one have passed (can't pass if you're the last one)
     const activePlayers = bidding.playersOrder.length - bidding.passedPlayers.length;
     if (activePlayers <= 1) {
@@ -233,9 +252,6 @@ class BiddingService {
         message: 'You cannot pass - you are the last active bidder'
       };
     }
-
-    // Add to passed players
-    bidding.passedPlayers.push(socketId);
 
     // Move to next player
     bidding.currentTurnIndex = this.getNextPlayer(
@@ -261,9 +277,16 @@ class BiddingService {
     const bidding = this.activeBiddings.get(roomId);
     if (!bidding) return false;
 
-    // End when only one player hasn't passed
+    // Check if all players passed (special case)
+    if (bidding.allPassed) {
+      return true;
+    }
+
+    // End when only one player hasn't passed AND there's a highest bidder
     const activePlayers = bidding.playersOrder.length - bidding.passedPlayers.length;
-    return activePlayers <= 1;
+    const hasBidder = bidding.highestBidder !== null;
+
+    return activePlayers <= 1 && hasBidder;
   }
 
   /**
@@ -277,11 +300,26 @@ class BiddingService {
 
     bidding.completed = true;
 
+    // Check if all players passed
+    if (bidding.allPassed || !bidding.highestBidder) {
+      logger.info(`Bidding ended in room ${roomId} with no winner (all players passed)`);
+
+      return {
+        success: true,
+        leader: null,
+        winningBid: bidding.minimumBid,
+        minimumBid: bidding.minimumBid,
+        totalPoints: bidding.totalPoints,
+        allPassed: true
+      };
+    }
+
     const result = {
       leader: bidding.highestBidder,
       winningBid: bidding.currentBid,
       minimumBid: bidding.minimumBid,
-      totalPoints: bidding.totalPoints
+      totalPoints: bidding.totalPoints,
+      allPassed: false
     };
 
     logger.info(`Bidding ended in room ${roomId}. Leader: ${result.leader.substring(0, 8)}..., Bid: ${result.winningBid}`);

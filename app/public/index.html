@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Blacks 3 - Card Game</title>
-  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🃏</text></svg>">
+  <script src="/socket.io.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -1463,6 +1464,26 @@
       }
     });
 
+    socket.on('BIDDING_ALL_PASSED', (data) => {
+      log(data.message || 'All players passed! Bidding will restart...', 'info');
+      document.getElementById('turnBanner').textContent = 'Everyone passed! Restarting bidding...';
+
+      // Reset bidding controls
+      document.getElementById('biddingControls').classList.remove('hidden');
+      document.getElementById('bidInput').disabled = false;
+      document.getElementById('passButton').disabled = false;
+      document.getElementById('turnBanner').textContent = 'Bidding restarted - First player\'s turn';
+
+      // Clear all passed player markers
+      document.querySelectorAll('.player-card').forEach(card => {
+        card.classList.remove('passed');
+        const badges = card.querySelectorAll('.badge-passed');
+        badges.forEach(badge => badge.parentElement.remove());
+      });
+
+      log('Bidding has been restarted. Please bid or pass.', 'success');
+    });
+
     socket.on('TRUMP_SELECTED', (data) => {
       const selector = getPlayerName(data.selectedBy);
       log(`Trump selected: ${data.suit} by ${selector}`, 'success');
@@ -1473,6 +1494,11 @@
       // Show trump selection to everyone
       document.getElementById('trumpSelect').value = data.suit;
       document.getElementById('trumpSelect').disabled = true;
+
+      // Refresh card display to show trump highlighting
+      if (myCards && myCards.length > 0) {
+        displayCards(myCards, false); // Re-display cards with trump highlighting
+      }
 
       if (data.selectedBy !== socket.id) {
         // Non-leader: ensure leader controls are hidden (security)
@@ -2687,6 +2713,11 @@
             badges.forEach(badge => badge.parentElement.remove());
           });
 
+          // Refresh card display to remove trump highlighting from previous round
+          if (myCards && myCards.length > 0) {
+            displayCards(myCards, false); // Re-display cards without trump highlighting
+          }
+
           console.log('[DEBUG] UI reset for new round');
         } else {
           log(`Failed to start next round: ${response?.message || 'Unknown error'}`, 'error');
@@ -2953,6 +2984,11 @@
         const badges = card.querySelectorAll('.badge-partner, .badge-opponent, .badge-leader');
         badges.forEach(badge => badge.parentElement.remove());
       });
+
+      // Refresh card display to remove trump highlighting from previous round
+      if (myCards && myCards.length > 0) {
+        displayCards(myCards, false); // Re-display cards without trump highlighting
+      }
 
       console.log('[DEBUG] UI reset for new round');
     });
