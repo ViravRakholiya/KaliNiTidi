@@ -2,7 +2,9 @@ import { logger } from '../utils/logger.js';
 
 class DeckService {
   constructor() {
-    this.ranks = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
+    // Reduced deck: 8 and above in every suit, plus the 5 (a 5-point card).
+    // The 3 of spades (30-point card) is added separately in every set.
+    this.ranks = ['A', 'K', 'Q', 'J', '10', '9', '8', '5'];
     this.suits = ['spades', 'hearts', 'diamonds', 'clubs'];
   }
 
@@ -50,6 +52,9 @@ class DeckService {
         deck.push(this.createCard(rank, suit, cardIndex++));
       }
     }
+
+    // The 3 of spades is the only "3" in the deck (30-point card).
+    deck.push(this.createCard('3', 'spades', cardIndex++));
 
     return deck;
   }
@@ -156,10 +161,6 @@ class DeckService {
 
     if (playerCount < 4) {
       errors.push('Minimum 4 players required to start the game');
-    }
-
-    if (playerCount % 2 !== 0) {
-      errors.push('Number of players must be even (4, 6, 8, 10, ...)');
     }
 
     if (!cardsPerPlayer || typeof cardsPerPlayer !== 'number') {

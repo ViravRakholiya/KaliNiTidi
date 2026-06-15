@@ -23,7 +23,9 @@ class RoomService {
       playerId: options.playerId || randomUUID(),
       name: hostName,
       isHost: true,
-      connected: true
+      connected: true,
+      isBot: false,
+      waiting: false
     };
 
     const room = {
@@ -55,14 +57,6 @@ class RoomService {
       };
     }
 
-    if (room.status !== 'waiting') {
-      return {
-        success: false,
-        error: 'ROOM_NOT_AVAILABLE',
-        message: 'Room is not accepting new players'
-      };
-    }
-
     if (room.players.length >= room.maxPlayers) {
       return {
         success: false,
@@ -80,22 +74,72 @@ class RoomService {
       };
     }
 
+    // Joining a room with a round in progress is allowed: the player is seated
+    // as "waiting" and is dealt in when the next round starts.
+    const joinDuringGame = room.status === 'playing';
+
     const newPlayer = {
       socketId,
       playerId: playerId || randomUUID(),
       name: playerName,
       isHost: false,
-      connected: true
+      connected: true,
+      isBot: false,
+      waiting: joinDuringGame
     };
 
     room.players.push(newPlayer);
-    logger.info(`Player ${socketId} (${playerName}) joined room ${roomId}`);
+    logger.info(`Player ${socketId} (${playerName}) joined room ${roomId}${joinDuringGame ? ' (waiting for next round)' : ''}`);
 
     return {
       success: true,
       room,
-      player: newPlayer
+      player: newPlayer,
+      waitingForNextRound: joinDuringGame
     };
+  }
+
+  /**
+   * Add a bot player to a room (host-only convenience for testing / filling
+   * seats). Bots have a synthetic socketId and are driven by the server.
+   */
+  addBot(roomId) {
+    const room = this.rooms.get(roomId);
+    if (!room) return { success: false, error: 'ROOM_NOT_FOUND', message: 'Room does not exist' };
+    if (room.players.length >= room.maxPlayers) {
+      return { success: false, error: 'ROOM_FULL', message: 'Room is full' };
+    }
+
+    const botNum = room.players.filter(p => p.isBot).length + 1;
+    const id = 'bot_' + randomUUID();
+    const bot = {
+      socketId: id,
+      playerId: id,
+      name: `Bot ${botNum}`,
+      isHost: false,
+      connected: true,
+      isBot: true,
+      waiting: room.status === 'playing'
+    };
+    room.players.push(bot);
+    logger.info(`Bot ${bot.name} added to room ${roomId}`);
+    return { success: true, room, player: bot };
+  }
+
+  /**
+   * Remove the most recently added bot from a room.
+   */
+  removeBot(roomId) {
+    const room = this.rooms.get(roomId);
+    if (!room) return { success: false, error: 'ROOM_NOT_FOUND', message: 'Room does not exist' };
+    for (let i = room.players.length - 1; i >= 0; i--) {
+      if (room.players[i].isBot) {
+        const [bot] = room.players.splice(i, 1);
+        logger.info(`Bot ${bot.name} removed from room ${roomId}`);
+        return { success: true, room, player: bot };
+      }
+    }
+    return { success: false, error: 'NO_BOTS', message: 'No bots to remove' };
   }
 
   leaveRoom(roomId, socketId) {
@@ -126,11 +170,24 @@ class RoomService {
 
     let newHostId = null;
 
-    if (room.players.length === 0) {
+    // A room with no human players left (e.g. only bots) is treated as empty.
+    const humansLeft = room.players.some(p => !p.isBot);
+
+    if (room.players.length === 0 || !humansLeft) {
       this.rooms.delete(roomId);
-      logger.info(`Room ${roomId} deleted (no players remaining)`);
-    } else if (wasHost) {
-      const newHost = room.players[0];
+      logger.info(`Room ${roomId} deleted (${room.players.length === 0 ? 'no players remaining' : 'only bots left'})`);
+      return {
+        success: true,
+        room: null,
+        leavingPlayer,
+        newHostId: null,
+        roomEmpty: true
+      };
+    }
+
+    if (wasHost) {
+      // Promote the first human player to host (never a bot)
+      const newHost = room.players.find(p => !p.isBot) || room.players[0];
       newHost.isHost = true;
       newHostId = newHost.socketId;
       room.hostId = newHostId;
@@ -141,10 +198,10 @@ class RoomService {
 
     return {
       success: true,
-      room: room.players.length > 0 ? room : null,
+      room,
       leavingPlayer,
       newHostId,
-      roomEmpty: room.players.length === 0
+      roomEmpty: false
     };
   }
 
@@ -168,7 +225,9 @@ class RoomService {
           socketId: p.socketId,
           name: p.name,
           isHost: p.isHost,
-          connected: p.connected !== false
+          connected: p.connected !== false,
+          isBot: !!p.isBot,
+          waiting: !!p.waiting
         })),
         maxPlayers: room.maxPlayers,
         status: room.status,

@@ -147,6 +147,8 @@ class GameService {
       logger.info('[DEBUG] About to map hands to socket IDs...');
       room.players.forEach((player, index) => {
         gameState.hands[player.socketId] = hands[index];
+        // Everyone is now dealt into this round - clear any "waiting" flag.
+        player.waiting = false;
       });
       logger.info('[DEBUG] Hands mapped successfully');
 

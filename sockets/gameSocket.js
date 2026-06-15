@@ -68,6 +68,185 @@ function getPlayerName(roomId, socketId) {
   return player ? player.name : 'Unknown';
 }
 
+// ============================================
+// BOTS
+// ============================================
+const BOT_DELAY_MS = parseInt(process.env.BOT_DELAY_MS, 10) || 800; // pause before a bot acts, so play feels natural
+const RANK_VALUE = { A: 14, K: 13, Q: 12, J: 11, '10': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 };
+
+function isBotId(room, socketId) {
+  const p = room && room.players.find(x => x.socketId === socketId);
+  return !!(p && p.isBot);
+}
+
+// ---- shared broadcasters (used by bots; mirror the human handler emits) ----
+function broadcastBidUpdated(io, roomId, result) {
+  io.to(roomId).emit('BID_UPDATED', {
+    roomId, bidValue: result.currentBid, bidder: result.highestBidder, nextTurn: result.nextTurn
+  });
+}
+
+function broadcastPass(io, roomId, result) {
+  io.to(roomId).emit('PLAYER_PASSED', {
+    roomId, player: result.passedPlayer, nextTurn: result.nextTurn, remainingPlayers: result.remainingPlayers
+  });
+
+  if (result.biddingEnded && result.endResult && result.endResult.leader) {
+    const gameState = gameService.activeGames.get(roomId);
+    const pool = new Set();
+    if (gameState && gameState.hands) {
+      for (const sid in gameState.hands) for (const c of gameState.hands[sid]) pool.add(`${c.rank}_${c.suit}`);
+    }
+    io.to(roomId).emit('BIDDING_ENDED', {
+      roomId,
+      leader: result.endResult.leader,
+      winningBid: result.endResult.winningBid,
+      minimumBid: result.endResult.minimumBid,
+      totalPoints: result.endResult.totalPoints,
+      cardPool: Array.from(pool).sort()
+    });
+  }
+}
+
+function broadcastCardPlayed(io, roomId, playerId, result) {
+  const gameState = gameService.activeGames.get(roomId);
+  const nextPlayerId = gameState && gameState.currentTrick && gameState.currentTrick.currentPlayerIndex !== undefined
+    ? gameState.players[gameState.currentTrick.currentPlayerIndex] && gameState.players[gameState.currentTrick.currentPlayerIndex].socketId
+    : null;
+
+  io.to(roomId).emit('CARD_PLAYED', {
+    roomId, playerId, playerName: getPlayerName(roomId, playerId), card: result.card,
+    cardsRemaining: result.cardsRemaining, nextPlayerId, trickComplete: result.trickComplete,
+    partnerCardPlayed: result.partnerCardPlayed, partnerAssigned: result.partnerAssigned,
+    partnerId: result.partnerId, partnerName: result.partnerName,
+    secondPartnerCardPlayed: result.secondPartnerCardPlayed, opponentId: result.opponentId, opponentName: result.opponentName
+  });
+
+  if (result.trickComplete) {
+    const gs = gameService.activeGames.get(roomId);
+    const currentScores = gs.players.map(p => ({ socketId: p.socketId, name: p.name, score: p.score }));
+    io.to(roomId).emit('TRICK_COMPLETE', {
+      roomId, winner: result.trickWinner, winnerName: getPlayerName(roomId, result.trickWinner),
+      points: result.trickPoints, cards: result.trickCards, currentScores, nextPlayerId: result.trickWinner
+    });
+  }
+
+  if (result.gameOver) {
+    const finalScores = gameService.getFinalScores(roomId);
+    io.to(roomId).emit('GAME_OVER', { roomId, scores: finalScores, winner: result.gameWinner });
+  }
+}
+
+// ---- bot decision helpers ----
+function mostCommonSuit(hand) {
+  const counts = {};
+  hand.forEach(c => { counts[c.suit] = (counts[c.suit] || 0) + 1; });
+  let best = null, n = -1;
+  for (const s in counts) if (counts[s] > n) { n = counts[s]; best = s; }
+  return best;
+}
+
+function pickPartnerCard(gameState, botId) {
+  const botSet = new Set((gameState.hands[botId] || []).map(c => `${c.rank}_${c.suit}`));
+  const pool = new Set();
+  for (const sid in gameState.hands) {
+    if (sid === botId) continue;
+    for (const c of gameState.hands[sid]) pool.add(`${c.rank}_${c.suit}`);
+  }
+  const order = ['A', 'K', 'Q', 'J', '10', '9', '8', '5', '3'];
+  const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
+  for (const r of order) for (const s of suits) {
+    const key = `${r}_${s}`;
+    if (pool.has(key) && !botSet.has(key)) return { rank: r, suit: s };
+  }
+  const first = Array.from(pool)[0];
+  if (first) { const [rank, suit] = first.split('_'); return { rank, suit }; }
+  return { rank: 'A', suit: 'spades' };
+}
+
+function lowestLegalCard(hand, ledSuit) {
+  let legal = hand;
+  if (ledSuit) { const follow = hand.filter(c => c.suit === ledSuit); if (follow.length) legal = follow; }
+  return legal.slice().sort((a, b) => (RANK_VALUE[a.rank] || 0) - (RANK_VALUE[b.rank] || 0))[0];
+}
+
+// ---- the driver: if the current turn belongs to a bot, make it act ----
+function driveBots(io, roomId) {
+  const room = roomService.getRoom(roomId);
+  const game = gameService.activeGames.get(roomId);
+  if (!room || !game) return;
+
+  if (game.phase === 'bidding') {
+    const bidding = biddingService.getBiddingState(roomId);
+    if (!bidding) return;
+    const turnId = bidding.playersOrder[bidding.currentTurnIndex];
+    if (isBotId(room, turnId)) setTimeout(() => botBid(io, roomId, turnId), BOT_DELAY_MS);
+  } else if (game.phase === 'selection') {
+    const bidding = biddingService.getBiddingState(roomId);
+    if (bidding && isBotId(room, bidding.highestBidder)) setTimeout(() => botLead(io, roomId, bidding.highestBidder), BOT_DELAY_MS);
+  } else if (game.phase === 'playing' && game.currentTrick) {
+    const turnId = game.players[game.currentTrick.currentPlayerIndex] && game.players[game.currentTrick.currentPlayerIndex].socketId;
+    if (isBotId(room, turnId)) setTimeout(() => botPlay(io, roomId, turnId), BOT_DELAY_MS);
+  }
+}
+
+// Bots always pass in bidding (keeps a human in control of the contract).
+function botBid(io, roomId, botId) {
+  const bidding = biddingService.getBiddingState(roomId);
+  if (!bidding || bidding.playersOrder[bidding.currentTurnIndex] !== botId) return;
+  const result = gameService.passBid(roomId, botId);
+  if (result.success) { broadcastPass(io, roomId, result); driveBots(io, roomId); }
+  else logger.warn(`Bot pass failed in ${roomId}: ${result.message}`);
+}
+
+// If everyone passed and a bot ended up the leader, it auto-picks trump + partner.
+function botLead(io, roomId, botId) {
+  const game = gameService.activeGames.get(roomId);
+  const bidding = biddingService.getBiddingState(roomId);
+  if (!game || !bidding || bidding.highestBidder !== botId || game.phase !== 'selection') return;
+  const hand = game.hands[botId] || [];
+
+  if (!bidding.trump) {
+    const trump = mostCommonSuit(hand) || 'spades';
+    const tr = gameService.selectTrump(roomId, botId, trump);
+    if (!tr.success) { logger.warn(`Bot trump failed: ${tr.message}`); return; }
+    io.to(roomId).emit('TRUMP_SELECTED', { roomId, suit: trump, selectedBy: botId });
+  }
+
+  const partner = pickPartnerCard(game, botId);
+  const leaderCardCount = hand.filter(c => c.rank === partner.rank && c.suit === partner.suit).length;
+  const pr = biddingService.selectPartnerCard(roomId, botId, partner.rank, partner.suit, 1, leaderCardCount);
+  if (!pr.success) { logger.warn(`Bot partner failed: ${pr.message}`); return; }
+  io.to(roomId).emit('PARTNER_CARD_SELECTED', {
+    roomId, partnerCard: pr.partnerCard, selectedBy: botId, preferredPosition: 1,
+    leaderCardCount, maxPosition: bidding.numberOfSets - leaderCardCount, numberOfSets: bidding.numberOfSets
+  });
+
+  const gp = gameService.startGameplay(roomId, botId);
+  if (gp.success) {
+    io.to(roomId).emit('GAMEPLAY_STARTED', {
+      roomId,
+      players: gp.gameState.players.map(p => ({ socketId: p.socketId, name: p.name, isHost: p.isHost })),
+      trump: gp.trump, partnerCard: gp.partnerCard, leader: gp.leader,
+      winningBid: gp.winningBid, totalPoints: gp.gameState.totalPointsInDeck
+    });
+    driveBots(io, roomId);
+  } else logger.warn(`Bot start gameplay failed: ${gp.message}`);
+}
+
+function botPlay(io, roomId, botId) {
+  const game = gameService.activeGames.get(roomId);
+  if (!game || game.phase !== 'playing' || !game.currentTrick) return;
+  const cur = game.players[game.currentTrick.currentPlayerIndex];
+  if (!cur || cur.socketId !== botId) return;
+  const hand = game.hands[botId] || [];
+  if (!hand.length) return;
+  const card = lowestLegalCard(hand, game.currentTrick.ledSuit);
+  const result = gameService.playCard(roomId, botId, card.id);
+  if (result.success) { broadcastCardPlayed(io, roomId, botId, result); driveBots(io, roomId); }
+  else logger.warn(`Bot play failed in ${roomId}: ${result.message}`);
+}
+
 export const handleGameSocket = (io, socket) => {
   socket.on('CREATE_ROOM', (data, callback) => {
     const { name, maxPlayers, playerId } = data;
@@ -80,14 +259,7 @@ export const handleGameSocket = (io, socket) => {
     }
 
     if (maxPlayers && maxPlayers < 4) {
-      const error = { success: false, error: 'INVALID_MAX_PLAYERS', message: 'Minimum 4 players required (must be even number)' };
-      if (typeof callback === 'function') callback(error);
-      socket.emit('ROOM_ERROR', error);
-      return;
-    }
-
-    if (maxPlayers && maxPlayers % 2 !== 0) {
-      const error = { success: false, error: 'INVALID_MAX_PLAYERS', message: 'Number of players must be even (4, 6, 8, 10, ...)' };
+      const error = { success: false, error: 'INVALID_MAX_PLAYERS', message: 'Minimum 4 players required' };
       if (typeof callback === 'function') callback(error);
       socket.emit('ROOM_ERROR', error);
       return;
@@ -153,14 +325,15 @@ export const handleGameSocket = (io, socket) => {
         players: result.room.players,
         hostId: result.room.hostId,
         maxPlayers: result.room.maxPlayers,
-        status: result.room.status
+        status: result.room.status,
+        waitingForNextRound: !!result.waitingForNextRound
       };
 
       if (typeof callback === 'function') callback({ success: true, ...roomStateResponse });
       socket.emit('ROOM_JOINED', roomStateResponse);
 
       socket.to(roomId).emit('PLAYER_JOINED', {
-        player: playerInfo,
+        player: { ...playerInfo, waiting: !!result.player.waiting },
         playerCount: result.room.players.length
       });
 
@@ -211,6 +384,67 @@ export const handleGameSocket = (io, socket) => {
       }
 
       logger.info(`Socket ${socket.id} left room ${roomId}`);
+    } else {
+      if (typeof callback === 'function') callback(result);
+      socket.emit('ROOM_ERROR', result);
+    }
+  });
+
+  socket.on('ADD_BOT', (data, callback) => {
+    const roomId = data?.roomId || roomService.findRoomBySocketId(socket.id);
+    const room = roomId ? roomService.getRoom(roomId) : null;
+
+    if (!room) {
+      const error = { success: false, error: 'ROOM_NOT_FOUND', message: 'Room does not exist' };
+      if (typeof callback === 'function') callback(error);
+      socket.emit('ROOM_ERROR', error);
+      return;
+    }
+    if (room.hostId !== socket.id) {
+      const error = { success: false, error: 'NOT_HOST', message: 'Only the host can add bots' };
+      if (typeof callback === 'function') callback(error);
+      socket.emit('ROOM_ERROR', error);
+      return;
+    }
+    if (room.status !== 'waiting') {
+      const error = { success: false, error: 'GAME_IN_PROGRESS', message: 'Add bots before starting a round' };
+      if (typeof callback === 'function') callback(error);
+      socket.emit('ROOM_ERROR', error);
+      return;
+    }
+
+    const result = roomService.addBot(roomId);
+    if (result.success) {
+      io.to(roomId).emit('PLAYER_JOINED', {
+        player: { socketId: result.player.socketId, name: result.player.name, isHost: false, isBot: true },
+        playerCount: result.room.players.length
+      });
+      if (typeof callback === 'function') callback({ success: true, player: result.player, playerCount: result.room.players.length });
+    } else {
+      if (typeof callback === 'function') callback(result);
+      socket.emit('ROOM_ERROR', result);
+    }
+  });
+
+  socket.on('REMOVE_BOT', (data, callback) => {
+    const roomId = data?.roomId || roomService.findRoomBySocketId(socket.id);
+    const room = roomId ? roomService.getRoom(roomId) : null;
+
+    if (!room || room.hostId !== socket.id) {
+      const error = { success: false, error: 'NOT_HOST', message: 'Only the host can remove bots' };
+      if (typeof callback === 'function') callback(error);
+      socket.emit('ROOM_ERROR', error);
+      return;
+    }
+
+    const result = roomService.removeBot(roomId);
+    if (result.success) {
+      io.to(roomId).emit('PLAYER_LEFT', {
+        player: { socketId: result.player.socketId, name: result.player.name, wasHost: false },
+        playerCount: result.room.players.length,
+        newHostId: null
+      });
+      if (typeof callback === 'function') callback({ success: true, playerCount: result.room.players.length });
     } else {
       if (typeof callback === 'function') callback(result);
       socket.emit('ROOM_ERROR', result);
@@ -275,9 +509,9 @@ export const handleGameSocket = (io, socket) => {
       return;
     }
 
-    // Validate numberOfPlayers (must be even)
-    if (numberOfPlayers < 4 || numberOfPlayers % 2 !== 0) {
-      const error = { success: false, error: 'INVALID_PLAYER_COUNT', message: 'Number of players must be at least 4 and even (4, 6, 8, 10, ...)' };
+    // Validate numberOfPlayers (minimum 4; odd counts are allowed)
+    if (numberOfPlayers < 4) {
+      const error = { success: false, error: 'INVALID_PLAYER_COUNT', message: 'At least 4 players are required to start' };
       if (typeof callback === 'function') callback(error);
       socket.emit('ROOM_ERROR', error);
       return;
@@ -422,6 +656,9 @@ export const handleGameSocket = (io, socket) => {
         }
 
         logger.info(`Game started in room ${roomId}: ${gameState.players.length} players, ${result.cardsPerPlayer} cards each, phase: bidding`);
+
+        // If the first bidder is a bot, let it act.
+        driveBots(io, roomId);
       } else {
         if (typeof callback === 'function') callback(result);
         socket.emit('ROOM_ERROR', result);
@@ -474,6 +711,7 @@ export const handleGameSocket = (io, socket) => {
       if (typeof callback === 'function') callback(result);
 
       logger.info(`Player ${socket.id.substring(0, 8)}... bid ${bidValue} in room ${roomId}`);
+      driveBots(io, roomId);
     } else {
       if (typeof callback === 'function') callback(result);
       socket.emit('ROOM_ERROR', result);
@@ -554,6 +792,7 @@ export const handleGameSocket = (io, socket) => {
       if (typeof callback === 'function') callback(result);
 
       logger.info(`Player ${socket.id.substring(0, 8)}... passed in room ${roomId}`);
+      driveBots(io, roomId);
     } else {
       if (typeof callback === 'function') callback(result);
       socket.emit('ROOM_ERROR', result);
@@ -684,6 +923,7 @@ export const handleGameSocket = (io, socket) => {
       if (typeof callback === 'function') callback(result);
 
       logger.info(`Player ${socket.id.substring(0, 8)}... played card in room ${roomId}`);
+      driveBots(io, roomId);
     } else {
       if (typeof callback === 'function') callback(result);
       socket.emit('ROOM_ERROR', result);
@@ -734,6 +974,7 @@ export const handleGameSocket = (io, socket) => {
       if (typeof callback === 'function') callback(result);
 
       logger.info(`Gameplay started in room ${roomId}`);
+      driveBots(io, roomId);
     } else {
       if (typeof callback === 'function') callback(result);
       socket.emit('ROOM_ERROR', result);

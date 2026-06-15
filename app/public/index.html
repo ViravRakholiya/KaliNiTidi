@@ -283,10 +283,11 @@
       <div id="createFields" class="hidden">
         <div class="row2">
           <div class="field">
-            <label>Players</label>
+            <label>Max Players</label>
             <select id="inpPlayers">
-              <option value="4">4</option><option value="6">6</option>
-              <option value="8">8</option><option value="10">10</option><option value="12">12</option>
+              <option value="4">4</option><option value="5">5</option><option value="6">6</option>
+              <option value="7">7</option><option value="8">8</option><option value="9">9</option>
+              <option value="10">10</option><option value="11">11</option><option value="12">12</option>
             </select>
           </div>
           <div class="field">
@@ -305,7 +306,7 @@
 
       <button id="btnGo" class="btn block lg" onclick="ui.go()">Join Table</button>
       <p style="text-align:center;font-size:11.5px;color:rgba(246,236,210,.5);margin-top:12px">
-        Min 4 players, even numbers only.
+        Min 4 players to start. Short? Add bots from the table.
       </p>
     </div>
   </section>
@@ -424,9 +425,9 @@
       players: [], phase: 'lobby',
       hand: [], trump: null, leader: null, bidWinner: null, partnerId: null, partnerCard: null,
       winningBid: 0, minBid: 0, currentBid: 0, bidStep: 5, currentTurn: null,
-      numberOfSets: 2, cardsPerPlayer: 13, roundNumber: 1,
+      numberOfSets: 2, cardsPerPlayer: 13, roundNumber: 1, maxPlayers: 4,
       scores: {}, cumulative: {}, cardPool: [],
-      muted: false, selectedCardId: null,
+      muted: false, selectedCardId: null, spectating: false,
     };
 
     const cardKey = (c) => `${c.rank}_${c.suit}`;
@@ -508,11 +509,14 @@
     function onSeated(d, host) {
       S.roomId = d.roomId; S.isHost = host;
       S.players = d.players || [];
+      S.maxPlayers = d.maxPlayers || S.maxPlayers;
+      S.spectating = !!d.waitingForNextRound;
       setPlayerId(d.playerId);
       saveSession(d.roomId, S.name);
       S.phase = 'waiting';
       enterTable();
-      toast(host ? `Room ${d.roomId} created` : `Joined ${d.roomId}`, 'ok');
+      if (S.spectating) toast('Round in progress — you’ll join next round', 'gold');
+      else toast(host ? `Room ${d.roomId} created` : `Joined ${d.roomId}`, 'ok');
     }
 
     socket.on('PLAYER_JOINED', () => refreshRoom());
@@ -540,6 +544,7 @@
 
     socket.on('BIDDING_STARTED', (d) => {
       S.phase = 'bidding';
+      S.spectating = false; // we're in this round now
       // Fresh round: clear last round's trump / partner / team state.
       S.trump = null; S.partnerCard = null; S.partnerId = null; S.bidWinner = null; S.leader = null;
       S.players.forEach(p => { p._passed = false; p._team = null; });
@@ -721,10 +726,12 @@
         const roles = [];
         if (p.socketId === S.leader || p.socketId === S.bidWinner) roles.push('👑');
         if (p.socketId === S.partnerId) roles.push('🤝');
+        if (p.isBot) roles.push('🤖');
         if (p.isHost) roles.push('★');
 
         let status = '';
         if (p.connected === false) status = '<div class="status off">offline</div>';
+        else if (p.waiting) status = '<div class="status bid">next round</div>';
         else if (S.phase === 'bidding' && p.socketId === S.currentTurn) status = '<div class="status turn">bidding…</div>';
         else if (S.phase === 'bidding' && p._passed) status = '<div class="status passed">passed</div>';
         else if (S.phase === 'playing' && p.socketId === S.currentTurn) status = '<div class="status turn">playing…</div>';
@@ -749,7 +756,11 @@
 
       if (S.phase === 'waiting') {
         const n = S.players.length;
-        prompt.innerHTML = `<span class="big">Waiting Room</span>${n} player${n!==1?'s':''} seated${S.isHost ? '<br>Start the game when everyone is in.' : '<br>Waiting for the host to start…'}`;
+        if (S.spectating) {
+          prompt.innerHTML = `<span class="big">Round in Progress</span>You're seated — you'll be dealt in when the next round starts.`;
+        } else {
+          prompt.innerHTML = `<span class="big">Waiting Room</span>${n} player${n!==1?'s':''} seated${S.isHost ? '<br>Add bots or start when ready.' : '<br>Waiting for the host to start…'}`;
+        }
       } else if (S.phase === 'bidding') {
         const who = S.currentTurn === socket.id ? 'Your turn to bid' : `${getName(S.currentTurn)} is bidding`;
         prompt.innerHTML = `<span class="big">Bidding</span>${who}<br>Highest: <b>${S.currentBid}</b> (min ${S.minBid})`;
@@ -819,10 +830,18 @@
     function renderActions() {
       const bar = $('actionbar'); bar.innerHTML = '';
       if (S.phase === 'waiting') {
-        if (S.isHost && S.players.length >= 4) {
-          const b = mkBtn('▶ Start Game', 'btn block lg', startGame); bar.appendChild(b);
+        if (S.spectating) {
+          bar.appendChild(info('A round is in progress — you’ll be dealt in next round.'));
         } else if (S.isHost) {
-          bar.appendChild(info(`Need at least 4 players (have ${S.players.length})`));
+          const full = S.players.length >= (S.maxPlayers || 12);
+          const hasBots = S.players.some(p => p.isBot);
+          const ctr = document.createElement('div'); ctr.className = 'actionbar grow'; ctr.style.padding = '0';
+          if (!full) ctr.appendChild(mkBtn('🤖 Add Bot', 'btn ghost', addBot));
+          if (hasBots) ctr.appendChild(mkBtn('Remove Bot', 'btn ghost', removeBot));
+          bar.appendChild(ctr);
+          const start = mkBtn(S.players.length >= 4 ? '▶ Start Game' : `Need ${4 - S.players.length} more`, 'btn', startGame);
+          if (S.players.length < 4) start.disabled = true;
+          bar.appendChild(start);
         } else {
           bar.appendChild(info('Waiting for host to start…'));
         }
@@ -883,6 +902,16 @@
       const sets = S.numberOfSets || 2;
       socket.emit('START_GAME', { roomId: S.roomId, cardsPerPlayer: cards, numberOfSets: sets }, (r) => {
         if (r && !r.success) toast(r.message || 'Could not start', 'err');
+      });
+    }
+    function addBot() {
+      socket.emit('ADD_BOT', { roomId: S.roomId }, (r) => {
+        if (r && r.success) refreshRoom(); else toast(r?.message || 'Could not add bot', 'err');
+      });
+    }
+    function removeBot() {
+      socket.emit('REMOVE_BOT', { roomId: S.roomId }, (r) => {
+        if (r && r.success) refreshRoom(); else toast(r?.message || 'Could not remove bot', 'err');
       });
     }
     function placeBid(v) {
