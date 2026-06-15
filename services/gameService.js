@@ -629,6 +629,16 @@ class GameService {
       const playedCard = hand[cardIndex];
       const player = gameState.players.find(p => p.socketId === socketId);
 
+      // Build the result object up front so the partner-assignment logic below
+      // can attach fields to it. (cardsRemaining is finalized after the card is
+      // actually removed from the hand.)
+      const result = {
+        success: true,
+        card: playedCard,
+        cardsRemaining: hand.length,
+        partnerCardPlayed: false
+      };
+
       // Check if this card is the partner card (only if partner card is set)
       let isPartnerCard = false;
       if (gameState.partnerCard && playedCard) {
@@ -750,12 +760,9 @@ class GameService {
 
       logger.info(`Player ${socketId.substring(0, 8)}... played ${playedCard.rank} of ${playedCard.suit}`);
 
-      const result = {
-        success: true,
-        card: playedCard,
-        cardsRemaining: hand.length,
-        partnerCardPlayed: isPartnerCard
-      };
+      // Finalize result fields now that the card has left the hand
+      result.cardsRemaining = hand.length;
+      result.partnerCardPlayed = isPartnerCard;
 
       // Check if trick is complete
       if (gameState.currentTrick.cards.length === gameState.players.length) {
@@ -1191,6 +1198,137 @@ class GameService {
     }
 
     return room.cumulativeScores;
+  }
+
+  /**
+   * Rebind every socketId reference in the live game state (and the
+   * associated bidding state) from a disconnected player's old socket id to
+   * their new one after reconnection. The whole game keeps socketId as its
+   * runtime key; the stable playerId only anchors who the old id belonged to.
+   */
+  rebindSocket(roomId, oldSocketId, newSocketId) {
+    const gameState = this.activeGames.get(roomId);
+    if (!gameState) return false;
+
+    // hands is keyed by socketId
+    if (gameState.hands && oldSocketId in gameState.hands) {
+      gameState.hands[newSocketId] = gameState.hands[oldSocketId];
+      delete gameState.hands[oldSocketId];
+    }
+
+    // players[].socketId
+    gameState.players.forEach(p => {
+      if (p.socketId === oldSocketId) p.socketId = newSocketId;
+    });
+
+    // Singular references
+    ['leader', 'bidWinner', 'partnerId'].forEach(key => {
+      if (gameState[key] === oldSocketId) gameState[key] = newSocketId;
+    });
+
+    // Current trick cards
+    if (gameState.currentTrick?.cards) {
+      gameState.currentTrick.cards.forEach(c => {
+        if (c.playerId === oldSocketId) c.playerId = newSocketId;
+      });
+    }
+
+    // Partner card play history
+    if (Array.isArray(gameState.partnerCardPlays)) {
+      gameState.partnerCardPlays.forEach(p => {
+        if (p.playerId === oldSocketId) p.playerId = newSocketId;
+      });
+    }
+
+    // Final scores (if already computed)
+    if (gameState.finalScores) {
+      const fs = gameState.finalScores;
+      if (fs.playerScores && oldSocketId in fs.playerScores) {
+        fs.playerScores[newSocketId] = fs.playerScores[oldSocketId];
+        delete fs.playerScores[oldSocketId];
+      }
+      if (fs.bidder === oldSocketId) fs.bidder = newSocketId;
+      if (fs.partner === oldSocketId) fs.partner = newSocketId;
+    }
+
+    biddingService.rebindSocket(roomId, oldSocketId, newSocketId);
+
+    logger.info(`Game state rebound ${oldSocketId} -> ${newSocketId} in room ${roomId}`);
+    return true;
+  }
+
+  /**
+   * Socket id of the player whose turn it currently is (bidding or playing),
+   * or null if not applicable.
+   */
+  getCurrentTurnSocketId(gameState) {
+    if (!gameState) return null;
+
+    if (gameState.phase === 'bidding') {
+      const bidding = biddingService.getBiddingState(gameState.roomId);
+      return bidding ? bidding.playersOrder[bidding.currentTurnIndex] : null;
+    }
+
+    if (gameState.phase === 'playing' && gameState.currentTrick) {
+      const idx = gameState.currentTrick.currentPlayerIndex;
+      return gameState.players[idx]?.socketId ?? null;
+    }
+
+    return null;
+  }
+
+  /**
+   * Build a full snapshot for a reconnecting player so the client can rebuild
+   * its view. Call AFTER rebindSocket so socketId already refers to the new id.
+   */
+  getReconnectSnapshot(roomId, socketId) {
+    const gameState = this.activeGames.get(roomId);
+    if (!gameState) {
+      return { success: false, error: 'GAME_NOT_FOUND', message: 'Game does not exist' };
+    }
+
+    const bidding = biddingService.getBiddingState(roomId);
+    const hand = gameState.hands[socketId] || [];
+
+    const snapshot = {
+      phase: gameState.phase,
+      players: gameState.players.map(p => ({
+        socketId: p.socketId,
+        name: p.name,
+        isHost: p.isHost,
+        score: p.score,
+        cardsInHand: p.cardsInHand
+      })),
+      hand,
+      cardsPerPlayer: gameState.cardsPerPlayer,
+      totalCards: gameState.totalCards,
+      totalPoints: gameState.totalPointsInDeck || (bidding ? bidding.totalPoints : 0),
+      currentTurn: this.getCurrentTurnSocketId(gameState),
+      trump: gameState.trump || (bidding ? bidding.trump : null),
+      leader: gameState.leader || (bidding ? bidding.highestBidder : null),
+      partnerCard: gameState.partnerCard || (bidding?.partnerCards?.[0] || null),
+      partnerId: gameState.partnerId || null,
+      bidWinner: gameState.bidWinner || (bidding ? bidding.highestBidder : null),
+      winningBid: gameState.winningBid || (bidding ? bidding.currentBid : 0),
+      roundNumber: gameState.roundNumber || 1,
+      // Cards already played in the in-progress trick
+      currentTrick: gameState.currentTrick
+        ? gameState.currentTrick.cards.map(c => ({ playerId: c.playerId, card: c.card }))
+        : [],
+      bidding: bidding
+        ? {
+            currentBid: bidding.currentBid,
+            highestBidder: bidding.highestBidder,
+            minimumBid: bidding.minimumBid,
+            totalPoints: bidding.totalPoints,
+            passedPlayers: bidding.passedPlayers,
+            completed: bidding.completed,
+            numberOfSets: bidding.numberOfSets
+          }
+        : null
+    };
+
+    return { success: true, snapshot };
   }
 
   /**

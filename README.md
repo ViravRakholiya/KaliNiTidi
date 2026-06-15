@@ -15,30 +15,26 @@ Real-time multiplayer card game backend built with Node.js, Express, Socket.io, 
 ```
 .
 ├── app/                 # Express app configuration
-│   └── index.js
-├── src/                 # Source files
+│   ├── index.js
+│   └── public/          # Static game client
 ├── config/              # Configuration files
 │   ├── index.js         # Main config
 │   └── supabase.js      # Supabase client
 ├── controllers/         # Route controllers
 │   └── healthController.js
 ├── services/            # Business logic
-│   ├── gameManager.js
-│   ├── roomService.js   # Room management service
-│   ├── gameService.js   # Game start & card distribution
+│   ├── roomService.js   # Room/lobby management
+│   ├── gameService.js   # Game start, card distribution, trick & score logic
 │   └── biddingService.js # Bidding/auction system
 ├── engine/              # Game logic engine
-│   ├── gameEngine.js
-│   └── deckService.js   # Deck generation & shuffling
+│   └── deckService.js   # Deck generation, shuffling & distribution
 ├── sockets/             # Socket.io handlers
-│   ├── handler.js
-│   ├── connectionHandler.js
-│   ├── authHandler.js
-│   ├── gameHandler.js
-│   └── gameSocket.js    # Room system socket events
+│   ├── handler.js       # Connection entry point
+│   └── gameSocket.js    # Room & gameplay socket events
 ├── utils/               # Utility functions
 │   ├── logger.js
 │   └── middleware.js
+├── examples/            # Test clients & usage examples
 ├── index.js             # Application entry point
 ├── package.json
 ├── .env.example
@@ -239,21 +235,6 @@ npm run dev
 | `ROOM_STATE` | `{ roomId, hostId, players, maxPlayers, status, playerCount }` | Current room state |
 | `BIDDING_STATE` | `{ currentBid, highestBidder, currentTurn, passedPlayers, completed, ... }` | Current bidding state |
 | `ROOM_ERROR` | `{ success: false, error, message }` | Room operation error |
-
-### Legacy Events (still available)
-
-#### Authentication
-- `auth:login` - Authenticate with token
-- `auth:logout` - Logout user
-- `auth:success` - Successful authentication
-- `auth:error` - Authentication error
-
-#### Game
-- `game:create` - Create a new game
-- `game:join` - Join an existing game
-- `game:leave` - Leave a game
-- `game:start` - Start the game
-- `game:play_card` - Play a card
 
 ## Game System
 

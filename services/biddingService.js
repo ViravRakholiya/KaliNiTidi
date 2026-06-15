@@ -604,6 +604,23 @@ class BiddingService {
   }
 
   /**
+   * Rebind every socketId reference in the bidding state from an old
+   * (disconnected) socket id to the player's new one after reconnection.
+   */
+  rebindSocket(roomId, oldSocketId, newSocketId) {
+    const bidding = this.activeBiddings.get(roomId);
+    if (!bidding) return;
+
+    bidding.playersOrder = bidding.playersOrder.map(id => (id === oldSocketId ? newSocketId : id));
+    bidding.passedPlayers = bidding.passedPlayers.map(id => (id === oldSocketId ? newSocketId : id));
+    if (bidding.highestBidder === oldSocketId) {
+      bidding.highestBidder = newSocketId;
+    }
+
+    logger.info(`Bidding state rebound ${oldSocketId} -> ${newSocketId} in room ${roomId}`);
+  }
+
+  /**
    * Clean up bidding state when game ends
    */
   cleanup(roomId) {

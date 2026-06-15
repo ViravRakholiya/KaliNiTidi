@@ -1080,60 +1080,67 @@
       console.log(`[DEBUG ALL EVENTS] Received: ${eventName}`, args);
     });
 
-    // Reconnection handling variables
-    let savedUserId = null;
-    let savedUsername = null;
-    let savedGameId = null;
-    let reconnectTimeout = null;
+    // ---- Reconnection (stable playerId + REJOIN_ROOM) ----
+    // A persistent per-browser player identity. The server keys reconnection
+    // off this so a fresh socket id can reclaim the same seat and game state.
+    const PLAYER_ID_KEY = 'kanitidi_playerId';
+    const SESSION_KEY = 'kanitidi_session';
 
-    // Save user credentials for reconnection
-    function saveCredentials(userId, username, gameId) {
-      savedUserId = userId;
-      savedUsername = username;
-      savedGameId = gameId;
-      console.log('[RECONNECT] Credentials saved for', username);
+    function getPlayerId() {
+      let id = null;
+      try { id = localStorage.getItem(PLAYER_ID_KEY); } catch (e) {}
+      if (!id) {
+        id = (crypto.randomUUID && crypto.randomUUID()) ||
+             ('p_' + Date.now() + '_' + Math.random().toString(36).slice(2));
+        try { localStorage.setItem(PLAYER_ID_KEY, id); } catch (e) {}
+      }
+      return id;
     }
 
-    // Clear saved credentials
-    function clearCredentials() {
-      savedUserId = null;
-      savedUsername = null;
-      savedGameId = null;
-      console.log('[RECONNECT] Credentials cleared');
+    // Remember which room we're seated in so we can rejoin after a drop.
+    function saveSession(roomId, name) {
+      try {
+        localStorage.setItem(SESSION_KEY, JSON.stringify({ roomId, name }));
+      } catch (e) {}
     }
 
-    // Attempt to reconnect with saved credentials
+    function getSession() {
+      try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { return null; }
+    }
+
+    function clearSession() {
+      try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+    }
+
+    // Ask the server to put us back in our seat.
     function attemptReconnect() {
-      if (!savedUserId || !savedUsername || !savedGameId) {
-        console.log('[RECONNECT] No credentials to reconnect');
+      const session = getSession();
+      if (!session || !session.roomId) {
+        console.log('[RECONNECT] No session to rejoin');
         return;
       }
 
-      console.log('[RECONNECT] Attempting to rejoin as', savedUsername);
-      log('Attempting to reconnect...', 'info');
+      console.log('[RECONNECT] Rejoining room', session.roomId);
+      log('Reconnecting to your game...', 'info');
 
-      socket.emit('game:rejoin', {
-        userId: savedUserId
+      socket.emit('REJOIN_ROOM', {
+        roomId: session.roomId,
+        playerId: getPlayerId(),
+        name: session.name
+      }, (response) => {
+        if (response && !response.success) {
+          log(response.message || 'Reconnect failed', 'error');
+        }
       });
     }
 
-    // Handle page visibility changes (mobile lock/unlock)
+    // Coming back to the foreground (mobile unlock / tab refocus): if the
+    // socket dropped while we were away, reconnect now.
     document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        console.log('[RECONNECT] Page hidden (app backgrounded)');
-      } else {
-        console.log('[RECONNECT] Page visible (app foregrounded)');
-        if (!socket.connected && savedUserId) {
-          console.log('[RECONNECT] Socket disconnected, attempting to reconnect...');
-          attemptReconnect();
-        }
+      if (!document.hidden && !socket.connected && getSession()) {
+        console.log('[RECONNECT] Foregrounded while disconnected - reconnecting');
+        socket.connect();
       }
-    });
-
-    // Handle beforeunload (user closing tab)
-    window.addEventListener('beforeunload', () => {
-      console.log('[RECONNECT] Page unloading, clearing credentials');
-      clearCredentials();
     });
 
     let currentRoom = null;
@@ -1179,20 +1186,15 @@
     }
 
     socket.on('connect', () => {
-      console.log('[DEBUG] Socket connected, ID:', socket.id);
+      console.log('[DEBUG] Socket connected, ID:', socket.id, 'recovered:', socket.recovered);
       document.getElementById('connectionStatus').textContent = 'Connected';
       document.getElementById('connectionStatus').style.color = '#00ff80';
-      log('Connected to server', 'success');
+      log(socket.recovered ? 'Reconnected (session recovered)' : 'Connected to server', 'success');
 
-      // Clear reconnection timeout if any
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
-        reconnectTimeout = null;
-      }
-
-      // Update credentials with new socket ID if reconnecting
-      if (savedUsername && savedGameId) {
-        saveCredentials(socket.id, savedUsername, savedGameId);
+      // If we were already seated in a room, reclaim our seat. This fires both
+      // for socket.io auto-reconnects and manual reconnects after backgrounding.
+      if (getSession()) {
+        attemptReconnect();
       }
     });
 
@@ -1201,17 +1203,8 @@
       document.getElementById('connectionStatus').style.color = '#e94560';
       log('Disconnected from server', 'error');
 
-      // Attempt to reconnect if we have credentials
-      if (savedUserId && savedGameId) {
-        log('You have 90 seconds to return...', 'warning');
-
-        // Attempt automatic reconnection
-        reconnectTimeout = setTimeout(() => {
-          if (!socket.connected) {
-            console.log('[RECONNECT] Attempting automatic reconnection...');
-            attemptReconnect();
-          }
-        }, 2000);
+      if (getSession()) {
+        log('You have 2 minutes to return before losing your seat...', 'warning');
       }
     });
 
@@ -1219,45 +1212,150 @@
       log(`Connected as ${data.socketId.substring(0, 8)}...`, 'info');
     });
 
-    // Reconnection event handlers
-    socket.on('player:disconnected', (data) => {
-      log(`${data.userId} disconnected. Can reconnect within ${Math.ceil(data.gracePeriodMs / 1000)} seconds`, 'warning');
+    // ---- Reconnection event handlers ----
+    socket.on('PLAYER_DISCONNECTED', (data) => {
+      const secs = Math.ceil((data.gracePeriodMs || 0) / 1000);
+      log(`${data.player?.name || 'A player'} disconnected (can reconnect within ${secs}s)`, 'warning');
+      // Refresh the lobby list so their status shows
+      socket.emit('GET_ROOM_STATE', { roomId: data.roomId }, (response) => {
+        if (response && response.success) updatePlayersList(response.roomState.players);
+      });
     });
 
-    socket.on('player:reconnected', (data) => {
-      log(`${data.userId} reconnected!`, 'success');
+    socket.on('PLAYER_RECONNECTED', (data) => {
+      log(`${data.player?.name || 'A player'} reconnected!`, 'success');
+      socket.emit('GET_ROOM_STATE', { roomId: data.roomId }, (response) => {
+        if (response && response.success) updatePlayersList(response.roomState.players);
+      });
     });
 
-    socket.on('game:rejoined', (data) => {
-      log('Successfully reconnected to the game!', 'success');
-      log(data.message, 'success');
+    socket.on('REJOIN_FAILED', (data) => {
+      log(`Reconnect failed: ${data.message || 'Your seat is gone.'}`, 'error');
+      clearSession();
+      log('Please refresh and join again to start a new game.', 'error');
+    });
 
-      // Update game state with reconnection data
-      if (data.game) {
-        currentRoom = data.game.id;
-        currentPlayers = data.game.players || [];
+    // Full state restore after a successful REJOIN_ROOM.
+    socket.on('REJOINED', (data) => {
+      log('Reconnected to your game!', 'success');
 
-        // Update UI with new game state
-        document.getElementById('roomId').textContent = data.game.id;
-        updatePlayersList(data.game.players);
+      currentRoom = data.roomId;
+      isHost = !!data.isHost;
+      currentPlayers = data.players || [];
+      saveSession(data.roomId, getSession()?.name);
 
-        // Clear reconnection timeout
-        if (reconnectTimeout) {
-          clearTimeout(reconnectTimeout);
-          reconnectTimeout = null;
+      document.getElementById('setupPanel').classList.add('hidden');
+      document.getElementById('roomId').textContent = data.roomId;
+      document.getElementById('playerCount').textContent = `${currentPlayers.length} joined`;
+      updatePlayersList(currentPlayers);
+
+      const g = data.game;
+
+      // No active game - we're back in the lobby
+      if (!g) {
+        updatePhase('waiting');
+        if (isHost) document.getElementById('gameControls').classList.remove('hidden');
+        return;
+      }
+
+      // Restore game-level state
+      if (Array.isArray(g.players) && g.players.length) currentPlayers = g.players;
+      currentTrumpSuit = g.trump || null;
+      currentWinningBid = g.winningBid || 0;
+      currentBidWinner = g.bidWinner || null;
+      currentPartnerCard = g.partnerCard || null;
+      currentPartnerId = g.partnerId || null;
+      currentRoundNumber = g.roundNumber || 1;
+      if (g.bidding?.numberOfSets) numberOfSets = g.bidding.numberOfSets;
+      isLeader = (g.leader === socket.id);
+      isPartner = (g.partnerId === socket.id);
+
+      // Restore our hand
+      if (Array.isArray(g.hand)) {
+        myCards = g.hand;
+        displayCards(myCards);
+        const hc = document.getElementById('handCount'); if (hc) hc.textContent = `(${myCards.length} cards)`;
+        const cc = document.getElementById('cardCount'); if (cc) cc.textContent = myCards.length;
+        const hp = document.getElementById('handPoints'); if (hp) hp.textContent = myCards.reduce((s, c) => s + (c.points || 0), 0);
+      }
+
+      document.getElementById('gameControls').classList.add('hidden');
+      const biddingPanel = document.getElementById('biddingPanel');
+      const selectionPanel = document.getElementById('selectionPanel');
+      const gamePanel = document.getElementById('gamePanel');
+
+      updatePhase(g.phase === 'completed' ? 'waiting' : g.phase);
+
+      if (g.phase === 'bidding') {
+        if (biddingPanel) biddingPanel.classList.remove('hidden');
+        if (selectionPanel) selectionPanel.classList.add('hidden');
+        if (gamePanel) gamePanel.classList.add('hidden');
+        const cb = document.getElementById('currentBid');
+        if (cb) cb.textContent = g.bidding?.currentBid ?? g.winningBid ?? '';
+        (g.bidding?.passedPlayers || []).forEach(pid => { try { markPlayerPassed(pid); } catch (e) {} });
+        updateTurnIndicator(g.currentTurn);
+        try { updatePartnerCardOptions(); } catch (e) {}
+      } else if (g.phase === 'selection') {
+        if (biddingPanel) biddingPanel.classList.add('hidden');
+        if (selectionPanel) selectionPanel.classList.remove('hidden');
+        if (gamePanel) gamePanel.classList.add('hidden');
+        const wb = document.getElementById('winningBidDisplay'); if (wb) wb.textContent = g.winningBid;
+        if (isLeader) {
+          document.getElementById('leaderControls')?.classList.remove('hidden');
+          document.getElementById('startGameAfterSelection')?.classList.remove('hidden');
+          document.getElementById('waitingForLeader')?.classList.add('hidden');
+        } else {
+          document.getElementById('leaderControls')?.classList.add('hidden');
+          document.getElementById('waitingForLeader')?.classList.remove('hidden');
+        }
+      } else if (g.phase === 'playing') {
+        if (biddingPanel) biddingPanel.classList.add('hidden');
+        if (selectionPanel) selectionPanel.classList.add('hidden');
+        if (gamePanel) gamePanel.classList.remove('hidden');
+        restorePlayingDisplays(g);
+        if (Array.isArray(g.currentTrick)) {
+          g.currentTrick.forEach(tc => {
+            try { addCardToTrick(tc.playerId, getPlayerName(tc.playerId), tc.card); } catch (e) {}
+          });
+        }
+        try { renderMyCards(true); } catch (e) {}
+        updateTurnIndicatorForGame(g.currentTurn);
+        if (isPartner) document.getElementById('partnerMessage')?.classList.remove('hidden');
+      }
+    });
+
+    // Rebuild the trump / partner / bid header for the playing phase on reconnect.
+    function restorePlayingDisplays(g) {
+      const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+      const suitColors = { spades: '#ffd700', hearts: '#ff6b6b', diamonds: '#ff6b6b', clubs: '#00d9ff' };
+
+      if (g.trump) {
+        const trumpIcon = document.getElementById('trumpSuitIcon');
+        const trumpDisplay = document.getElementById('gameTrumpDisplay');
+        if (trumpIcon) trumpIcon.textContent = suitSymbols[g.trump] || '?';
+        if (trumpDisplay) {
+          trumpDisplay.textContent = g.trump.charAt(0).toUpperCase() + g.trump.slice(1);
+          trumpDisplay.style.color = suitColors[g.trump] || '#ffd700';
         }
       }
-    });
 
-    socket.on('game:rejoin_failed', (data) => {
-      log(`Rejoin failed: ${data.message}`, 'error');
-
-      // Clear credentials if rejoin failed
-      if (data.canReconnect === false) {
-        clearCredentials();
-        log('Game session lost. Please refresh to start a new game.', 'error');
+      if (g.partnerCard) {
+        const partnerIcon = document.getElementById('partnerCardIcon');
+        const partnerDisplay = document.getElementById('gamePartnerCardDisplay');
+        if (partnerIcon) partnerIcon.textContent = suitSymbols[g.partnerCard.suit] || '🤝';
+        if (partnerDisplay) {
+          partnerDisplay.textContent = `${g.partnerCard.rank} of ${g.partnerCard.suit.charAt(0).toUpperCase() + g.partnerCard.suit.slice(1)}`;
+        }
       }
-    });
+
+      const bidDisplay = document.getElementById('gameBidDisplay');
+      const bidderDisplay = document.getElementById('gameBidderDisplay');
+      if (bidDisplay) bidDisplay.textContent = g.winningBid || '-';
+      if (bidderDisplay) bidderDisplay.textContent = `by ${getPlayerName(g.leader)}`;
+
+      try { markPlayerLeader(g.leader); } catch (e) {}
+      if (g.partnerId) { try { markPlayerPartner(g.partnerId); } catch (e) {} }
+    }
 
     socket.on('ROOM_CREATED', (data) => {
       console.log('[DEBUG] ROOM_CREATED event received:', data);
@@ -1274,11 +1372,12 @@
       initializeCumulativeScores(data.players);
       updateScoresTable();
 
-      // Save credentials for reconnection
+      // Persist session for reconnection (server returns our stable playerId)
       const myPlayer = data.players.find(p => p.socketId === socket.id);
       if (myPlayer) {
         myUsername = myPlayer.name;
-        saveCredentials(socket.id, myPlayer.name, data.roomId);
+        if (data.playerId) { try { localStorage.setItem(PLAYER_ID_KEY, data.playerId); } catch (e) {} }
+        saveSession(data.roomId, myPlayer.name);
       }
 
       log(`Room created: ${data.roomId}`, 'success');
@@ -1301,11 +1400,12 @@
       initializeCumulativeScores(data.players);
       updateScoresTable();
 
-      // Save credentials for reconnection
+      // Persist session for reconnection (server returns our stable playerId)
       const myPlayer = data.players.find(p => p.socketId === socket.id);
       if (myPlayer) {
         myUsername = myPlayer.name;
-        saveCredentials(socket.id, myPlayer.name, data.roomId);
+        if (data.playerId) { try { localStorage.setItem(PLAYER_ID_KEY, data.playerId); } catch (e) {} }
+        saveSession(data.roomId, myPlayer.name);
       }
 
       log(`Joined room: ${data.roomId}`, 'success');
@@ -1769,14 +1869,14 @@
       }
 
       if (roomInput) {
-        socket.emit('JOIN_ROOM', { roomId: roomInput, name }, (response) => {
+        socket.emit('JOIN_ROOM', { roomId: roomInput, name, playerId: getPlayerId() }, (response) => {
           console.log('[DEBUG] JOIN_ROOM callback:', response);
           if (!response.success) {
             log(response.message, 'error');
           }
         });
       } else {
-        socket.emit('CREATE_ROOM', { name, maxPlayers: numberOfPlayers }, (response) => {
+        socket.emit('CREATE_ROOM', { name, maxPlayers: numberOfPlayers, playerId: getPlayerId() }, (response) => {
           console.log('[DEBUG] CREATE_ROOM callback:', response);
           if (!response.success) {
             log(response.message, 'error');
@@ -2767,6 +2867,7 @@
       if (confirm('Are you sure you want to leave the room?')) {
         socket.emit('LEAVE_ROOM', { roomId: currentRoom }, (response) => {
           if (response && response.success) {
+            clearSession(); // Intentional leave - don't try to rejoin
             log('Left the room', 'success');
             setTimeout(() => location.reload(), 1000);
           }

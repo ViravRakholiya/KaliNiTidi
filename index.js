@@ -48,7 +48,14 @@ const io = new Server(httpServer, {
     credentials: config.cors.credentials
   },
   pingTimeout: config.socket.pingTimeout,
-  pingInterval: config.socket.pingInterval
+  pingInterval: config.socket.pingInterval,
+  // Seamlessly restore the same socket (id, rooms and missed events) when a
+  // client reconnects shortly after a temporary drop, e.g. the app being
+  // backgrounded on mobile. Longer drops fall back to the REJOIN_ROOM flow.
+  connectionStateRecovery: {
+    maxDisconnectionDuration: 2 * 60 * 1000,
+    skipMiddlewares: true
+  }
 });
 
 // Initialize socket handlers

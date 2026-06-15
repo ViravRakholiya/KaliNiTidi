@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { logger } from '../utils/logger.js';
 
 class RoomService {
@@ -19,8 +20,10 @@ class RoomService {
 
     const hostPlayer = {
       socketId: hostSocketId,
+      playerId: options.playerId || randomUUID(),
       name: hostName,
-      isHost: true
+      isHost: true,
+      connected: true
     };
 
     const room = {
@@ -41,7 +44,7 @@ class RoomService {
     };
   }
 
-  joinRoom(roomId, socketId, playerName) {
+  joinRoom(roomId, socketId, playerName, playerId = null) {
     const room = this.rooms.get(roomId);
 
     if (!room) {
@@ -79,8 +82,10 @@ class RoomService {
 
     const newPlayer = {
       socketId,
+      playerId: playerId || randomUUID(),
       name: playerName,
-      isHost: false
+      isHost: false,
+      connected: true
     };
 
     room.players.push(newPlayer);
@@ -162,7 +167,8 @@ class RoomService {
         players: room.players.map(p => ({
           socketId: p.socketId,
           name: p.name,
-          isHost: p.isHost
+          isHost: p.isHost,
+          connected: p.connected !== false
         })),
         maxPlayers: room.maxPlayers,
         status: room.status,
@@ -211,6 +217,69 @@ class RoomService {
       }
     }
     return null;
+  }
+
+  findPlayerByPlayerId(room, playerId) {
+    return room.players.find(p => p.playerId === playerId);
+  }
+
+  findRoomByPlayerId(playerId) {
+    for (const [roomId, room] of this.rooms.entries()) {
+      if (this.findPlayerByPlayerId(room, playerId)) {
+        return roomId;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Mark a player as temporarily disconnected (kept in the room during the
+   * reconnection grace period instead of being removed immediately).
+   */
+  markDisconnected(roomId, socketId) {
+    const room = this.rooms.get(roomId);
+    if (!room) return null;
+
+    const player = this.findPlayerBySocketId(room, socketId);
+    if (!player) return null;
+
+    player.connected = false;
+    logger.info(`Player ${player.name} (${player.playerId}) marked as disconnected in room ${roomId}`);
+    return { room, player };
+  }
+
+  /**
+   * Rebind a returning player's stable playerId to a fresh socket id.
+   * Updates host references and cumulative score keys so the rest of the
+   * game state can keep using socketId as its runtime key.
+   */
+  rebindSocket(roomId, playerId, newSocketId) {
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      return { success: false, error: 'ROOM_NOT_FOUND', message: 'Room does not exist' };
+    }
+
+    const player = this.findPlayerByPlayerId(room, playerId);
+    if (!player) {
+      return { success: false, error: 'PLAYER_NOT_IN_ROOM', message: 'Player is not in this room' };
+    }
+
+    const oldSocketId = player.socketId;
+    player.socketId = newSocketId;
+    player.connected = true;
+
+    if (room.hostId === oldSocketId) {
+      room.hostId = newSocketId;
+    }
+
+    // Re-key cumulative scores if present
+    if (room.cumulativeScores && oldSocketId in room.cumulativeScores) {
+      room.cumulativeScores[newSocketId] = room.cumulativeScores[oldSocketId];
+      delete room.cumulativeScores[oldSocketId];
+    }
+
+    logger.info(`Rebound player ${player.name} (${playerId}) from ${oldSocketId} to ${newSocketId} in room ${roomId}`);
+    return { success: true, room, player, oldSocketId };
   }
 
   getAllRooms() {
