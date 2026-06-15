@@ -133,6 +133,84 @@ class DeckService {
   }
 
   /**
+   * Point cards for N decks (these must ALWAYS be dealt).
+   * Per deck: A K Q J 10 5 in every suit (24) + the 3 of spades (1) = 25 cards, 250 points.
+   */
+  buildPointCards(numberOfDecks) {
+    const pointRanks = ['A', 'K', 'Q', 'J', '10', '5'];
+    const cards = [];
+    for (let d = 0; d < numberOfDecks; d++) {
+      for (const suit of this.suits) {
+        for (const rank of pointRanks) {
+          cards.push({ ...this.createCard(rank, suit, 0), id: `${suit}_${rank}_d${d}` });
+        }
+      }
+      cards.push({ ...this.createCard('3', 'spades', 0), id: `spades_3_d${d}` });
+    }
+    return cards;
+  }
+
+  /**
+   * Generate `count` zero-point filler cards (9s and 8s only). These are what
+   * we add/remove to make the deck divide evenly among the players.
+   */
+  buildFillerCards(count) {
+    const zeroRanks = ['9', '8'];
+    const cards = [];
+    let d = 0;
+    while (cards.length < count) {
+      for (const suit of this.suits) {
+        for (const rank of zeroRanks) {
+          if (cards.length >= count) break;
+          cards.push({ id: `${suit}_${rank}_f${d}_${cards.length}`, rank, suit, points: 0 });
+        }
+        if (cards.length >= count) break;
+      }
+      d++;
+    }
+    return cards;
+  }
+
+  /**
+   * Validate a room's card setup for the given player count.
+   */
+  validateSetup(numberOfPlayers, numberOfDecks, cardsPerPlayer) {
+    const errors = [];
+    if (numberOfPlayers < 4) errors.push('Minimum 4 players required to start');
+    if (!numberOfDecks || numberOfDecks < 1) errors.push('Number of decks must be at least 1');
+    if (!cardsPerPlayer || cardsPerPlayer < 1) errors.push('Cards per player must be at least 1');
+
+    const target = numberOfPlayers * cardsPerPlayer;
+    const pointCount = 25 * (numberOfDecks || 0);
+    if (numberOfDecks && cardsPerPlayer && target < pointCount) {
+      errors.push(`${numberOfPlayers} players × ${cardsPerPlayer} cards = ${target}, which can't hold all ${pointCount} point cards (${numberOfDecks} decks). Increase cards per player or use fewer decks.`);
+    }
+
+    return { isValid: errors.length === 0, errors, target, pointCount, totalPoints: 250 * (numberOfDecks || 0) };
+  }
+
+  /**
+   * Build and deal hands for a round. All point cards from `numberOfDecks`
+   * decks are dealt; each hand is filled out with zero-point cards (8s/9s) so
+   * that players × cardsPerPlayer comes out exactly even.
+   */
+  buildHands({ numberOfPlayers, numberOfDecks, cardsPerPlayer }) {
+    const v = this.validateSetup(numberOfPlayers, numberOfDecks, cardsPerPlayer);
+    if (!v.isValid) throw new Error(v.errors.join('; '));
+
+    const pointCards = this.buildPointCards(numberOfDecks);
+    const filler = this.buildFillerCards(v.target - pointCards.length);
+    const pool = this.shuffle([...pointCards, ...filler]);
+
+    const hands = {};
+    for (let i = 0; i < numberOfPlayers; i++) hands[i] = [];
+    pool.forEach((card, idx) => { hands[idx % numberOfPlayers].push(card); });
+
+    logger.info(`Built hands: ${numberOfPlayers}×${cardsPerPlayer}=${v.target} cards (${pointCards.length} point + ${filler.length} filler), ${v.totalPoints} pts, ${numberOfDecks} decks`);
+    return { hands, totalCards: v.target, totalPoints: v.totalPoints, pointCardCount: pointCards.length, fillerCount: filler.length };
+  }
+
+  /**
    * Fisher-Yates shuffle algorithm
    */
   shuffle(deck) {

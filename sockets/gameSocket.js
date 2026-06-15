@@ -103,6 +103,7 @@ function broadcastPass(io, roomId, result) {
       winningBid: result.endResult.winningBid,
       minimumBid: result.endResult.minimumBid,
       totalPoints: result.endResult.totalPoints,
+      allowedPartners: result.endResult.allowedPartners,
       cardPool: Array.from(pool).sort()
     });
   }
@@ -249,7 +250,7 @@ function botPlay(io, roomId, botId) {
 
 export const handleGameSocket = (io, socket) => {
   socket.on('CREATE_ROOM', (data, callback) => {
-    const { name, maxPlayers, playerId } = data;
+    const { name, maxPlayers, playerId, config } = data;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       const error = { success: false, error: 'INVALID_NAME', message: 'Player name is required' };
@@ -265,7 +266,7 @@ export const handleGameSocket = (io, socket) => {
       return;
     }
 
-    const result = roomService.createRoom(socket.id, name.trim(), { maxPlayers, playerId });
+    const result = roomService.createRoom(socket.id, name.trim(), { maxPlayers, playerId, config });
 
     if (result.success) {
       socket.join(result.room.roomId);
@@ -278,7 +279,8 @@ export const handleGameSocket = (io, socket) => {
         players: result.room.players,
         hostId: result.room.hostId,
         maxPlayers: result.room.maxPlayers,
-        status: result.room.status
+        status: result.room.status,
+        config: result.room.config
       };
 
       if (typeof callback === 'function') callback({ success: true, ...response });
@@ -326,6 +328,7 @@ export const handleGameSocket = (io, socket) => {
         hostId: result.room.hostId,
         maxPlayers: result.room.maxPlayers,
         status: result.room.status,
+        config: result.room.config,
         waitingForNextRound: !!result.waitingForNextRound
       };
 
@@ -498,18 +501,8 @@ export const handleGameSocket = (io, socket) => {
       return;
     }
 
-    const { cardsPerPlayer, numberOfSets } = data;
     const numberOfPlayers = room.players.length; // Use actual room player count
 
-    // Validate cardsPerPlayer
-    if (cardsPerPlayer !== undefined && (typeof cardsPerPlayer !== 'number' || cardsPerPlayer < 13 || cardsPerPlayer > 52)) {
-      const error = { success: false, error: 'INVALID_CARDS_PER_PLAYER', message: 'Cards per player must be between 13 and 52' };
-      if (typeof callback === 'function') callback(error);
-      socket.emit('ROOM_ERROR', error);
-      return;
-    }
-
-    // Validate numberOfPlayers (minimum 4; odd counts are allowed)
     if (numberOfPlayers < 4) {
       const error = { success: false, error: 'INVALID_PLAYER_COUNT', message: 'At least 4 players are required to start' };
       if (typeof callback === 'function') callback(error);
@@ -517,23 +510,16 @@ export const handleGameSocket = (io, socket) => {
       return;
     }
 
-    // Validate numberOfSets
-    if (numberOfSets !== undefined && (typeof numberOfSets !== 'number' || numberOfSets < 2 || numberOfSets > 6)) {
-      const error = { success: false, error: 'INVALID_SETS', message: 'Number of sets must be between 2 and 6' };
-      if (typeof callback === 'function') callback(error);
-      socket.emit('ROOM_ERROR', error);
-      return;
+    // Host may tweak settings from the start screen; persist them on the room.
+    if (data.config && room.hostId === socket.id) {
+      roomService.updateConfig(roomId, data.config);
     }
 
-    // Start the game with card distribution
-    logger.info(`Starting game in room ${roomId}: cardsPerPlayer=${cardsPerPlayer}, numberOfPlayers=${numberOfPlayers}, numberOfSets=${numberOfSets}`);
+    // Card setup is host-configured on the room (decks, cards-per-player, etc.)
+    logger.info(`Starting game in room ${roomId}:`, JSON.stringify(room.config));
 
     try {
-      const result = gameService.startGame(roomId, socket.id, {
-        cardsPerPlayer,
-        numberOfPlayers,
-        numberOfSets
-      });
+      const result = gameService.startGame(roomId, socket.id, {});
 
       logger.info(`[DEBUG] gameService.startGame returned:`, JSON.stringify(result));
 
@@ -783,6 +769,7 @@ export const handleGameSocket = (io, socket) => {
           winningBid: result.endResult.winningBid,
           minimumBid: result.endResult.minimumBid,
           totalPoints: result.endResult.totalPoints,
+          allowedPartners: result.endResult.allowedPartners,
           cardPool: cardPoolArray
         });
 
@@ -1111,6 +1098,7 @@ export const handleGameSocket = (io, socket) => {
       isHost: socket.id === room.hostId,
       players: roomState.players,
       status: room.status,
+      config: room.config,
       cumulativeScores: room.cumulativeScores || null,
       game
     };

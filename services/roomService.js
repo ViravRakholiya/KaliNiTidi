@@ -6,6 +6,31 @@ class RoomService {
     this.rooms = new Map();
   }
 
+  /**
+   * Fill in / clamp the host-chosen game settings with sane defaults.
+   */
+  normalizeConfig(cfg = {}) {
+    const num = (v, d) => (typeof v === 'number' && !isNaN(v) ? v : d);
+    return {
+      numberOfDecks: Math.max(1, Math.min(8, num(cfg.numberOfDecks, 2))),
+      cardsPerPlayer: Math.max(1, Math.min(52, num(cfg.cardsPerPlayer, 13))),
+      minimumBid: Math.max(0, num(cfg.minimumBid, 250)),
+      basePartners: Math.max(0, Math.min(10, num(cfg.basePartners, 1))),
+      pointsPerExtraPartner: Math.max(0, num(cfg.pointsPerExtraPartner, 250)),
+      maxPartners: cfg.maxPartners != null ? Math.max(1, num(cfg.maxPartners, 0)) : null
+    };
+  }
+
+  /**
+   * Update a room's config (host only; while waiting between rounds).
+   */
+  updateConfig(roomId, cfg) {
+    const room = this.rooms.get(roomId);
+    if (!room) return { success: false, error: 'ROOM_NOT_FOUND', message: 'Room does not exist' };
+    room.config = this.normalizeConfig({ ...room.config, ...cfg });
+    return { success: true, config: room.config };
+  }
+
   generateRoomId() {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let roomId = '';
@@ -34,7 +59,9 @@ class RoomService {
       players: [hostPlayer],
       maxPlayers: options.maxPlayers || 4,
       status: 'waiting',
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      // Host-configured game settings (fixed for the session, see RULES.md §2)
+      config: this.normalizeConfig(options.config)
     };
 
     this.rooms.set(roomId, room);
@@ -231,7 +258,8 @@ class RoomService {
         })),
         maxPlayers: room.maxPlayers,
         status: room.status,
-        playerCount: room.players.length
+        playerCount: room.players.length,
+        config: room.config
       }
     };
   }

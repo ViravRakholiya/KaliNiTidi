@@ -40,17 +40,24 @@ class BiddingService {
   /**
    * Initialize bidding state for a room
    */
-  initializeBidding(roomId, gameState, numberOfSets = 2, roundNumber = 1) {
+  initializeBidding(roomId, gameState, config = {}, roundNumber = 1) {
     const hands = gameState.hands;
     const players = gameState.players;
 
-    // Calculate total points and minimum bid
+    // Total points come straight from the dealt point cards (= 250 × decks).
     const totalPoints = this.calculateTotalPoints(hands);
-    const minimumBid = this.calculateMinimumBid(totalPoints, numberOfSets);
 
-    // Calculate number of partners needed
-    // 4 players → 1 partner, 6 players → 2 partners, etc.
-    const numberOfPartners = Math.floor(players.length / 2) - 1;
+    // Minimum bid and partner counts are host-configured (see RULES.md §2).
+    const numberOfSets = config.numberOfDecks || 2;
+    const minimumBid = typeof config.minimumBid === 'number' ? config.minimumBid : this.calculateMinimumBid(totalPoints, numberOfSets);
+    const basePartners = typeof config.basePartners === 'number' ? config.basePartners : Math.max(1, Math.floor(players.length / 2) - 1);
+    const pointsPerExtraPartner = config.pointsPerExtraPartner || 0;
+    // Default cap leaves at least one opponent (bidder + partners + 1 opponent).
+    const maxPartners = config.maxPartners != null ? config.maxPartners : Math.max(1, players.length - 2);
+
+    // Partners the bidder may name; extra partners (from a high bid) are added
+    // when bidding ends. Starts at the base.
+    const numberOfPartners = basePartners;
 
     // Create player order in join sequence
     const playersOrder = players.map(p => p.socketId);
@@ -78,6 +85,9 @@ class BiddingService {
       minimumBid: minimumBid,
       totalPoints: totalPoints,
       numberOfPartners: numberOfPartners,
+      basePartners: basePartners,
+      pointsPerExtraPartner: pointsPerExtraPartner,
+      maxPartners: maxPartners,
       partnerCards: [], // Array to store multiple partner cards
       playerCount: players.length,
       numberOfSets: numberOfSets,
@@ -338,14 +348,25 @@ class BiddingService {
       };
     }
 
+    // Partners the bidder earns: base + one per full "points per extra partner"
+    // step above the minimum bid, capped at maxPartners (RULES.md §2).
+    let allowedPartners = bidding.basePartners;
+    if (bidding.pointsPerExtraPartner > 0) {
+      const extra = Math.floor((bidding.currentBid - bidding.minimumBid) / bidding.pointsPerExtraPartner);
+      allowedPartners = bidding.basePartners + Math.max(0, extra);
+    }
+    if (bidding.maxPartners != null) allowedPartners = Math.min(allowedPartners, bidding.maxPartners);
+    bidding.numberOfPartners = allowedPartners;
+
     const result = {
       leader: bidding.highestBidder,
       winningBid: bidding.currentBid,
       minimumBid: bidding.minimumBid,
-      totalPoints: bidding.totalPoints
+      totalPoints: bidding.totalPoints,
+      allowedPartners
     };
 
-    logger.info(`Bidding ended in room ${roomId}. Leader: ${result.leader.substring(0, 8)}..., Bid: ${result.winningBid}`);
+    logger.info(`Bidding ended in room ${roomId}. Leader: ${result.leader.substring(0, 8)}..., Bid: ${result.winningBid}, Partners allowed: ${allowedPartners}`);
 
     return { success: true, ...result };
   }

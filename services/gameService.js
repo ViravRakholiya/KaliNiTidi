@@ -58,19 +58,21 @@ class GameService {
       };
     }
 
-    const cardsPerPlayer = options.cardsPerPlayer || 11;
-    const numberOfPlayers = options.numberOfPlayers || room.players.length;
-    const numberOfSets = options.numberOfSets || 2;
+    // Host-configured settings drive everything (see RULES.md §2)
+    const config = room.config || roomService.normalizeConfig({});
+    const numberOfPlayers = room.players.length;
+    const numberOfDecks = config.numberOfDecks;
+    const cardsPerPlayer = config.cardsPerPlayer;
+    const numberOfSets = numberOfDecks; // legacy alias kept for existing fields
 
-    // Validate game start
-    const validation = this.validateGameStart(room, socketId, cardsPerPlayer);
+    if (room.hostId !== socketId) {
+      return { success: false, error: 'NOT_HOST', message: 'Only the host can start the game' };
+    }
 
-    if (!validation.isValid) {
-      return {
-        success: false,
-        error: 'VALIDATION_FAILED',
-        message: validation.errors.join(', ')
-      };
+    // Validate the card setup against the current player count
+    const setup = deckService.validateSetup(numberOfPlayers, numberOfDecks, cardsPerPlayer);
+    if (!setup.isValid) {
+      return { success: false, error: 'VALIDATION_FAILED', message: setup.errors.join('; ') };
     }
 
     try {
@@ -98,23 +100,12 @@ class GameService {
         }
       }
 
-      // Generate deck with specified number of sets
-      const deck = deckService.generateDeckWithSets(validation.totalCards, numberOfSets);
-      logger.info('[DEBUG] Deck generated successfully');
-
-      logger.info('[DEBUG] About to shuffle deck...');
-      // Shuffle deck
-      const shuffledDeck = deckService.shuffle(deck);
-      logger.info('[DEBUG] Deck shuffled successfully');
-
-      logger.info('[DEBUG] About to distribute cards...');
-      // Distribute cards with important cards prioritized
-      const hands = deckService.distributeCards(
-        shuffledDeck,
-        numberOfPlayers,
-        cardsPerPlayer
-      );
-      logger.info('[DEBUG] Cards distributed successfully, hands:', Object.keys(hands));
+      // Build and deal hands: all point cards from N decks + zero-point filler
+      // so players × cardsPerPlayer comes out exactly even (see RULES.md §4).
+      const dealt = deckService.buildHands({ numberOfPlayers, numberOfDecks, cardsPerPlayer });
+      const hands = dealt.hands;
+      const totalCards = dealt.totalCards;
+      logger.info('[DEBUG] Hands built successfully, hands:', Object.keys(hands));
 
       // Create game state with bidding
       const gameState = {
@@ -122,7 +113,7 @@ class GameService {
         started: true,
         phase: 'bidding', // bidding | selection | playing
         cardsPerPlayer,
-        totalCards: validation.totalCards,
+        totalCards,
         currentTurn: 0,
         direction: 1,
         hands: {},
@@ -140,7 +131,9 @@ class GameService {
         partnerCards: [],
         leader: null,
         numberOfPlayers: numberOfPlayers,
-        numberOfSets: numberOfSets
+        numberOfSets: numberOfSets,
+        numberOfDecks: numberOfDecks,
+        config: config
       };
 
       // Map hands to socket IDs
@@ -157,9 +150,9 @@ class GameService {
       const roundNumber = isSubsequentRound ? (room.currentRound || 1) + 1 : 1;
       gameState.roundNumber = roundNumber;
 
-      // Initialize bidding with number of sets and round number
+      // Initialize bidding from the host config and round number
       logger.info('[DEBUG] About to initialize bidding...');
-      const biddingState = biddingService.initializeBidding(roomId, gameState, numberOfSets, roundNumber);
+      const biddingState = biddingService.initializeBidding(roomId, gameState, config, roundNumber);
       logger.info('[DEBUG] Bidding initialized successfully');
       gameState.bidding = biddingState;
 
@@ -180,9 +173,10 @@ class GameService {
         gameState,
         players: gameState.players,
         cardsPerPlayer,
-        totalCards: validation.totalCards,
+        totalCards,
         numberOfPlayers,
         numberOfSets,
+        numberOfDecks,
         bidding: biddingState,
         roundNumber,
         isSubsequentRound
