@@ -1,0 +1,3102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KALI NI TIDI - Card Game</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🃏</text></svg>">
+  <script src="/socket.io.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      color: #eee;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container { max-width: 1400px; margin: 0 auto; }
+
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .header h1 {
+      font-size: 3em;
+      background: linear-gradient(135deg, #00d9ff 0%, #00ff80 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+    }
+
+    .phase-banner {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 15px 30px;
+      border-radius: 50px;
+      display: inline-block;
+      font-size: 1.2em;
+      font-weight: bold;
+      box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+    }
+
+    .phase-banner.waiting { background: linear-gradient(135deg, #6c757d 0%, #495057 100%); }
+    .phase-banner.bidding { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+    .phase-banner.selection { background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%); color: #333; }
+    .phase-banner.playing { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 25px;
+      margin-top: 30px;
+    }
+
+    .card-panel {
+      background: rgba(22, 33, 62, 0.8);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 25px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    }
+
+    .card-panel h3 {
+      color: #00d9ff;
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 1.3em;
+    }
+
+    .setup-form {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .input-group label {
+      color: #aaa;
+      font-size: 0.9em;
+      font-weight: 500;
+    }
+
+    .input-group input, .input-group select {
+      padding: 15px;
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      background: rgba(15, 52, 96, 0.5);
+      color: #fff;
+      border-radius: 10px;
+      font-size: 1em;
+      transition: all 0.3s;
+    }
+
+    .input-group input:focus, .input-group select:focus {
+      outline: none;
+      border-color: #00d9ff;
+      box-shadow: 0 0 20px rgba(0, 217, 255, 0.2);
+    }
+
+    .btn {
+      padding: 15px 30px;
+      border: none;
+      border-radius: 10px;
+      font-size: 1em;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); }
+    .btn:active { transform: translateY(0); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #00d9ff 0%, #00b4d8 100%);
+      color: #1a1a2e;
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #00ff80 0%, #00cc66 100%);
+      color: #1a1a2e;
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #e94560 0%, #c73e54 100%);
+      color: #fff;
+    }
+
+    .btn-warning {
+      background: linear-gradient(135deg, #ffd700 0%, #ffaa00 100%);
+      color: #1a1a2e;
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+
+    .bidding-display {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .bid-stat {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 20px;
+      border-radius: 15px;
+      text-align: center;
+    }
+
+    .bid-stat .label {
+      color: #888;
+      font-size: 0.85em;
+      margin-bottom: 8px;
+    }
+
+    .bid-stat .value {
+      font-size: 2em;
+      font-weight: bold;
+      color: #ffd700;
+    }
+
+    .turn-banner {
+      background: rgba(0, 217, 255, 0.2);
+      border: 2px solid #00d9ff;
+      padding: 15px;
+      border-radius: 10px;
+      text-align: center;
+      margin-bottom: 20px;
+      font-weight: bold;
+    }
+
+    .turn-banner.your-turn {
+      background: rgba(0, 255, 128, 0.2);
+      border-color: #00ff80;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 128, 0.3); }
+      50% { box-shadow: 0 0 40px rgba(0, 255, 128, 0.6); }
+    }
+
+    .bid-controls {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .players-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+    }
+
+    .player-card {
+      background: rgba(15, 52, 96, 0.5);
+      padding: 15px;
+      border-radius: 12px;
+      text-align: center;
+      border: 2px solid transparent;
+      transition: all 0.3s;
+    }
+
+    .player-card.you { border-color: #00d9ff; }
+    .player-card.leader { border-color: #ffd700; }
+    .player-card.partner { border-color: #00ff80; }
+    .player-card.opponent { border-color: #e94560; }
+    .player-card.passed { opacity: 0.5; }
+
+    .player-card .name {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .player-card .badge {
+      font-size: 0.75em;
+      padding: 3px 8px;
+      border-radius: 10px;
+      display: inline-block;
+      margin-top: 5px;
+    }
+
+    .badge-host { background: #ffd700; color: #1a1a2e; }
+    .badge-leader { background: #ffd700; color: #1a1a2e; }
+    .badge-partner { background: #00ff80; color: #1a1a2e; }
+    .badge-opponent { background: #e94560; color: #fff; }
+    .badge-you { background: #00d9ff; color: #1a1a2e; }
+
+    .cards-display {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 10px;
+      max-height: 400px;
+      overflow-y: auto;
+      padding: 10px;
+    }
+
+    /* Turn highlight for hand section */
+    .cards-display.my-turn {
+      border: 3px solid #ffd700;
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+      animation: turnPulse 1.5s infinite;
+    }
+
+    @keyframes turnPulse {
+      0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
+      50% { box-shadow: 0 0 40px rgba(255, 215, 0, 0.8); }
+    }
+
+    .playing-card {
+      background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+      color: #333;
+      padding: 12px;
+      border-radius: 10px;
+      text-align: center;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+      transition: transform 0.3s;
+    }
+
+    .playing-card:hover { transform: translateY(-5px); }
+
+    .playing-card.red { color: #e94560; }
+    .playing-card.black { color: #333; }
+    .playing-card.trump {
+      border: 3px solid #ffd700 !important;
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+      background: linear-gradient(135deg, #fff 0%, #fffacd 100%) !important;
+    }
+    .playing-card.trump::after {
+      content: '👑';
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      font-size: 1.2em;
+      background: #ffd700;
+      border-radius: 50%;
+      width: 25px;
+      height: 25px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .playing-card .rank { font-size: 1.5em; font-weight: bold; }
+    .playing-card .suit { font-size: 2em; }
+    .playing-card .points {
+      font-size: 0.8em;
+      color: #888;
+      margin-top: 5px;
+    }
+    .playing-card .points.high {
+      color: #ffd700;
+      font-weight: bold;
+    }
+
+    .event-log {
+      background: rgba(15, 52, 96, 0.5);
+      border-radius: 15px;
+      padding: 15px;
+      height: 250px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85em;
+    }
+
+    .log-entry {
+      padding: 8px 12px;
+      margin-bottom: 5px;
+      border-radius: 5px;
+      border-left: 3px solid;
+    }
+
+    .log-entry.info {
+      background: rgba(0, 217, 255, 0.1);
+      border-color: #00d9ff;
+    }
+
+    .log-entry.success {
+      background: rgba(0, 255, 128, 0.1);
+      border-color: #00ff80;
+    }
+
+    .log-entry.error {
+      background: rgba(233, 69, 96, 0.1);
+      border-color: #e94560;
+    }
+
+    .log-entry.bid {
+      background: rgba(255, 215, 0, 0.1);
+      border-color: #ffd700;
+    }
+
+    .hidden { display: none !important; }
+
+    .status-bar {
+      display: flex;
+      gap: 20px;
+      justify-content: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .status-item {
+      background: rgba(22, 33, 62, 0.8);
+      padding: 10px 20px;
+      border-radius: 25px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-item .label { color: #888; }
+    .status-item .value { color: #00d9ff; font-weight: bold; }
+
+    /* Cumulative Scores Table */
+    .scores-table-container {
+      background: rgba(22, 33, 62, 0.9);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 25px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      margin-bottom: 30px;
+    }
+
+    .scores-table-container h3 {
+      color: #00d9ff;
+      margin-bottom: 20px;
+      text-align: center;
+      font-size: 1.5em;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .scores-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9em;
+    }
+
+    .scores-table thead {
+      background: linear-gradient(135deg, rgba(0, 217, 255, 0.2), rgba(0, 255, 128, 0.1));
+      border-radius: 10px 10px 0 0;
+    }
+
+    .scores-table thead th {
+      padding: 15px 10px;
+      text-align: center;
+      color: #00d9ff;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-size: 0.8em;
+      border-bottom: 2px solid rgba(0, 217, 255, 0.3);
+    }
+
+    .scores-table thead th.total-header {
+      background: linear-gradient(135deg, rgba(255, 215, 0, 0.3), rgba(255, 165, 0, 0.2));
+      color: #ffd700;
+      font-size: 1em;
+    }
+
+    .scores-table tbody tr {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      transition: all 0.3s;
+    }
+
+    .scores-table tbody tr:hover {
+      background: rgba(0, 217, 255, 0.05);
+    }
+
+    .scores-table tbody td {
+      padding: 12px 10px;
+      text-align: center;
+      color: #eee;
+    }
+
+    .scores-table tbody td.player-name {
+      text-align: left;
+      font-weight: bold;
+      color: #00d9ff;
+      padding-left: 15px;
+    }
+
+    .scores-table tbody td.player-name.you {
+      color: #00ff80;
+    }
+
+    .scores-table tbody td.total-score {
+      font-weight: bold;
+      font-size: 1.1em;
+      background: rgba(255, 215, 0, 0.1);
+      color: #ffd700;
+    }
+
+    .scores-table tbody td.total-score.positive {
+      color: #00ff80;
+    }
+
+    .scores-table tbody td.total-score.negative {
+      color: #e94560;
+    }
+
+    .scores-table tbody td.round-score {
+      font-family: 'Courier New', monospace;
+      font-size: 0.95em;
+    }
+
+    .scores-table tbody td.round-score.empty {
+      color: #666;
+      font-style: italic;
+    }
+
+    .scores-table .player-row {
+      position: relative;
+    }
+
+    .scores-table .player-row.you-row {
+      background: rgba(0, 255, 128, 0.05);
+      border-left: 3px solid #00ff80;
+    }
+
+    .scores-table .player-row.leader-row {
+      background: rgba(255, 215, 0, 0.05);
+      border-left: 3px solid #ffd700;
+    }
+
+    .no-scores-message {
+      text-align: center;
+      color: #888;
+      padding: 30px;
+      font-style: italic;
+    }
+
+    .round-number-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 0.8em;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+
+    /* Responsive scores table */
+    @media (max-width: 768px) {
+      .scores-table-container {
+        padding: 10px;
+        margin-bottom: 10px;
+      }
+
+      .scores-table-container h3 {
+        font-size: 1em;
+        flex-direction: column;
+        gap: 3px;
+        padding: 8px;
+      }
+
+      .scores-table {
+        font-size: 0.7em;
+      }
+
+      .scores-table thead th,
+      .scores-table tbody td {
+        padding: 6px 3px;
+      }
+
+      .scores-table thead th {
+        font-size: 0.65em;
+      }
+
+      .scores-table tbody td.player-name {
+        padding-left: 8px;
+        max-width: 80px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .scores-table tbody td.total-score {
+        font-size: 0.9em;
+      }
+    }
+
+    .selection-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+
+    .hand-summary {
+      display: flex;
+      justify-content: space-around;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 15px;
+    }
+
+    .hand-summary div { text-align: center; }
+    .hand-summary .label { color: #888; font-size: 0.85em; }
+    .hand-summary .value { font-size: 1.5em; font-weight: bold; color: #00d9ff; }
+
+    @media (max-width: 900px) {
+      .main-grid { grid-template-columns: 1fr; }
+      .bidding-display { grid-template-columns: 1fr; }
+      .bid-controls { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* Mobile Optimization - Compact UI */
+    @media (max-width: 768px) {
+      /* Reorder sections for mobile: Scoreboard -> Current Trick -> Hand -> Game Panel -> Players -> Event Log */
+      .main-grid {
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* 1. Scoreboard (already first in layout) */
+      #scoresTableContainer { order: 1; }
+
+      /* 2. Current Trick */
+      #currentTrick { order: 2; }
+
+      /* 3. Your Hand */
+      #handPanel { order: 3; }
+      .cards-display {
+        max-height: none !important;
+        overflow-y: visible !important;
+        grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)) !important;
+        gap: 4px !important;
+        padding: 5px !important;
+      }
+
+      /* 4. Game Panel */
+      #gamePanel { order: 4; }
+
+      /* 5. Players Section */
+      #playersPanel { order: 5; }
+
+      /* 6. Event Log */
+      #eventLogPanel { order: 6; }
+
+      /* Compact header */
+      .header h1 { font-size: 2em; margin-bottom: 5px; }
+      .phase-banner { padding: 10px 20px; font-size: 1em; }
+
+      /* Compact status bar */
+      .status-bar { gap: 10px; margin-bottom: 10px; }
+      .status-item { padding: 8px 15px; font-size: 0.85em; }
+
+      /* Compact panels */
+      .card-panel { padding: 15px; margin-bottom: 15px; }
+      .card-panel h3 { font-size: 1.1em; margin-bottom: 15px; }
+
+      /* Compact forms and inputs */
+      .input-group label { font-size: 0.8em; }
+      .input-group input, .input-group select { padding: 10px; font-size: 0.9em; }
+      .btn { padding: 10px 20px; font-size: 0.9em; }
+
+      /* Compact bidding display */
+      .bidding-display { grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+      .bid-stat { padding: 12px; }
+      .bid-stat .label { font-size: 0.7em; }
+      .bid-stat .value { font-size: 1.5em; }
+      .bid-controls { gap: 6px; }
+
+      /* Compact turn banner */
+      .turn-banner { padding: 10px; font-size: 0.9em; margin-bottom: 10px; }
+
+      /* Compact player cards */
+      .players-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+      .player-card { padding: 10px; font-size: 0.85em; }
+
+      /* Keep current trick visible but compact */
+      #currentTrick { padding: 12px; margin-bottom: 10px; }
+
+      /* Compact scores table */
+      .scores-table-container { padding: 15px; margin-bottom: 15px; }
+      .scores-table-container h3 { font-size: 1.1em; padding: 10px; }
+
+      /* Compact event log */
+      .event-log { height: 150px; font-size: 0.75em; padding: 10px; }
+      .log-entry { padding: 5px 8px; margin-bottom: 3px; }
+
+      /* Compact hand summary */
+      .hand-summary { padding: 10px; margin-bottom: 10px; }
+      .hand-summary .label { font-size: 0.75em; }
+      .hand-summary .value { font-size: 1.2em; }
+
+      /* Compact game info section */
+      .card-panel > div[style*="background: linear-gradient"] { padding: 12px !important; margin-bottom: 10px !important; }
+      .card-panel > div[style*="background: rgba"] { padding: 10px !important; margin-bottom: 10px !important; }
+
+      /* Compact playing cards in hand */
+      .playing-card { padding: 6px; }
+      .playing-card .rank { font-size: 1em; }
+      .playing-card .suit { font-size: 1.3em; }
+      .playing-card .points { font-size: 0.6em; }
+
+      /* Reduce gaps and margins */
+      .main-grid { gap: 15px; margin-top: 15px; }
+      .container { padding: 10px; }
+
+      /* Compact buttons */
+      .btn-primary, .btn-success, .btn-danger, .btn-warning { padding: 12px; }
+    }
+
+    /* Extra compact for very small screens */
+    @media (max-width: 480px) {
+      /* Ultra compact header */
+      .header h1 { font-size: 1.5em; }
+      .phase-banner { padding: 8px 15px; font-size: 0.9em; }
+
+      /* Ultra compact panels */
+      .card-panel { padding: 10px; }
+      .card-panel h3 { font-size: 1em; margin-bottom: 10px; }
+
+      /* Minimal forms */
+      .input-group label { font-size: 0.75em; }
+      .input-group input, .input-group select { padding: 8px; font-size: 0.85em; }
+      .btn { padding: 8px 15px; font-size: 0.85em; }
+
+      /* Compact bidding */
+      .bid-stat { padding: 8px; }
+      .bid-stat .label { font-size: 0.65em; }
+      .bid-stat .value { font-size: 1.2em; }
+
+      /* No scroll for cards - show all cards */
+      .cards-display {
+        gap: 3px !important;
+        max-height: none !important;
+        overflow-y: visible !important;
+        grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)) !important;
+        padding: 3px !important;
+      }
+
+      /* Ultra compact cards */
+      .playing-card { padding: 4px; min-width: 45px; }
+      .playing-card .rank { font-size: 0.9em; }
+      .playing-card .suit { font-size: 1.2em; }
+      .playing-card .points { font-size: 0.5em; display: none; } /* Hide points on tiny screens */
+
+      /* Minimal status */
+      .status-bar { gap: 5px; flex-wrap: wrap; }
+      .status-item { padding: 5px 10px; font-size: 0.75em; }
+
+      /* Compact players */
+      .player-card { padding: 8px; font-size: 0.75em; }
+
+      /* Tiny event log */
+      .event-log { height: 120px; font-size: 0.7em; padding: 8px; }
+
+      /* Reduce all margins and gaps */
+      .main-grid { gap: 10px; margin-top: 10px; }
+      .container { padding: 5px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>♠ Regensburg Gujarati Valav ni Kali ni Tidi - By Virav ♥</h1>
+      <div id="phaseBanner" class="phase-banner waiting">Waiting to Start</div>
+    </div>
+
+    <div class="status-bar">
+      <div class="status-item">
+        <span class="label">Connection:</span>
+        <span class="value" id="connectionStatus">Connecting...</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Room:</span>
+        <span class="value" id="roomId">-</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Players:</span>
+        <span class="value" id="playerCount">0 (min 4)</span>
+      </div>
+    </div>
+
+    <!-- Cumulative Scores Table -->
+    <div class="scores-table-container" id="scoresTableContainer">
+      <h3>
+        📊 Scoreboard
+        <span class="round-number-badge" id="currentRoundBadge">Round 1</span>
+      </h3>
+      <div id="scoresTableContent">
+        <div class="no-scores-message">
+          Scores will appear here after the first round completes
+        </div>
+      </div>
+    </div>
+
+    <div class="main-grid">
+      <!-- Left Panel -->
+      <div>
+        <!-- Setup Panel -->
+        <div class="card-panel" id="setupPanel">
+          <h3>🎮 Join Game</h3>
+          <div class="setup-form">
+            <div class="input-group">
+              <label>Your Name</label>
+              <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
+            </div>
+            <div class="input-group">
+              <label>Room ID (optional)</label>
+              <input type="text" id="roomInput" placeholder="Leave empty to create new room" maxlength="6">
+            </div>
+            <div class="input-group">
+              <label>Number of Players</label>
+              <select id="setupNumberOfPlayers" style="text-align: center;">
+                <option value="4">4 Players</option>
+                <option value="6">6 Players</option>
+                <option value="8">8 Players</option>
+                <option value="10">10 Players</option>
+                <option value="12">12 Players</option>
+              </select>
+              <small style="color: #888; font-size: 0.8em; margin-top: 5px; display: block;">Only used when creating new room</small>
+            </div>
+            <button class="btn btn-primary" onclick="joinOrCreateRoom()">Join Game</button>
+          </div>
+        </div>
+
+        <!-- Bidding Panel -->
+        <div class="card-panel hidden" id="biddingPanel">
+          <h3>
+            <span>🎭 Bidding</span>
+            <span id="turnBadge" class="badge-you hidden" style="font-size: 0.8em;">YOUR TURN</span>
+          </h3>
+
+          <div class="bidding-display">
+            <div class="bid-stat">
+              <div class="label">Current Bid</div>
+              <div class="value" id="currentBid">-</div>
+            </div>
+            <div class="bid-stat">
+              <div class="label">Minimum Bid</div>
+              <div class="value" id="minBid">-</div>
+            </div>
+            <div class="bid-stat">
+              <div class="label">Total Points</div>
+              <div class="value" id="totalPoints">-</div>
+            </div>
+          </div>
+
+          <div class="turn-banner" id="turnBanner">Waiting for turn...</div>
+
+          <div id="biddingControls" class="hidden">
+            <div class="bid-controls">
+              <button class="btn btn-warning" onclick="placeBid(5)">+5</button>
+              <button class="btn btn-warning" onclick="placeBid(10)">+10</button>
+              <button class="btn btn-warning" onclick="placeBid(15)">+15</button>
+              <button class="btn btn-warning" onclick="placeBid(20)">+20</button>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+              <button class="btn btn-primary" onclick="customBid()">Custom Bid</button>
+              <button class="btn btn-danger" onclick="passBid()">Pass</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Selection Panel -->
+        <div class="card-panel hidden" id="selectionPanel">
+          <h3>👑 Leader Selection</h3>
+
+          <div class="hand-summary">
+            <div>
+              <div class="label">Your Bid</div>
+              <div class="value" id="winningBidDisplay">-</div>
+            </div>
+          </div>
+
+          <!-- Leader Only Controls - Hidden for non-leaders -->
+          <div id="leaderControls" class="hidden">
+            <div class="input-group">
+              <label>Select Trump Suit</label>
+              <select id="trumpSelect" onchange="selectTrump()">
+                <option value="">-- Choose Trump --</option>
+                <option value="spades">♠ Spades</option>
+                <option value="hearts">♥ Hearts</option>
+                <option value="diamonds">♦ Diamonds</option>
+                <option value="clubs">♣ Clubs</option>
+              </select>
+            </div>
+
+            <div class="input-group" style="margin-top: 15px;">
+              <label>Select Partner Card</label>
+              <div style="font-size: 0.85em; color: #888; margin-bottom: 8px;">
+                💡 Select a card to determine your partner during gameplay
+              </div>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                  <select id="partnerRank" onchange="updatePartnerCardOptions()" style="width: 100%; padding: 10px; border: 2px solid rgba(255,255,255,0.1); background: rgba(15,52,96,0.5); color: #fff; border-radius: 10px;">
+                    <option value="" disabled selected>Select Rank</option>
+                    <option value="A">Ace</option>
+                    <option value="K">King</option>
+                    <option value="Q">Queen</option>
+                    <option value="J">Jack</option>
+                    <option value="10">10</option>
+                    <option value="9">9</option>
+                    <option value="8">8</option>
+                    <option value="7">7</option>
+                    <option value="6">6</option>
+                    <option value="5">5</option>
+                    <option value="4">4</option>
+                    <option value="3">3</option>
+                    <option value="2">2</option>
+                  </select>
+                </div>
+                <div>
+                  <select id="partnerSuit" onchange="updatePartnerCardOptions()" style="width: 100%; padding: 10px; border: 2px solid rgba(255,255,255,0.1); background: rgba(15,52,96,0.5); color: #fff; border-radius: 10px;">
+                    <option value="" disabled selected>Select Suit</option>
+                    <option value="spades">♠ Spades</option>
+                    <option value="hearts">♥ Hearts</option>
+                    <option value="diamonds">♦ Diamonds</option>
+                    <option value="clubs">♣ Clubs</option>
+                  </select>
+                </div>
+              </div>
+              <div id="cardCountInfo" style="font-size: 0.85em; color: #00d9ff; margin-top: 8px;">
+                Checking your hand...
+              </div>
+            </div>
+
+            <div class="input-group hidden" id="partnerPositionGroup" style="margin-top: 15px;">
+              <label>Partner Position Preference</label>
+              <div style="font-size: 0.85em; color: #888; margin-bottom: 8px;">
+                🎯 Since you don't have this card, choose which player becomes your partner
+              </div>
+              <select id="partnerPosition" style="width: 100%; padding: 10px; border: 2px solid rgba(255,255,255,0.1); background: rgba(15,52,96,0.5); color: #fff; border-radius: 10px;">
+                <option value="1">1st player who plays this card → PARTNER ✅</option>
+                <option value="2">2nd player who plays this card → PARTNER ✅</option>
+              </select>
+            </div>
+
+            <button class="btn btn-success" id="startGameAfterSelection" style="margin-top: 15px; width: 100%;" onclick="startGameAfterSelection()">
+              Start Game
+            </button>
+          </div>
+
+          <!-- Waiting message for non-leaders -->
+          <div id="waitingForLeader" class="hidden" style="text-align: center; padding: 20px; color: #888;">
+            Waiting for leader to select trump and partner card...
+          </div>
+        </div>
+
+        <!-- Game Started Panel -->
+        <div class="card-panel hidden" id="gamePanel">
+          <h3>🎮 Game In Progress</h3>
+
+          <!-- Game Setup Information -->
+          <div style="background: linear-gradient(135deg, rgba(0, 217, 255, 0.15), rgba(255, 215, 0, 0.1)); padding: 20px; border-radius: 12px; margin-bottom: 15px; border: 1px solid rgba(255, 215, 0, 0.2);">
+            <div style="text-align: center; margin-bottom: 15px;">
+              <span style="color: #888; font-size: 0.85em; letter-spacing: 1px;">GAME SETUP</span>
+            </div>
+
+            <!-- Trump Suit -->
+            <div style="background: rgba(0, 0, 0, 0.4); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 1.5em;" id="trumpSuitIcon">♠</span>
+                  <div>
+                    <div style="color: #888; font-size: 0.7em; text-transform: uppercase; letter-spacing: 1px;">Trump Suit</div>
+                    <div style="font-size: 1.3em; font-weight: bold; color: #ffd700;" id="gameTrumpDisplay">-</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Partner Card -->
+            <div style="background: rgba(0, 0, 0, 0.4); padding: 12px; border-radius: 8px; margin-bottom: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 1.5em;" id="partnerCardIcon">🤝</span>
+                  <div>
+                    <div style="color: #888; font-size: 0.7em; text-transform: uppercase; letter-spacing: 1px;">Partner Card</div>
+                    <div style="font-size: 1.3em; font-weight: bold; color: #00d9ff;" id="gamePartnerCardDisplay">-</div>
+                    <div style="color: #888; font-size: 0.75em; font-style: italic;" id="gamePartnerPositionDisplay"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Winning Bid -->
+            <div style="background: rgba(0, 255, 128, 0.1); padding: 12px; border-radius: 8px; border: 1px solid rgba(0, 255, 128, 0.3);">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                  <span style="font-size: 1.5em;">💰</span>
+                  <div>
+                    <div style="color: #888; font-size: 0.7em; text-transform: uppercase; letter-spacing: 1px;">Winning Bid</div>
+                    <div style="font-size: 1.3em; font-weight: bold; color: #00ff80;" id="gameBidDisplay">-</div>
+                    <div style="color: #888; font-size: 0.75em; font-style: italic;" id="gameBidderDisplay">by -</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="background: rgba(0, 0, 0, 0.3); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+            <div style="color: #888; font-size: 0.9em; margin-bottom: 10px; text-align: center;">📊 Individual Scores</div>
+            <div id="individualScores" style="display: flex; flex-direction: column; gap: 8px; font-size: 0.85em;">
+              <!-- Individual scores will be populated here -->
+              <div style="text-align: center; color: #666;">Waiting for scores...</div>
+            </div>
+            <div style="font-size: 0.8em; color: #888; text-align: center; margin-top: 10px;">
+              <span id="bidProgress">Winning Bid: 0</span>
+            </div>
+          </div>
+
+          <!-- Bid Information -->
+          <div style="background: rgba(0, 0, 0, 0.3); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+            <div style="color: #888; font-size: 0.9em; margin-bottom: 12px; text-align: center;">BID INFORMATION</div>
+
+            <!-- Score Targets -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+              <div style="background: rgba(0, 255, 128, 0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #00ff80;">
+                <div style="color: #00ff80; font-size: 0.75em; margin-bottom: 5px;">BIDDER TEAM</div>
+                <div style="font-size: 1.3em; font-weight: bold;" id="bidderTarget">-</div>
+              </div>
+              <div style="background: rgba(255, 100, 100, 0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #ff6464;">
+                <div style="color: #ff6464; font-size: 0.75em; margin-bottom: 5px;">OPPONENT TEAM</div>
+                <div style="font-size: 1.3em; font-weight: bold;" id="opponentTarget">-</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="turnIndicator" class="turn-banner">
+            Waiting for game to start...
+          </div>
+
+          <div id="currentTrick" class="hidden" style="background: rgba(0, 0, 0, 0.3); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+            <div style="color: #888; font-size: 0.9em; margin-bottom: 10px; text-align: center;">Current Trick</div>
+            <div id="trickCards" style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;"></div>
+          </div>
+
+          <div id="scoreboardTable" class="hidden" style="background: rgba(0, 0, 0, 0.3); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+            <div style="color: #888; font-size: 0.9em; margin-bottom: 10px; text-align: center;">📊 Scoreboard (After Trick)</div>
+            <div id="scoreboardContent" style="font-size: 0.85em;"></div>
+          </div>
+
+          <p id="partnerMessage" class="hidden" style="text-align: center; color: #ffd700; margin-top: 10px;">
+            🎉 You are the partner!
+          </p>
+        </div>
+      </div>
+
+      <!-- Right Panel -->
+      <div>
+        <div class="card-panel" id="playersPanel">
+          <h3>👥 Players <span id="playerCountBadge">(min 4)</span></h3>
+          <div class="players-grid" id="playersList"></div>
+          <div style="margin-top: 15px; text-align: center;" id="gameControls" class="hidden">
+            <div class="input-group">
+              <label>Cards Per Player (min 13)</label>
+              <input type="number" id="cardsPerPlayer" value="13" min="13" max="52" style="text-align: center;">
+            </div>
+            <div class="input-group">
+              <label>Number of Card Sets</label>
+              <select id="numberOfSets" style="text-align: center;" onchange="updateStartingBidDisplay()">
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+              </select>
+            </div>
+            <div style="background: rgba(0, 217, 255, 0.1); padding: 10px; border-radius: 8px; text-align: center; margin-top: 10px;">
+              <span style="color: #888; font-size: 0.9em;">Starting Bid:</span>
+              <strong id="startingBidDisplay" style="color: #ffd700; font-size: 1.2em; margin-left: 10px;">250</strong>
+            </div>
+            <button class="btn btn-success" id="startGameBtn" style="margin-top: 10px; width: 100%;" onclick="startGame()">
+              Start Game
+            </button>
+            <p id="waitingMessage" style="margin-top: 10px; color: #888; font-size: 0.9em;">
+              Waiting for players to join...
+            </p>
+          </div>
+        </div>
+
+        <div class="card-panel" id="handPanel">
+          <h3>🃏 Your Hand <span id="handCount">(0 cards)</span></h3>
+          <div class="hand-summary">
+            <div>
+              <div class="label">Cards</div>
+              <div class="value" id="cardCount">0</div>
+            </div>
+            <div>
+              <div class="label">Points</div>
+              <div class="value" id="handPoints">0</div>
+            </div>
+          </div>
+          <div class="cards-display" id="myCards"></div>
+        </div>
+
+        <div class="card-panel" id="eventLogPanel">
+          <h3>📋 Event Log</h3>
+          <div class="event-log" id="eventLog"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Dynamic WebSocket URL - works in both development and production
+    const getWebSocketUrl = () => {
+      // If we're in production, use the current origin (Render URL)
+      // If we're in development, use localhost
+      const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+      return isProduction ? window.location.origin : 'http://localhost:3001';
+    };
+
+    const socket = io(getWebSocketUrl(), {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      maxReconnectionAttempts: 10
+    });
+
+    console.log('Connecting to WebSocket server:', getWebSocketUrl());
+
+    // Debug: Log all incoming events
+    socket.onAny((eventName, ...args) => {
+      console.log(`[DEBUG ALL EVENTS] Received: ${eventName}`, args);
+    });
+
+    // ---- Reconnection (stable playerId + REJOIN_ROOM) ----
+    // A persistent per-browser player identity. The server keys reconnection
+    // off this so a fresh socket id can reclaim the same seat and game state.
+    const PLAYER_ID_KEY = 'kanitidi_playerId';
+    const SESSION_KEY = 'kanitidi_session';
+
+    function getPlayerId() {
+      let id = null;
+      try { id = localStorage.getItem(PLAYER_ID_KEY); } catch (e) {}
+      if (!id) {
+        id = (crypto.randomUUID && crypto.randomUUID()) ||
+             ('p_' + Date.now() + '_' + Math.random().toString(36).slice(2));
+        try { localStorage.setItem(PLAYER_ID_KEY, id); } catch (e) {}
+      }
+      return id;
+    }
+
+    // Remember which room we're seated in so we can rejoin after a drop.
+    function saveSession(roomId, name) {
+      try {
+        localStorage.setItem(SESSION_KEY, JSON.stringify({ roomId, name }));
+      } catch (e) {}
+    }
+
+    function getSession() {
+      try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { return null; }
+    }
+
+    function clearSession() {
+      try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+    }
+
+    // Ask the server to put us back in our seat.
+    function attemptReconnect() {
+      const session = getSession();
+      if (!session || !session.roomId) {
+        console.log('[RECONNECT] No session to rejoin');
+        return;
+      }
+
+      console.log('[RECONNECT] Rejoining room', session.roomId);
+      log('Reconnecting to your game...', 'info');
+
+      socket.emit('REJOIN_ROOM', {
+        roomId: session.roomId,
+        playerId: getPlayerId(),
+        name: session.name
+      }, (response) => {
+        if (response && !response.success) {
+          log(response.message || 'Reconnect failed', 'error');
+        }
+      });
+    }
+
+    // Coming back to the foreground (mobile unlock / tab refocus): if the
+    // socket dropped while we were away, reconnect now.
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && !socket.connected && getSession()) {
+        console.log('[RECONNECT] Foregrounded while disconnected - reconnecting');
+        socket.connect();
+      }
+    });
+
+    let currentRoom = null;
+    let isHost = false;
+    let myCards = [];
+    let isLeader = false;
+    let isPartner = false;
+    let currentWinningBid = 0;
+    let currentBidWinner = null;
+    let currentPartnerCard = null;
+    let currentPartnerId = null; // Will be set when partner is found
+    let currentPhase = 'waiting'; // Track current game phase
+    let currentPlayers = []; // Track all players in the room
+    let cumulativeScores = {}; // Track cumulative scores across rounds: { socketId: { name: string, rounds: [round1Score, round2Score, ...], total: number } }
+    let currentRoundNumber = 1; // Track current round number
+    let numberOfSets = 2; // Track number of card sets in play (2-6)
+    let myUsername = null; // Store username for reconnection
+    let lastCardsPerPlayer = 13; // Store cards per player from previous round for next rounds
+    let lastNumberOfSets = 2; // Store number of sets from previous round for next rounds
+    let currentTrumpSuit = null; // Track current trump suit for highlighting
+
+    function log(message, type = 'info') {
+      const logDiv = document.getElementById('eventLog');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logDiv.appendChild(entry);
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function updatePhase(phase) {
+      currentPhase = phase; // Track current phase
+      const banner = document.getElementById('phaseBanner');
+      banner.className = 'phase-banner ' + phase;
+
+      const phaseNames = {
+        'waiting': '⏳ Waiting to Start',
+        'bidding': '🎭 Bidding Phase',
+        'selection': '👑 Selection Phase',
+        'playing': '🎮 Playing Phase'
+      };
+      banner.textContent = phaseNames[phase] || phase;
+    }
+
+    socket.on('connect', () => {
+      console.log('[DEBUG] Socket connected, ID:', socket.id, 'recovered:', socket.recovered);
+      document.getElementById('connectionStatus').textContent = 'Connected';
+      document.getElementById('connectionStatus').style.color = '#00ff80';
+      log(socket.recovered ? 'Reconnected (session recovered)' : 'Connected to server', 'success');
+
+      // If we were already seated in a room, reclaim our seat. This fires both
+      // for socket.io auto-reconnects and manual reconnects after backgrounding.
+      if (getSession()) {
+        attemptReconnect();
+      }
+    });
+
+    socket.on('disconnect', () => {
+      document.getElementById('connectionStatus').textContent = 'Disconnected';
+      document.getElementById('connectionStatus').style.color = '#e94560';
+      log('Disconnected from server', 'error');
+
+      if (getSession()) {
+        log('You have 2 minutes to return before losing your seat...', 'warning');
+      }
+    });
+
+    socket.on('CONNECTED', (data) => {
+      log(`Connected as ${data.socketId.substring(0, 8)}...`, 'info');
+    });
+
+    // ---- Reconnection event handlers ----
+    socket.on('PLAYER_DISCONNECTED', (data) => {
+      const secs = Math.ceil((data.gracePeriodMs || 0) / 1000);
+      log(`${data.player?.name || 'A player'} disconnected (can reconnect within ${secs}s)`, 'warning');
+      // Refresh the lobby list so their status shows
+      socket.emit('GET_ROOM_STATE', { roomId: data.roomId }, (response) => {
+        if (response && response.success) updatePlayersList(response.roomState.players);
+      });
+    });
+
+    socket.on('PLAYER_RECONNECTED', (data) => {
+      log(`${data.player?.name || 'A player'} reconnected!`, 'success');
+      socket.emit('GET_ROOM_STATE', { roomId: data.roomId }, (response) => {
+        if (response && response.success) updatePlayersList(response.roomState.players);
+      });
+    });
+
+    socket.on('REJOIN_FAILED', (data) => {
+      log(`Reconnect failed: ${data.message || 'Your seat is gone.'}`, 'error');
+      clearSession();
+      log('Please refresh and join again to start a new game.', 'error');
+    });
+
+    // Full state restore after a successful REJOIN_ROOM.
+    socket.on('REJOINED', (data) => {
+      log('Reconnected to your game!', 'success');
+
+      currentRoom = data.roomId;
+      isHost = !!data.isHost;
+      currentPlayers = data.players || [];
+      saveSession(data.roomId, getSession()?.name);
+
+      document.getElementById('setupPanel').classList.add('hidden');
+      document.getElementById('roomId').textContent = data.roomId;
+      document.getElementById('playerCount').textContent = `${currentPlayers.length} joined`;
+      updatePlayersList(currentPlayers);
+
+      const g = data.game;
+
+      // No active game - we're back in the lobby
+      if (!g) {
+        updatePhase('waiting');
+        if (isHost) document.getElementById('gameControls').classList.remove('hidden');
+        return;
+      }
+
+      // Restore game-level state
+      if (Array.isArray(g.players) && g.players.length) currentPlayers = g.players;
+      currentTrumpSuit = g.trump || null;
+      currentWinningBid = g.winningBid || 0;
+      currentBidWinner = g.bidWinner || null;
+      currentPartnerCard = g.partnerCard || null;
+      currentPartnerId = g.partnerId || null;
+      currentRoundNumber = g.roundNumber || 1;
+      if (g.bidding?.numberOfSets) numberOfSets = g.bidding.numberOfSets;
+      isLeader = (g.leader === socket.id);
+      isPartner = (g.partnerId === socket.id);
+
+      // Restore our hand
+      if (Array.isArray(g.hand)) {
+        myCards = g.hand;
+        displayCards(myCards);
+        const hc = document.getElementById('handCount'); if (hc) hc.textContent = `(${myCards.length} cards)`;
+        const cc = document.getElementById('cardCount'); if (cc) cc.textContent = myCards.length;
+        const hp = document.getElementById('handPoints'); if (hp) hp.textContent = myCards.reduce((s, c) => s + (c.points || 0), 0);
+      }
+
+      document.getElementById('gameControls').classList.add('hidden');
+      const biddingPanel = document.getElementById('biddingPanel');
+      const selectionPanel = document.getElementById('selectionPanel');
+      const gamePanel = document.getElementById('gamePanel');
+
+      updatePhase(g.phase === 'completed' ? 'waiting' : g.phase);
+
+      if (g.phase === 'bidding') {
+        if (biddingPanel) biddingPanel.classList.remove('hidden');
+        if (selectionPanel) selectionPanel.classList.add('hidden');
+        if (gamePanel) gamePanel.classList.add('hidden');
+        const cb = document.getElementById('currentBid');
+        if (cb) cb.textContent = g.bidding?.currentBid ?? g.winningBid ?? '';
+        (g.bidding?.passedPlayers || []).forEach(pid => { try { markPlayerPassed(pid); } catch (e) {} });
+        updateTurnIndicator(g.currentTurn);
+        try { updatePartnerCardOptions(); } catch (e) {}
+      } else if (g.phase === 'selection') {
+        if (biddingPanel) biddingPanel.classList.add('hidden');
+        if (selectionPanel) selectionPanel.classList.remove('hidden');
+        if (gamePanel) gamePanel.classList.add('hidden');
+        const wb = document.getElementById('winningBidDisplay'); if (wb) wb.textContent = g.winningBid;
+        if (isLeader) {
+          document.getElementById('leaderControls')?.classList.remove('hidden');
+          document.getElementById('startGameAfterSelection')?.classList.remove('hidden');
+          document.getElementById('waitingForLeader')?.classList.add('hidden');
+        } else {
+          document.getElementById('leaderControls')?.classList.add('hidden');
+          document.getElementById('waitingForLeader')?.classList.remove('hidden');
+        }
+      } else if (g.phase === 'playing') {
+        if (biddingPanel) biddingPanel.classList.add('hidden');
+        if (selectionPanel) selectionPanel.classList.add('hidden');
+        if (gamePanel) gamePanel.classList.remove('hidden');
+        restorePlayingDisplays(g);
+        if (Array.isArray(g.currentTrick)) {
+          g.currentTrick.forEach(tc => {
+            try { addCardToTrick(tc.playerId, getPlayerName(tc.playerId), tc.card); } catch (e) {}
+          });
+        }
+        try { renderMyCards(true); } catch (e) {}
+        updateTurnIndicatorForGame(g.currentTurn);
+        if (isPartner) document.getElementById('partnerMessage')?.classList.remove('hidden');
+      }
+    });
+
+    // Rebuild the trump / partner / bid header for the playing phase on reconnect.
+    function restorePlayingDisplays(g) {
+      const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+      const suitColors = { spades: '#ffd700', hearts: '#ff6b6b', diamonds: '#ff6b6b', clubs: '#00d9ff' };
+
+      if (g.trump) {
+        const trumpIcon = document.getElementById('trumpSuitIcon');
+        const trumpDisplay = document.getElementById('gameTrumpDisplay');
+        if (trumpIcon) trumpIcon.textContent = suitSymbols[g.trump] || '?';
+        if (trumpDisplay) {
+          trumpDisplay.textContent = g.trump.charAt(0).toUpperCase() + g.trump.slice(1);
+          trumpDisplay.style.color = suitColors[g.trump] || '#ffd700';
+        }
+      }
+
+      if (g.partnerCard) {
+        const partnerIcon = document.getElementById('partnerCardIcon');
+        const partnerDisplay = document.getElementById('gamePartnerCardDisplay');
+        if (partnerIcon) partnerIcon.textContent = suitSymbols[g.partnerCard.suit] || '🤝';
+        if (partnerDisplay) {
+          partnerDisplay.textContent = `${g.partnerCard.rank} of ${g.partnerCard.suit.charAt(0).toUpperCase() + g.partnerCard.suit.slice(1)}`;
+        }
+      }
+
+      const bidDisplay = document.getElementById('gameBidDisplay');
+      const bidderDisplay = document.getElementById('gameBidderDisplay');
+      if (bidDisplay) bidDisplay.textContent = g.winningBid || '-';
+      if (bidderDisplay) bidderDisplay.textContent = `by ${getPlayerName(g.leader)}`;
+
+      try { markPlayerLeader(g.leader); } catch (e) {}
+      if (g.partnerId) { try { markPlayerPartner(g.partnerId); } catch (e) {} }
+    }
+
+    socket.on('ROOM_CREATED', (data) => {
+      console.log('[DEBUG] ROOM_CREATED event received:', data);
+      currentRoom = data.roomId;
+      isHost = true;
+      document.getElementById('roomId').textContent = data.roomId;
+      document.getElementById('playerCount').textContent = `${data.players.length} joined`;
+      document.getElementById('setupPanel').classList.add('hidden');
+      document.getElementById('gameControls').classList.remove('hidden');
+      updatePlayersList(data.players);
+
+      // Reset and initialize cumulative scores for new room
+      resetCumulativeScores();
+      initializeCumulativeScores(data.players);
+      updateScoresTable();
+
+      // Persist session for reconnection (server returns our stable playerId)
+      const myPlayer = data.players.find(p => p.socketId === socket.id);
+      if (myPlayer) {
+        myUsername = myPlayer.name;
+        if (data.playerId) { try { localStorage.setItem(PLAYER_ID_KEY, data.playerId); } catch (e) {} }
+        saveSession(data.roomId, myPlayer.name);
+      }
+
+      log(`Room created: ${data.roomId}`, 'success');
+
+      // Confirm we're in the room by listening for room-specific events
+      console.log('[DEBUG] Joined room:', data.roomId, 'Socket ID:', socket.id);
+    });
+
+    socket.on('ROOM_JOINED', (data) => {
+      console.log('[DEBUG] ROOM_JOINED event received:', data);
+      currentRoom = data.roomId;
+      currentPlayers = data.players || []; // Store players
+      isHost = false;
+      document.getElementById('roomId').textContent = data.roomId;
+      document.getElementById('playerCount').textContent = `${data.players.length} joined`;
+      document.getElementById('setupPanel').classList.add('hidden');
+      updatePlayersList(data.players);
+
+      // Initialize cumulative scores for joined room
+      initializeCumulativeScores(data.players);
+      updateScoresTable();
+
+      // Persist session for reconnection (server returns our stable playerId)
+      const myPlayer = data.players.find(p => p.socketId === socket.id);
+      if (myPlayer) {
+        myUsername = myPlayer.name;
+        if (data.playerId) { try { localStorage.setItem(PLAYER_ID_KEY, data.playerId); } catch (e) {} }
+        saveSession(data.roomId, myPlayer.name);
+      }
+
+      log(`Joined room: ${data.roomId}`, 'success');
+
+      // Test: Emit a test event to see if we receive broadcasts
+      console.log('[DEBUG] Testing room communication...');
+      socket.emit('GET_ROOM_STATE', { roomId: data.roomId }, (response) => {
+        console.log('[DEBUG] GET_ROOM_STATE response:', response);
+      });
+    });
+
+    socket.on('PLAYER_JOINED', (data) => {
+      log(`${data.player.name} joined the room`, 'info');
+      socket.emit('GET_ROOM_STATE', {}, (response) => {
+        if (response.success) {
+          updatePlayersList(response.roomState.players);
+          document.getElementById('playerCount').textContent = `${response.roomState.playerCount} joined`;
+        }
+      });
+    });
+
+    socket.on('PLAYER_LEFT', (data) => {
+      log(`${data.player.name} left the room`, 'info');
+      socket.emit('GET_ROOM_STATE', {}, (response) => {
+        if (response.success) {
+          updatePlayersList(response.roomState.players);
+          document.getElementById('playerCount').textContent = `${response.roomState.playerCount} joined`;
+        }
+      });
+      if (data.newHostId === socket.id) {
+        isHost = true;
+        document.getElementById('gameControls').classList.remove('hidden');
+        document.getElementById('startGameBtn').disabled = false;
+        log('You are now the host!', 'success');
+      }
+    });
+
+    socket.on('GAME_STARTED', (data) => {
+      console.log('[DEBUG] GAME_STARTED event received:', data);
+      document.getElementById('gameControls').classList.add('hidden');
+      log('Game started! Waiting for bidding phase...', 'success');
+    });
+
+    socket.on('PLAYER_HAND', (data) => {
+      console.log('[DEBUG] PLAYER_HAND event received:', data);
+      myCards = data.cards;
+      displayCards(data.cards);
+      document.getElementById('handCount').textContent = `(${data.cards.length} cards)`;
+      document.getElementById('cardCount').textContent = data.cards.length;
+      const totalPoints = data.cards.reduce((sum, card) => sum + card.points, 0);
+      document.getElementById('handPoints').textContent = totalPoints;
+      log(`Received ${data.cards.length} cards (${totalPoints} points)`, 'success');
+
+      // Update partner card options based on hand
+      updatePartnerCardOptions();
+    });
+
+    socket.on('BIDDING_STARTED', (data) => {
+      console.log('[DEBUG] BIDDING_STARTED event received:', data);
+      console.log('[DEBUG] Current socket ID:', socket.id);
+      console.log('[DEBUG] Current turn socket ID:', data.currentTurn);
+      console.log('[DEBUG] Is my turn?', socket.id === data.currentTurn);
+
+      // Update phase
+      updatePhase('bidding');
+
+      // Store number of sets if available
+      if (data.numberOfSets) {
+        numberOfSets = data.numberOfSets;
+        console.log('[DEBUG] Number of sets:', numberOfSets);
+      }
+
+      // Update bidding display
+      document.getElementById('currentBid').textContent = data.minBid;
+      document.getElementById('minBid').textContent = data.minBid;
+      document.getElementById('totalPoints').textContent = data.totalPoints;
+
+      // Show bidding panel
+      const biddingPanel = document.getElementById('biddingPanel');
+      console.log('[DEBUG] Showing bidding panel, currently hidden?', biddingPanel.classList.contains('hidden'));
+      biddingPanel.classList.remove('hidden');
+
+      // Update turn indicator
+      updateTurnIndicator(data.currentTurn);
+
+      log(`Bidding started! Min bid: ${data.minBid}, Total points: ${data.totalPoints}`, 'success');
+
+      // Verify panel is visible
+      setTimeout(() => {
+        console.log('[DEBUG] Bidding panel visible after timeout?', !biddingPanel.classList.contains('hidden'));
+      }, 100);
+    });
+
+    socket.on('BID_UPDATED', (data) => {
+      document.getElementById('currentBid').textContent = data.bidValue;
+      const bidderName = getPlayerName(data.bidder);
+      log(`${bidderName} bid ${data.bidValue}`, 'bid');
+      updateTurnIndicator(data.nextTurn);
+    });
+
+    socket.on('PLAYER_PASSED', (data) => {
+      const player = getPlayerName(data.player);
+      log(`${player} passed (${data.remainingPlayers} remaining)`, 'info');
+      markPlayerPassed(data.player);
+      updateTurnIndicator(data.nextTurn);
+    });
+
+    socket.on('BIDDING_ENDED', (data) => {
+      document.getElementById('biddingControls').classList.add('hidden');
+      document.getElementById('turnBanner').textContent = 'Bidding ended!';
+      const leaderName = getPlayerName(data.leader);
+      log(`Bidding ended! Leader: ${leaderName} with bid ${data.winningBid}`, 'success');
+
+      // Show selection panel to everyone
+      document.getElementById('selectionPanel').classList.remove('hidden');
+      document.getElementById('winningBidDisplay').textContent = data.winningBid;
+
+      if (data.leader === socket.id) {
+        isLeader = true;
+        // Show leader controls (trump, partner, start button)
+        document.getElementById('leaderControls').classList.remove('hidden');
+        document.getElementById('trumpSelect').disabled = false;
+        document.getElementById('partnerRank').disabled = false;
+        document.getElementById('partnerSuit').disabled = false;
+        document.getElementById('startGameAfterSelection').classList.remove('hidden');
+        document.getElementById('waitingForLeader').classList.add('hidden');
+
+        // Reset form values
+        document.getElementById('trumpSelect').value = '';
+        document.getElementById('partnerPositionGroup').classList.add('hidden');
+        document.getElementById('cardCountInfo').textContent = 'Select rank and suit to check your hand...';
+
+        // Populate partner card dropdown with only cards that are in play
+        if (data.cardPool && data.cardPool.length > 0) {
+          populatePartnerCardDropdown(data.cardPool);
+          log(`You are the leader! Select trump and partner card from ${data.cardPool.length} available cards.`, 'success');
+        } else {
+          log(`You are the leader! Select trump and partner card to start the game.`, 'success');
+        }
+      } else {
+        isLeader = false;
+        // Hide ALL leader controls for non-leaders (security fix)
+        document.getElementById('leaderControls').classList.add('hidden');
+        document.getElementById('trumpSelect').disabled = true;
+        document.getElementById('trumpSelect').value = '';
+        document.getElementById('partnerRank').disabled = true;
+        document.getElementById('partnerSuit').disabled = true;
+        document.getElementById('partnerPosition').disabled = true;
+        document.getElementById('startGameAfterSelection').classList.add('hidden');
+        // Show waiting message for non-leaders
+        document.getElementById('waitingForLeader').classList.remove('hidden');
+        document.getElementById('waitingForLeader').innerHTML = `
+          Waiting for <strong>${leaderName}</strong> (Leader) to select trump and partner card...<br>
+          <small style="color: #888;">Winning Bid: ${data.winningBid}</small>
+        `;
+      }
+    });
+
+    socket.on('BIDDING_ALL_PASSED', (data) => {
+      log(data.message || 'All players passed! Bidding will restart...', 'info');
+      document.getElementById('turnBanner').textContent = 'Everyone passed! Restarting bidding...';
+
+      // Reset bidding controls
+      document.getElementById('biddingControls').classList.remove('hidden');
+      document.getElementById('bidInput').disabled = false;
+      document.getElementById('passButton').disabled = false;
+      document.getElementById('turnBanner').textContent = 'Bidding restarted - First player\'s turn';
+
+      // Clear all passed player markers
+      document.querySelectorAll('.player-card').forEach(card => {
+        card.classList.remove('passed');
+        const badges = card.querySelectorAll('.badge-passed');
+        badges.forEach(badge => badge.parentElement.remove());
+      });
+
+      log('Bidding has been restarted. Please bid or pass.', 'success');
+    });
+
+    socket.on('TRUMP_SELECTED', (data) => {
+      const selector = getPlayerName(data.selectedBy);
+      log(`Trump selected: ${data.suit} by ${selector}`, 'success');
+
+      // Track trump suit for highlighting
+      currentTrumpSuit = data.suit;
+
+      // Show trump selection to everyone
+      document.getElementById('trumpSelect').value = data.suit;
+      document.getElementById('trumpSelect').disabled = true;
+
+      // Refresh card display to show trump highlighting
+      if (myCards && myCards.length > 0) {
+        displayCards(myCards, false); // Re-display cards with trump highlighting
+      }
+
+      if (data.selectedBy !== socket.id) {
+        // Non-leader: ensure leader controls are hidden (security)
+        document.getElementById('leaderControls').classList.add('hidden');
+        document.getElementById('partnerRank').disabled = true;
+        document.getElementById('partnerSuit').disabled = true;
+        document.getElementById('partnerPosition').disabled = true;
+        // Update waiting message
+        document.getElementById('waitingForLeader').innerHTML = `
+          <strong>${selector}</strong> selected <span style="color: #ffd700;">${data.suit}</span> as trump!<br>
+          <small style="color: #888;">Waiting for partner card selection...</small>
+        `;
+      }
+    });
+
+    socket.on('PARTNER_CARD_SELECTED', (data) => {
+      const selector = getPlayerName(data.selectedBy);
+      const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+      log(`Partner card selected: ${data.partnerCard.rank}${suitSymbols[data.partnerCard.suit]} by ${selector}`, 'info');
+
+      if (data.selectedBy !== socket.id) {
+        // Non-leader: ensure leader controls remain hidden (security)
+        document.getElementById('leaderControls').classList.add('hidden');
+        // Update waiting message
+        document.getElementById('waitingForLeader').innerHTML = `
+          <strong>${selector}</strong> selected <span style="color: #00d9ff;">${data.partnerCard.rank}${suitSymbols[data.partnerCard.suit]}</span> as partner card!<br>
+          <small style="color: #888;">Waiting for game to start...</small>
+        `;
+      }
+    });
+
+    socket.on('CARD_PLAYED', (data) => {
+      console.log('[DEBUG] CARD_PLAYED event received:', data);
+      console.log('[DEBUG] Partner card played:', data.partnerCardPlayed, 'Partner assigned:', data.partnerAssigned, 'Partner ID:', data.partnerId);
+      log(`${data.playerName} played ${data.card.rank} of ${data.card.suit}`, 'info');
+
+      // Handle dynamic partner assignment
+      if (data.partnerCardPlayed && data.partnerAssigned) {
+        console.log('[DEBUG] Partner assignment detected!');
+        log(`🤝 PARTNER ASSIGNED: ${data.partnerName} is now the partner!`, 'success');
+        markPlayerPartner(data.partnerId);
+
+        // Store partner ID
+        currentPartnerId = data.partnerId;
+
+        if (data.partnerId === socket.id) {
+          isPartner = true;
+          document.getElementById('partnerMessage').classList.remove('hidden');
+        }
+      } else {
+        console.log('[DEBUG] No partner assignment yet. Partner card played:', data.partnerCardPlayed, 'Partner assigned:', data.partnerAssigned);
+      }
+
+      if (data.partnerCardPlayed && data.secondPartnerCardPlayed) {
+        log(`⚔️ OPPONENT ASSIGNED: ${data.opponentName} is now an opponent!`, 'info');
+        markPlayerOpponent(data.opponentId);
+      }
+
+      // Add card to current trick display
+      addCardToTrick(data.playerId, data.playerName, data.card);
+
+      // Update turn indicator with next player
+      if (!data.trickComplete) {
+        updateTurnIndicatorForGame(data.nextPlayerId);
+      }
+
+      // Remove card from display if it's our card
+      removeCardFromHand(data.card.id);
+
+      // Update our hand count
+      if (data.playerId === socket.id) {
+        document.getElementById('handCount').textContent = `(${data.cardsRemaining} cards)`;
+        document.getElementById('cardCount').textContent = data.cardsRemaining;
+      }
+    });
+
+    socket.on('TRICK_COMPLETE', (data) => {
+      console.log('[DEBUG] TRICK_COMPLETE event received:', data);
+      console.log('[DEBUG] Current scores data:', data.currentScores);
+      log(`${data.winnerName} won the trick with ${data.points} points!`, 'success');
+
+      // Update individual scores display
+      updateIndividualScores(data.currentScores);
+
+      // Show scoreboard after each trick
+      showScoreboard(data.currentScores, data.points, data.winner);
+
+      // Clear trick display after a short delay
+      setTimeout(() => {
+        clearTrickDisplay();
+      }, 2000);
+
+      // Update turn indicator for next trick (winner leads)
+      updateTurnIndicatorForGame(data.nextPlayerId);
+    });
+
+    socket.on('GAMEPLAY_STARTED', (data) => {
+      try {
+        console.log('[DEBUG] GAMEPLAY_STARTED event received:', data);
+        console.log('[DEBUG] Winning bid:', data.winningBid, 'Total points:', data.totalPoints);
+        console.log('[DEBUG] Partner card data:', data.partnerCard);
+        console.log('[DEBUG] Current phase before update:', currentPhase);
+
+        // Store trump suit for highlighting
+        currentTrumpSuit = data.trump;
+
+        // Store current players from game data
+        if (data.players && Array.isArray(data.players)) {
+          currentPlayers = data.players;
+          console.log('[DEBUG] Updated currentPlayers:', currentPlayers.length, 'players');
+        }
+
+        updatePhase('playing');
+
+        const biddingPanel = document.getElementById('biddingPanel');
+        const selectionPanel = document.getElementById('selectionPanel');
+        const gamePanel = document.getElementById('gamePanel');
+
+        if (biddingPanel) biddingPanel.classList.add('hidden');
+        if (selectionPanel) selectionPanel.classList.add('hidden');
+        if (gamePanel) gamePanel.classList.remove('hidden');
+
+        console.log('[DEBUG] Game panel should now be visible');
+
+        const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+        const suitColors = { spades: '#ffd700', hearts: '#ff6b6b', diamonds: '#ff6b6b', clubs: '#00d9ff' };
+
+        // Update Trump Display - with defensive checks
+        const trumpIcon = document.getElementById('trumpSuitIcon');
+        const trumpDisplay = document.getElementById('gameTrumpDisplay');
+        if (trumpIcon) trumpIcon.textContent = suitSymbols[data.trump] || '?';
+        if (trumpDisplay) {
+          trumpDisplay.textContent = `${data.trump.charAt(0).toUpperCase() + data.trump.slice(1)}`;
+          trumpDisplay.style.color = suitColors[data.trump] || '#ffd700';
+        }
+
+        // Update Partner Card Display - with defensive checks
+        const partnerIcon = document.getElementById('partnerCardIcon');
+        const partnerDisplay = document.getElementById('gamePartnerCardDisplay');
+        const positionDisplay = document.getElementById('gamePartnerPositionDisplay');
+
+        if (data.partnerCard) {
+          if (partnerIcon) partnerIcon.textContent = suitSymbols[data.partnerCard.suit] || '🤝';
+          if (partnerDisplay) {
+            partnerDisplay.textContent = `${data.partnerCard.rank} of ${data.partnerCard.suit.charAt(0).toUpperCase() + data.partnerCard.suit.slice(1)}`;
+          }
+
+          // Show position preference if available
+          console.log('[DEBUG] Partner position preference:', data.partnerCard.preferredPosition);
+
+          if (positionDisplay) {
+            if (data.partnerCard.preferredPosition) {
+              const positionText = data.partnerCard.preferredPosition === 1
+                ? '1st player to play becomes Partner'
+                : `${data.partnerCard.preferredPosition}th player to play becomes Partner`;
+              positionDisplay.textContent = positionText;
+              positionDisplay.style.color = '#ffd700';
+            } else {
+              // No position preference - partner will be determined dynamically during gameplay
+              // (first non-bidder to play this card becomes partner)
+              positionDisplay.textContent = 'Partner determined during gameplay (first to play card)';
+              positionDisplay.style.color = '#00d9ff';
+            }
+          }
+        } else {
+          if (partnerIcon) partnerIcon.textContent = '🤝';
+          if (partnerDisplay) partnerDisplay.textContent = 'Selecting...';
+          if (positionDisplay) positionDisplay.textContent = '';
+        }
+
+        // Update Winning Bid Display - with defensive checks
+        const bidDisplay = document.getElementById('gameBidDisplay');
+        const bidderDisplay = document.getElementById('gameBidderDisplay');
+        if (bidDisplay) bidDisplay.textContent = data.winningBid || '-';
+        if (bidderDisplay) bidderDisplay.textContent = `by ${getPlayerName(data.leader)}`;
+
+        // Display partner card info
+        if (data.partnerCard && trumpDisplay) {
+          trumpDisplay.textContent = `${data.trump} ${suitSymbols[data.trump] || ''} | Partner Card: ${data.partnerCard.rank}${suitSymbols[data.partnerCard.suit]}`;
+        }
+
+        // Store winning bid for team score calculation
+        currentWinningBid = data.winningBid || 0;
+        currentBidWinner = data.leader;
+        currentPartnerCard = data.partnerCard;
+
+        // Log game start with safe partner card access
+        const partnerInfo = data.partnerCard
+          ? `Partner Card: ${data.partnerCard.rank} of ${data.partnerCard.suit}`
+          : 'Partner will be determined during gameplay';
+        log(`Gameplay started! Leader: ${getPlayerName(data.leader)}, Trump: ${data.trump}, ${partnerInfo}, Winning Bid: ${currentWinningBid}`, 'success');
+
+        markPlayerLeader(data.leader);
+
+        // Initialize bid information and team displays
+        initializeBidInformation(data);
+
+        // Initialize individual scores display
+        updateIndividualScores([]);
+
+        // Check if it's our turn
+        updateTurnIndicatorForGame(data.leader);
+
+        // Make cards clickable
+        renderMyCards(true);
+
+        console.log('[DEBUG] GAMEPLAY_STARTED processing completed successfully');
+      } catch (error) {
+        console.error('[ERROR] Error processing GAMEPLAY_STARTED event:', error);
+        log(`Error starting game: ${error.message}`, 'error');
+      }
+    });
+
+    socket.on('GAME_OVER', (data) => {
+      console.log('[DEBUG] GAME_OVER event received:', data);
+      updatePhase('waiting');
+
+      const winnerName = getPlayerName(data.winner);
+      log(`Round ${currentRoundNumber} Complete! Winner: ${winnerName}`, 'success');
+
+      // Add round scores to cumulative tracking
+      addRoundScores(data.scores);
+
+      // Log round results in event log
+      const scoresLog = data.scores.map(s => {
+        const scoreText = s.score > 0 ? `+${s.score}` : s.score;
+        return `${s.name}: ${scoreText}`;
+      }).join(', ');
+      log(`Round Scores: ${scoresLog}`, 'info');
+
+      // Automatically start next round after delay (if host)
+      if (isHost) {
+        log('Starting next round automatically in 5 seconds...', 'info');
+        setTimeout(() => {
+          startNextRound();
+        }, 5000);
+      } else {
+        log('Waiting for host to start next round...', 'info');
+      }
+    });
+
+    socket.on('ROOM_ERROR', (error) => {
+      log(`Error: ${error.message}`, 'error');
+    });
+
+    // Set up START_GAME_RESPONSE listener during initialization (before any game start)
+    socket.on('START_GAME_RESPONSE', (response) => {
+      console.log('[DEBUG] START_GAME_RESPONSE event received:', response);
+      if (response.success) {
+        log('Game started successfully! Waiting for bidding phase...', 'success');
+        // Manually trigger UI update as fallback
+        document.getElementById('gameControls').classList.add('hidden');
+        document.getElementById('biddingPanel').classList.remove('hidden');
+        updatePhase('bidding');
+      } else {
+        log(`Failed to start game: ${response.message}`, 'error');
+      }
+    });
+
+    function joinOrCreateRoom() {
+      const name = document.getElementById('playerName').value.trim();
+      const roomInput = document.getElementById('roomInput').value.trim().toUpperCase();
+      const numberOfPlayers = parseInt(document.getElementById('setupNumberOfPlayers').value) || 4;
+
+      if (!name) {
+        log('Please enter your name', 'error');
+        return;
+      }
+
+      if (roomInput) {
+        socket.emit('JOIN_ROOM', { roomId: roomInput, name, playerId: getPlayerId() }, (response) => {
+          console.log('[DEBUG] JOIN_ROOM callback:', response);
+          if (!response.success) {
+            log(response.message, 'error');
+          }
+        });
+      } else {
+        socket.emit('CREATE_ROOM', { name, maxPlayers: numberOfPlayers, playerId: getPlayerId() }, (response) => {
+          console.log('[DEBUG] CREATE_ROOM callback:', response);
+          if (!response.success) {
+            log(response.message, 'error');
+          }
+        });
+      }
+    }
+
+    function startGame() {
+      console.log('[DEBUG] startGame called - isHost:', isHost, 'currentRoom:', currentRoom);
+
+      if (isHost) {
+        const cardsPerPlayer = parseInt(document.getElementById('cardsPerPlayer').value) || 13;
+        const numberOfSets = parseInt(document.getElementById('numberOfSets').value) || 2;
+
+        // Save settings for next round
+        lastCardsPerPlayer = cardsPerPlayer;
+        lastNumberOfSets = numberOfSets;
+
+        console.log(`Starting game: cardsPerPlayer=${cardsPerPlayer}, numberOfSets=${numberOfSets}, isHost=${isHost}`);
+        log('Starting game...', 'info');
+
+        const eventData = {
+          roomId: currentRoom,
+          cardsPerPlayer,
+          numberOfSets
+        };
+
+        console.log('[DEBUG] Emitting START_GAME with data:', eventData);
+        console.log('[DEBUG] Socket connected:', socket.connected);
+        console.log('[DEBUG] Socket ID:', socket.id);
+
+        // First test: Emit a simple ping to see if server responds
+        console.log('[DEBUG] TEST: Emitting GET_ROOM_STATE to test server communication...');
+        socket.emit('GET_ROOM_STATE', { roomId: currentRoom }, (testResponse) => {
+          console.log('[DEBUG] TEST: GET_ROOM_STATE response:', testResponse);
+          if (testResponse && testResponse.success) {
+            console.log('[DEBUG] TEST: Server communication is working! Now trying START_GAME...');
+
+            // Now try START_GAME
+            socket.emit('START_GAME', eventData, (response) => {
+              console.log('[DEBUG] START_GAME callback response:', response);
+              if (response) {
+                if (response.success) {
+                  log('Game started successfully!', 'success');
+                  // Manually show bidding panel as fallback
+                  document.getElementById('gameControls').classList.add('hidden');
+                  document.getElementById('biddingPanel').classList.remove('hidden');
+                  updatePhase('bidding');
+                } else {
+                  log(`Failed to start game: ${response.message}`, 'error');
+                }
+              } else {
+                console.log('[DEBUG] No response received from server');
+                log('No response from server when starting game', 'error');
+              }
+            });
+          } else {
+            console.log('[DEBUG] TEST: Server communication failed!');
+            log('Server communication test failed', 'error');
+          }
+        });
+
+        // Also listen for the response event
+        socket.once('START_GAME_RESPONSE', (response) => {
+          console.log('[DEBUG] START_GAME_RESPONSE event received:', response);
+        });
+
+        // Listen for any errors
+        socket.once('ROOM_ERROR', (error) => {
+          console.log('[DEBUG] ROOM_ERROR received:', error);
+          log(`Server error: ${error.message}`, 'error');
+        });
+      } else {
+        log('Only the host can start the game!', 'error');
+      }
+    }
+
+    function updateStartingBidDisplay() {
+      const numberOfSets = parseInt(document.getElementById('numberOfSets').value) || 2;
+
+      // Calculate starting bid based on formula: 250 * (sets - 1) + (sets * 25)
+      // 2 sets → 250
+      // 3 sets → 375
+      // 4 sets → 500
+      // 5 sets → 625
+      // 6 sets → 750
+
+      // Simplified formula: 125 * (numberOfSets)
+      // Actually, let me use the pattern:
+      // 2 → 250
+      // 3 → 375 (250 + 125)
+      // 4 → 500 (375 + 125)
+      // So each additional set adds 125
+
+      const baseBid = 250;
+      const additionalSets = numberOfSets - 2;
+      const startingBid = baseBid + (additionalSets * 125);
+
+      document.getElementById('startingBidDisplay').textContent = startingBid;
+    }
+
+    // Initialize the starting bid display on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      updateStartingBidDisplay();
+    });
+
+    function placeBid(increment) {
+      const currentBid = parseInt(document.getElementById('currentBid').textContent) || 0;
+      const newBid = currentBid + increment;
+
+      socket.emit('PLACE_BID', { roomId: currentRoom, bidValue: newBid }, (response) => {
+        if (response.success) {
+          log(`You bid ${newBid}`, 'bid');
+        } else {
+          // Error will be logged by ROOM_ERROR listener, no need to log here
+          console.log(`Bid failed: ${response.message}`);
+        }
+      });
+    }
+
+    function customBid() {
+      const currentBid = parseInt(document.getElementById('currentBid').textContent) || 0;
+      const customBid = prompt(`Enter bid (must be multiple of 5, greater than ${currentBid}):`);
+
+      if (customBid) {
+        const bidValue = parseInt(customBid);
+        if (!isNaN(bidValue)) {
+          socket.emit('PLACE_BID', { roomId: currentRoom, bidValue }, (response) => {
+            if (response.success) {
+              log(`You bid ${bidValue}`, 'bid');
+            } else {
+              // Error will be logged by ROOM_ERROR listener, no need to log here
+              console.log(`Bid failed: ${response.message}`);
+            }
+          });
+        }
+      }
+    }
+
+    function passBid() {
+      socket.emit('PASS_BID', { roomId: currentRoom }, (response) => {
+        if (response.success) {
+          log('You passed', 'info');
+        } else {
+          // Error will be logged by ROOM_ERROR listener, no need to log here
+          console.log(`Pass failed: ${response.message}`);
+        }
+      });
+    }
+
+    function selectTrump() {
+      const suit = document.getElementById('trumpSelect').value;
+      if (suit) {
+        socket.emit('SELECT_TRUMP', { roomId: currentRoom, suit }, (response) => {
+          if (response.success) {
+            log(`Trump selected: ${suit}`, 'success');
+            document.getElementById('trumpSelect').disabled = true;
+          } else {
+            // Error will be logged by ROOM_ERROR listener, no need to log here
+            console.log(`Trump selection failed: ${response.message}`);
+          }
+        });
+      }
+    }
+
+    function startGameAfterSelection() {
+      console.log('[DEBUG] startGameAfterSelection called');
+      console.log('[DEBUG] Socket connected:', socket.connected);
+      console.log('[DEBUG] Current room:', currentRoom);
+
+      const trump = document.getElementById('trumpSelect').value;
+      const partnerRank = document.getElementById('partnerRank').value;
+      const partnerSuit = document.getElementById('partnerSuit').value;
+      const partnerPosition = document.getElementById('partnerPosition').value;
+
+      console.log('[DEBUG] Selected options:', { trump, partnerRank, partnerSuit, partnerPosition });
+
+      if (!trump) {
+        log('Please select a trump suit', 'error');
+        return;
+      }
+
+      if (!partnerRank || !partnerSuit) {
+        log('Please select a partner card', 'error');
+        return;
+      }
+
+      // Count how many of the partner card we have
+      const cardCount = myCards.filter(c => c.rank === partnerRank && c.suit === partnerSuit).length;
+
+      // Calculate max position based on number of sets and leader's card count
+      const maxPosition = numberOfSets - cardCount;
+
+      // Check if position is required
+      // Position is NOT required when:
+      // 1. We have ALL copies (cardCount === numberOfSets) - only one other player can have it
+      // 2. Only ONE copy remains in play (maxPosition === 1) - first to play becomes partner
+      const positionGroup = document.getElementById('partnerPositionGroup');
+      const isFixedPartner = (cardCount === numberOfSets) || (maxPosition === 1);
+
+      if (!isFixedPartner && !partnerPosition) {
+        log('Please select partner position preference', 'error');
+        return;
+      }
+
+      // Disable the button to prevent double-clicks
+      const startButton = document.getElementById('startGameAfterSelection');
+      if (startButton) {
+        startButton.disabled = true;
+        startButton.textContent = 'Starting...';
+      }
+
+      // First select trump if not already selected
+      socket.emit('SELECT_TRUMP', { roomId: currentRoom, suit: trump }, (trumpResponse) => {
+        if (trumpResponse.success) {
+          console.log('[DEBUG] Trump selected successfully');
+          // Then select partner card with position preference
+          const partnerData = {
+            roomId: currentRoom,
+            rank: partnerRank,
+            suit: partnerSuit
+          };
+
+          // Only add position preference if NOT fixed partner
+          if (!isFixedPartner && partnerPosition) {
+            partnerData.preferredPosition = parseInt(partnerPosition);
+          }
+          // If fixed partner, don't send preferredPosition (it will be null)
+
+          socket.emit('SELECT_PARTNER_CARD', partnerData, (partnerResponse) => {
+            if (partnerResponse.success) {
+              console.log('[DEBUG] Partner card selected successfully');
+              const partnerMsg = isFixedPartner
+                ? `Fixed Partner: ${partnerRank} of ${partnerSuit}`
+                : `Partner card selected: ${partnerRank} of ${partnerSuit} (Position: ${partnerPosition})`;
+              log(partnerMsg, 'success');
+              // Start the game
+              console.log('[DEBUG] Emitting START_GAMEPLAY...');
+              socket.emit('START_GAMEPLAY', { roomId: currentRoom }, (gameResponse) => {
+                console.log('[DEBUG] START_GAMEPLAY response:', gameResponse);
+                if (gameResponse.success) {
+                  log('Game started! Partner will be determined during gameplay.', 'success');
+                } else {
+                  log(`Failed to start game: ${gameResponse.message}`, 'error');
+                  // Re-enable button on failure
+                  if (startButton) {
+                    startButton.disabled = false;
+                    startButton.textContent = 'Start Game';
+                  }
+                }
+              });
+            } else {
+              console.log('[DEBUG] Partner card selection failed:', partnerResponse);
+              log(`Failed: ${partnerResponse.message}`, 'error');
+              // Re-enable button on failure
+              if (startButton) {
+                startButton.disabled = false;
+                startButton.textContent = 'Start Game';
+              }
+            }
+          });
+        } else {
+          console.log('[DEBUG] Trump selection failed:', trumpResponse);
+          log(`Failed: ${trumpResponse.message}`, 'error');
+          // Re-enable button on failure
+          if (startButton) {
+            startButton.disabled = false;
+            startButton.textContent = 'Start Game';
+          }
+        }
+      });
+    }
+
+    function updatePartnerCardOptions() {
+      if (myCards.length === 0) return;
+
+      const partnerRank = document.getElementById('partnerRank').value;
+      const partnerSuit = document.getElementById('partnerSuit').value;
+      const cardCountInfo = document.getElementById('cardCountInfo');
+      const positionGroup = document.getElementById('partnerPositionGroup');
+      const positionSelect = document.getElementById('partnerPosition');
+
+      if (!partnerRank || !partnerSuit) {
+        cardCountInfo.textContent = 'Select rank and suit to check your hand...';
+        return;
+      }
+
+      // Count how many of this card we have
+      const cardCount = myCards.filter(c => c.rank === partnerRank && c.suit === partnerSuit).length;
+
+      // Calculate max position based on number of sets and leader's card count
+      const maxPosition = numberOfSets - cardCount;
+
+      // Update info text - Show FIXED PARTNER in two cases:
+      // 1. Leader has ALL copies (cardCount === numberOfSets)
+      // 2. Only ONE copy remains in play (maxPosition === 1) - in this case, the first player to play it becomes partner
+      // 3. maxPosition <= 0 - Leader has all or more copies than sets (edge case with 2 sets)
+      if (cardCount === numberOfSets || maxPosition === 1 || maxPosition <= 0) {
+        if (cardCount === numberOfSets || maxPosition <= 0) {
+          cardCountInfo.innerHTML = `🤝 <strong>FIXED PARTNER</strong> - You have ALL ${cardCount} ${partnerRank} of ${partnerSuit} cards`;
+        } else {
+          cardCountInfo.innerHTML = `🤝 <strong>FIRST TO PLAY = PARTNER</strong> - Only 1 other ${partnerRank} of ${partnerSuit} in play (you have ${cardCount} of ${numberOfSets})`;
+        }
+        cardCountInfo.style.color = '#00ff80';
+
+        // Hide position dropdown since partner is fixed (first to play the other copy becomes partner)
+        positionGroup.classList.add('hidden');
+      } else if (cardCount === 0) {
+        cardCountInfo.textContent = `⚠️ You don't have ${partnerRank} of ${partnerSuit} - Choose which player becomes your partner`;
+        cardCountInfo.style.color = '#ffd700';
+
+        // Show position dropdown since leader has no cards
+        positionGroup.classList.remove('hidden');
+
+        // Dynamically generate position options based on maxPosition
+        positionSelect.innerHTML = '';
+        // Ensure maxPosition is at least 1 for the dropdown
+        const actualMaxPosition = Math.max(1, maxPosition);
+        for (let i = 1; i <= actualMaxPosition; i++) {
+          const option = document.createElement('option');
+          option.value = i;
+
+          // Generate position text with appropriate ordinal (1st, 2nd, 3rd, etc.)
+          let ordinal;
+          if (i === 1) ordinal = '1st';
+          else if (i === 2) ordinal = '2nd';
+          else if (i === 3) ordinal = '3rd';
+          else ordinal = `${i}th`;
+
+          option.textContent = `${ordinal} player who plays this card → PARTNER ✅`;
+          positionSelect.appendChild(option);
+        }
+      } else {
+        // Leader has some cards but not all (e.g., 1 out of 3 sets, 2 out of 4 sets, etc.)
+        cardCountInfo.innerHTML = `You have ${cardCount} of ${numberOfSets} ${partnerRank} of ${partnerSuit} - Choose position preference`;
+        cardCountInfo.style.color = '#00d9ff';
+
+        // Show position dropdown since there are still other copies in play
+        positionGroup.classList.remove('hidden');
+
+        // Dynamically generate position options based on maxPosition
+        positionSelect.innerHTML = '';
+        // Ensure maxPosition is at least 1 for the dropdown
+        const actualMaxPosition = Math.max(1, maxPosition);
+        for (let i = 1; i <= actualMaxPosition; i++) {
+          const option = document.createElement('option');
+          option.value = i;
+
+          // Generate position text with appropriate ordinal (1st, 2nd, 3rd, etc.)
+          let ordinal;
+          if (i === 1) ordinal = '1st';
+          else if (i === 2) ordinal = '2nd';
+          else if (i === 3) ordinal = '3rd';
+          else ordinal = `${i}th`;
+
+          option.textContent = `${ordinal} player who plays this card → PARTNER ✅`;
+          positionSelect.appendChild(option);
+        }
+      }
+    }
+
+    /**
+     * Populate partner card dropdown with only cards that are in play
+     * @param {string[]} cardPool - Array of card identifiers in format "rank_suit" (e.g., "A_spades", "K_hearts")
+     */
+    function populatePartnerCardDropdown(cardPool) {
+      console.log('[DEBUG] populatePartnerCardDropdown called with cardPool:', cardPool?.length, 'cards');
+
+      // Defensive check: If cardPool is empty, null, or undefined, use fallback
+      if (!cardPool || cardPool.length === 0) {
+        console.warn('[BUG] cardPool is empty! Using fallback standard deck.');
+        // Fallback to standard deck
+        cardPool = [];
+        const standardDeck = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
+        const suits = ['spades', 'hearts', 'diamonds', 'clubs'];
+        for (const rank of standardDeck) {
+          for (const suit of suits) {
+            cardPool.push(`${rank}_${suit}`);
+          }
+        }
+      }
+
+      // Parse card pool to extract unique ranks and suits
+      const uniqueRanks = new Set();
+      const uniqueSuits = new Set();
+      const suitRanksMap = {
+        spades: new Set(),
+        hearts: new Set(),
+        diamonds: new Set(),
+        clubs: new Set()
+      };
+
+      // Process each card in the pool
+      for (const cardId of cardPool) {
+        const [rank, suit] = cardId.split('_');
+        uniqueRanks.add(rank);
+        uniqueSuits.add(suit);
+        if (suitRanksMap[suit]) {
+          suitRanksMap[suit].add(rank);
+        }
+      }
+
+      // Sort ranks in descending order (A, K, Q, J, 10, 9, 8, 7, 6, 5, 4, 3, 2)
+      const rankOrder = {
+        'A': 14, 'K': 13, 'Q': 12, 'J': 11,
+        '10': 10, '9': 9, '8': 8, '7': 7,
+        '6': 6, '5': 5, '4': 4, '3': 3, '2': 2
+      };
+
+      const sortedRanks = Array.from(uniqueRanks).sort((a, b) => rankOrder[b] - rankOrder[a]);
+      const sortedSuits = Array.from(uniqueSuits).sort();
+
+      // Populate rank dropdown
+      const rankSelect = document.getElementById('partnerRank');
+      rankSelect.innerHTML = '';
+
+      // Add blank default option
+      const blankRankOption = document.createElement('option');
+      blankRankOption.value = '';
+      blankRankOption.textContent = 'Select Rank';
+      blankRankOption.disabled = true;
+      blankRankOption.selected = true;
+      rankSelect.appendChild(blankRankOption);
+
+      for (const rank of sortedRanks) {
+        const option = document.createElement('option');
+        option.value = rank;
+        option.textContent = rank;
+        rankSelect.appendChild(option);
+      }
+
+      // Populate suit dropdown
+      const suitSelect = document.getElementById('partnerSuit');
+      suitSelect.innerHTML = '';
+
+      // Add blank default option
+      const blankSuitOption = document.createElement('option');
+      blankSuitOption.value = '';
+      blankSuitOption.textContent = 'Select Suit';
+      blankSuitOption.disabled = true;
+      blankSuitOption.selected = true;
+      suitSelect.appendChild(blankSuitOption);
+
+      const suitSymbols = {
+        spades: '♠',
+        hearts: '♥',
+        diamonds: '♦',
+        clubs: '♣'
+      };
+
+      for (const suit of sortedSuits) {
+        const option = document.createElement('option');
+        option.value = suit;
+        option.textContent = `${suitSymbols[suit] || suit} ${suit.charAt(0).toUpperCase() + suit.slice(1)}`;
+        suitSelect.appendChild(option);
+      }
+
+      console.log(`[DEBUG] Populated partner card dropdown: ${sortedRanks.length} ranks, ${sortedSuits.length} suits from ${cardPool.length} cards`);
+
+      // Defensive check: Ensure dropdowns are enabled
+      if (rankSelect) rankSelect.disabled = false;
+      if (suitSelect) suitSelect.disabled = false;
+    }
+
+    function updateTurnIndicator(currentTurnSocketId) {
+      const isYourTurn = currentTurnSocketId === socket.id;
+      const turnBadge = document.getElementById('turnBadge');
+      const turnBanner = document.getElementById('turnBanner');
+      const biddingControls = document.getElementById('biddingControls');
+
+      if (isYourTurn) {
+        turnBadge.classList.remove('hidden');
+        turnBanner.classList.add('your-turn');
+        turnBanner.textContent = '🎯 Your Turn!';
+        biddingControls.classList.remove('hidden');
+      } else {
+        turnBadge.classList.add('hidden');
+        turnBanner.classList.remove('your-turn');
+        turnBanner.textContent = `Waiting for ${getPlayerName(currentTurnSocketId)}...`;
+        biddingControls.classList.add('hidden');
+      }
+    }
+
+    function getPlayerName(socketId) {
+      const player = document.querySelector(`[data-socket-id="${socketId}"]`);
+      return player ? player.dataset.playerName : 'Unknown';
+    }
+
+    function updatePlayersList(players) {
+      const list = document.getElementById('playersList');
+      const badge = document.getElementById('playerCountBadge');
+      list.innerHTML = '';
+      badge.textContent = `(${players.length} joined)`;
+
+      players.forEach(player => {
+        const div = document.createElement('div');
+        div.className = 'player-card';
+        div.dataset.socketId = player.socketId;
+        div.dataset.playerName = player.name;
+        if (player.socketId === socket.id) div.classList.add('you');
+
+        const badges = [];
+        if (player.isHost) badges.push('<span class="badge badge-host">👑 Host</span>');
+        if (player.socketId === socket.id) badges.push('<span class="badge badge-you">You</span>');
+
+        div.innerHTML = `
+          <div class="name">${player.name}</div>
+          ${badges.join('')}
+        `;
+        list.appendChild(div);
+      });
+
+      // Update start button state
+      const startBtn = document.getElementById('startGameBtn');
+      const waitingMsg = document.getElementById('waitingMessage');
+
+      console.log(`updatePlayersList: isHost=${isHost}, players.length=${players.length}, startBtn exists=${!!startBtn}`);
+
+      if (!startBtn) {
+        console.warn('startGameBtn element not found!');
+        return;
+      }
+
+      if (!isHost) {
+        // Not the host - button stays disabled
+        startBtn.disabled = true;
+        waitingMsg.textContent = 'Only the host can start the game.';
+        waitingMsg.style.color = '#888';
+      } else if (players.length >= 4) {
+        // Host with enough players
+        startBtn.disabled = false;
+        waitingMsg.textContent = 'Ready to start! Click to begin the game.';
+        waitingMsg.style.color = '#00ff80';
+      } else {
+        // Host but not enough players
+        startBtn.disabled = true;
+        const needed = 4 - players.length;
+        waitingMsg.textContent = `Waiting for ${needed} more player${needed > 1 ? 's' : ''} to join...`;
+        waitingMsg.style.color = '#888';
+      }
+
+      console.log(`Button state: isHost=${isHost}, players=${players.length}, disabled=${startBtn.disabled}`);
+    }
+
+    function markPlayerPassed(socketId) {
+      const player = document.querySelector(`[data-socket-id="${socketId}"]`);
+      if (player) player.classList.add('passed');
+    }
+
+    function markPlayerLeader(socketId) {
+      const player = document.querySelector(`[data-socket-id="${socketId}"]`);
+      if (player) {
+        player.classList.add('leader');
+        const existingBadge = player.querySelector('.badge-leader');
+        if (!existingBadge) {
+          const badge = document.createElement('div');
+          badge.innerHTML = '<span class="badge badge-leader">👑 Leader</span>';
+          player.appendChild(badge);
+        }
+      }
+    }
+
+    function markPlayerPartner(socketId) {
+      const player = document.querySelector(`[data-socket-id="${socketId}"]`);
+      if (player) {
+        player.classList.add('partner');
+        player.classList.remove('opponent');
+        const existingBadge = player.querySelector('.badge-partner');
+        if (!existingBadge) {
+          const badge = document.createElement('div');
+          badge.innerHTML = '<span class="badge badge-partner">🤝 Partner</span>';
+          player.appendChild(badge);
+        }
+        // Remove opponent badge if exists
+        const opponentBadge = player.querySelector('.badge-opponent');
+        if (opponentBadge) opponentBadge.parentElement.remove();
+      }
+    }
+
+    function markPlayerOpponent(socketId) {
+      const player = document.querySelector(`[data-socket-id="${socketId}"]`);
+      if (player) {
+        player.classList.add('opponent');
+        player.classList.remove('partner');
+        const existingBadge = player.querySelector('.badge-opponent');
+        if (!existingBadge) {
+          const badge = document.createElement('div');
+          badge.innerHTML = '<span class="badge badge-opponent">⚔️ Opponent</span>';
+          player.appendChild(badge);
+        }
+        // Remove partner badge if exists
+        const partnerBadge = player.querySelector('.badge-partner');
+        if (partnerBadge) partnerBadge.parentElement.remove();
+      }
+    }
+
+    function displayCards(cards) {
+      renderMyCards(false);
+    }
+
+    // Sort cards by suit and rank for better visibility
+    function sortCards(cards) {
+      const suitOrder = { 'spades': 0, 'hearts': 1, 'diamonds': 2, 'clubs': 3 };
+      const rankOrder = {
+        'A': 14, 'K': 13, 'Q': 12, 'J': 11,
+        '10': 10, '9': 9, '8': 8, '7': 7,
+        '6': 6, '5': 5, '4': 4, '3': 3, '2': 2
+      };
+
+      return [...cards].sort((a, b) => {
+        // First sort by suit
+        const suitDiff = suitOrder[a.suit] - suitOrder[b.suit];
+        if (suitDiff !== 0) return suitDiff;
+
+        // Then sort by rank (descending - A first, then K, Q, J, 10, etc.)
+        return rankOrder[b.rank] - rankOrder[a.rank];
+      });
+    }
+
+    function renderMyCards(clickable = false) {
+      const grid = document.getElementById('myCards');
+      if (!grid) {
+        console.warn('[DEBUG] myCards element not found');
+        return;
+      }
+
+      grid.innerHTML = '';
+
+      // Sort cards before displaying
+      const sortedCards = sortCards(myCards);
+
+      sortedCards.forEach(card => {
+        const cardEl = document.createElement('div');
+        const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
+        const isHighPoints = card.points >= 10;
+        const isTrump = currentTrumpSuit && card.suit === currentTrumpSuit;
+        const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+
+        let cardClass = `playing-card ${isRed ? 'red' : 'black'}`;
+        if (isTrump) cardClass += ' trump';
+        cardEl.className = cardClass;
+        if (clickable) {
+          cardEl.style.cursor = 'pointer';
+          cardEl.onclick = () => playCard(card);
+        }
+
+        // Add position:relative for trump badge positioning
+        cardEl.style.position = 'relative';
+
+        cardEl.innerHTML = `
+          <div class="rank">${card.rank}</div>
+          <div class="suit">${suitSymbols[card.suit]}</div>
+          <div class="points ${isHighPoints ? 'high' : ''}">${card.points} pts</div>
+        `;
+        grid.appendChild(cardEl);
+      });
+    }
+
+    let currentTurnPlayerId = null;
+    let ledSuit = null;
+
+    function playCard(card) {
+      // Check if it's our turn
+      if (currentTurnPlayerId !== socket.id) {
+        log('It is not your turn!', 'error');
+        return;
+      }
+
+      // Check follow suit rule
+      if (ledSuit) {
+        const hasLedSuit = myCards.some(c => c.suit === ledSuit);
+        if (hasLedSuit && card.suit !== ledSuit) {
+          log(`You must follow suit (${ledSuit}) if you have it!`, 'error');
+          return;
+        }
+      }
+
+      // Emit play card event
+      socket.emit('PLAY_CARD', { roomId: currentRoom, cardId: card.id }, (response) => {
+        if (response.success) {
+          log(`You played ${card.rank} of ${card.suit}`, 'info');
+        } else {
+          log(`Cannot play card: ${response.message}`, 'error');
+        }
+      });
+    }
+
+    function removeCardFromHand(cardId) {
+      const index = myCards.findIndex(c => c.id === cardId);
+      if (index !== -1) {
+        myCards.splice(index, 1);
+        renderMyCards(true);
+      }
+    }
+
+    function updateTurnIndicatorForGame(currentPlayerId) {
+      currentTurnPlayerId = currentPlayerId;
+      const turnBanner = document.getElementById('turnIndicator');
+      const cardsDisplay = document.getElementById('myCards');
+
+      if (!turnBanner) {
+        console.warn('[DEBUG] turnIndicator element not found');
+        return;
+      }
+
+      if (currentPlayerId === socket.id) {
+        turnBanner.classList.add('your-turn');
+        turnBanner.textContent = '🎯 Your Turn! Play a card';
+        // Add yellow highlight to hand section
+        if (cardsDisplay) {
+          cardsDisplay.classList.add('my-turn');
+        }
+        renderMyCards(true); // Make cards clickable
+      } else {
+        turnBanner.classList.remove('your-turn');
+        turnBanner.textContent = `Waiting for ${getPlayerName(currentPlayerId)}...`;
+        // Remove highlight from hand section
+        if (cardsDisplay) {
+          cardsDisplay.classList.remove('my-turn');
+        }
+        renderMyCards(false); // Make cards non-clickable
+      }
+    }
+
+    function addCardToTrick(playerId, playerName, card) {
+      const trickDiv = document.getElementById('currentTrick');
+      const trickCardsDiv = document.getElementById('trickCards');
+
+      if (!trickDiv || !trickCardsDiv) {
+        console.warn('[DEBUG] Trick display elements not found');
+        return;
+      }
+
+      trickDiv.classList.remove('hidden');
+
+      // Set led suit if this is the first card
+      if (!ledSuit) {
+        ledSuit = card.suit;
+      }
+
+      const suitSymbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+      const isRed = card.suit === 'hearts' || card.suit === 'diamonds';
+
+      const cardEl = document.createElement('div');
+      cardEl.className = `playing-card ${isRed ? 'red' : 'black'}`;
+      cardEl.style.margin = '5px';
+      cardEl.innerHTML = `
+        <div style="font-size: 0.7em; text-align: center; margin-bottom: 5px;">${playerName}</div>
+        <div class="rank">${card.rank}</div>
+        <div class="suit">${suitSymbols[card.suit]}</div>
+      `;
+      trickCardsDiv.appendChild(cardEl);
+    }
+
+    function clearTrickDisplay() {
+      const trickCardsDiv = document.getElementById('trickCards');
+      if (trickCardsDiv) {
+        trickCardsDiv.innerHTML = '';
+      }
+      ledSuit = null;
+    }
+
+    // Initialize bid information display
+    function initializeBidInformation(data) {
+      const totalPoints = data.totalPoints || 500;
+      const winningBid = data.winningBid || 0;
+      const bidderNeeds = winningBid;
+      // Opponent needs totalPoints - winningBid + 5 (slight advantage to bidder)
+      const opponentNeeds = totalPoints - winningBid + 5;
+
+      console.log('[DEBUG] Initializing bid information:', { totalPoints, winningBid, bidderNeeds, opponentNeeds });
+
+      // Update score targets with defensive checks
+      const bidderTarget = document.getElementById('bidderTarget');
+      const opponentTarget = document.getElementById('opponentTarget');
+
+      if (bidderTarget) bidderTarget.textContent = `Need: ${bidderNeeds} pts`;
+      if (opponentTarget) opponentTarget.textContent = `Need: ${opponentNeeds} pts`;
+    }
+
+    function updateIndividualScores(playerScores) {
+      const scoresDiv = document.getElementById('individualScores');
+      const bidProgress = document.getElementById('bidProgress');
+
+      if (bidProgress) {
+        bidProgress.textContent = `Winning Bid: ${currentWinningBid}`;
+      }
+
+      console.log('[DEBUG] updateIndividualScores called with:', playerScores);
+
+      if (!scoresDiv) {
+        console.warn('[DEBUG] individualScores element not found');
+        return;
+      }
+
+      if (!playerScores || playerScores.length === 0) {
+        scoresDiv.innerHTML = '<div style="text-align: center; color: #666;">Waiting for scores...</div>';
+        return;
+      }
+
+      // Sort by score (highest first)
+      const sortedScores = [...playerScores].sort((a, b) => b.score - a.score);
+
+      console.log('[DEBUG] Sorted scores:', sortedScores);
+
+      let html = '';
+      sortedScores.forEach(player => {
+        const isYou = player.socketId === socket.id;
+        const isLeader = player.socketId === currentBidWinner;
+        const color = isYou ? '#00d9ff' : (isLeader ? '#ffd700' : '#888');
+        const label = isYou ? 'You' : player.name;
+        const badge = isLeader ? '👑' : '';
+
+        html += `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 5px 10px; border-radius: 5px; background: ${isYou ? 'rgba(0, 217, 255, 0.1)' : 'rgba(255, 255, 255, 0.05)'};">
+            <span style="color: ${color};">${label} ${badge}</span>
+            <strong style="color: ${color};">${player.score} pts</strong>
+          </div>
+        `;
+      });
+
+      scoresDiv.innerHTML = html;
+    }
+
+    function showScoreboard(playerScores, trickPoints, winnerId) {
+      const scoreboardDiv = document.getElementById('scoreboardTable');
+      const scoreboardContent = document.getElementById('scoreboardContent');
+      scoreboardDiv.classList.remove('hidden');
+
+      if (!playerScores || playerScores.length === 0) {
+        scoreboardContent.innerHTML = '<div style="text-align: center; color: #888;">No scores available</div>';
+        return;
+      }
+
+      // Sort by score (highest first)
+      const sortedScores = [...playerScores].sort((a, b) => b.score - a.score);
+
+      let html = '<div style="display: grid; gap: 5px; font-size: 0.85em;">';
+      sortedScores.forEach(player => {
+        const isYou = player.socketId === socket.id;
+        const isWinner = player.socketId === winnerId;
+        const isLeader = player.socketId === currentBidWinner;
+        const color = isYou ? '#00d9ff' : (isLeader ? '#ffd700' : '#888');
+        const bgColor = isWinner ? 'rgba(0, 255, 128, 0.1)' : (isYou ? 'rgba(0, 217, 255, 0.1)' : 'rgba(255, 255, 255, 0.05)');
+        const label = isYou ? 'You' : player.name;
+        const badge = isWinner ? '🏆' : (isLeader ? '👑' : '');
+
+        html += `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 5px; background: ${bgColor};">
+            <span style="color: ${color}; font-weight: ${isYou ? 'bold' : 'normal'};">${label} ${badge}</span>
+            <strong style="color: ${color};">${player.score} pts</strong>
+          </div>
+        `;
+      });
+      html += '</div>';
+
+      html += `
+        <div style="text-align: center; color: #888; font-size: 0.8em; margin-top: 10px;">
+          Trick winner: ${getPlayerName(winnerId)} (+${trickPoints} pts) | Winning Bid: ${currentWinningBid}
+        </div>
+      `;
+
+      scoreboardContent.innerHTML = html;
+
+      // Auto-hide after 5 seconds
+      setTimeout(() => {
+        scoreboardDiv.classList.add('hidden');
+      }, 5000);
+    }
+
+    function updateScoreDisplay(scores) {
+      // This function is no longer used with team-based scoring
+      // Kept for backward compatibility
+    }
+
+    function showFinalScoreboard(scores, winnerId) {
+      // This function is no longer used - scores are automatically added to the scoreboard table
+      // Kept for backward compatibility
+      console.log('[DEBUG] showFinalScoreboard called but auto-progression is enabled');
+    }
+
+    function closeFinalScoreboardAndStartNextRound() {
+      // This function is no longer used - auto-progression is enabled
+      startNextRound();
+    }
+
+    function closeFinalScoreboardAndLeaveRoom() {
+      // This function is no longer used - players can leave via the room controls
+      leaveRoom();
+    }
+
+    function startNextRound() {
+      if (!isHost) {
+        log('Only the host can start the next round!', 'error');
+        return;
+      }
+
+      log('Starting next round...', 'info');
+      updatePhase('bidding');
+
+      // Increment round number
+      incrementRoundNumber();
+
+      // Use same settings as previous round
+      const cardsPerPlayer = lastCardsPerPlayer || 13;
+      const numberOfSets = lastNumberOfSets || 2;
+
+      socket.emit('START_GAME', {
+        roomId: currentRoom,
+        cardsPerPlayer,
+        numberOfSets
+      }, (response) => {
+        if (response && response.success) {
+          log('Next round started!', 'success');
+
+          // Reset UI for new round - show bidding panel, hide game panel
+          document.getElementById('gamePanel').classList.add('hidden');
+          document.getElementById('biddingPanel').classList.remove('hidden');
+          document.getElementById('selectionPanel').classList.add('hidden');
+
+          // Reset selection panel for new round
+          resetSelectionPanel();
+
+          // Reset individual scores display
+          updateIndividualScores([]);
+
+          // Reset partner assignment for new round
+          isPartner = false;
+          currentPartnerId = null;
+          currentTrumpSuit = null; // Reset trump suit for new round
+          document.getElementById('partnerMessage').classList.add('hidden');
+
+          // Clear player badges from previous round
+          document.querySelectorAll('.player-card').forEach(card => {
+            card.classList.remove('partner', 'opponent', 'leader');
+            const badges = card.querySelectorAll('.badge-partner, .badge-opponent, .badge-leader');
+            badges.forEach(badge => badge.parentElement.remove());
+          });
+
+          // Refresh card display to remove trump highlighting from previous round
+          if (myCards && myCards.length > 0) {
+            displayCards(myCards, false); // Re-display cards without trump highlighting
+          }
+
+          console.log('[DEBUG] UI reset for new round');
+        } else {
+          log(`Failed to start next round: ${response?.message || 'Unknown error'}`, 'error');
+          // Revert round number on failure
+          currentRoundNumber--;
+          document.getElementById('currentRoundBadge').textContent = `Round ${currentRoundNumber}`;
+        }
+      });
+    }
+
+    /**
+     * Reset the selection panel for a new round
+     */
+    function resetSelectionPanel() {
+      // Reset trump selection
+      document.getElementById('trumpSelect').disabled = false;
+      document.getElementById('trumpSelect').value = '';
+
+      // Reset partner card selection to blank
+      document.getElementById('partnerRank').disabled = false;
+      document.getElementById('partnerRank').value = '';
+      document.getElementById('partnerSuit').disabled = false;
+      document.getElementById('partnerSuit').value = '';
+      document.getElementById('partnerPosition').disabled = false;
+      document.getElementById('partnerPosition').value = '';
+
+      // Hide position group initially
+      document.getElementById('partnerPositionGroup').classList.add('hidden');
+
+      // Update card count info
+      document.getElementById('cardCountInfo').textContent = 'Select rank and suit to check your hand...';
+
+      // Reset start button
+      document.getElementById('startGameAfterSelection').classList.remove('hidden');
+
+      // Hide waiting message
+      document.getElementById('waitingForLeader').classList.add('hidden');
+
+      console.log('[DEBUG] Selection panel reset for new round');
+    }
+
+    function leaveRoom() {
+      if (confirm('Are you sure you want to leave the room?')) {
+        socket.emit('LEAVE_ROOM', { roomId: currentRoom }, (response) => {
+          if (response && response.success) {
+            clearSession(); // Intentional leave - don't try to rejoin
+            log('Left the room', 'success');
+            setTimeout(() => location.reload(), 1000);
+          }
+        });
+      }
+    }
+
+    // ==================== CUMULATIVE SCORES TABLE FUNCTIONS ====================
+
+    /**
+     * Initialize or update the cumulative scores data structure
+     */
+    function initializeCumulativeScores(players) {
+      if (!players || players.length === 0) return;
+
+      // Store player order to maintain consistent display
+      if (!window.playerOrder) {
+        window.playerOrder = [];
+      }
+
+      // Initialize scores for new players and track their join order
+      players.forEach((player, index) => {
+        if (!cumulativeScores[player.socketId]) {
+          cumulativeScores[player.socketId] = {
+            name: player.name,
+            socketId: player.socketId,
+            rounds: [],
+            total: 0,
+            joinIndex: window.playerOrder.length // Track join order for consistent display
+          };
+          // Add to player order if not already present
+          if (!window.playerOrder.includes(player.socketId)) {
+            window.playerOrder.push(player.socketId);
+          }
+        } else {
+          // Update name in case it changed
+          cumulativeScores[player.socketId].name = player.name;
+        }
+      });
+
+      console.log('[DEBUG] Initialized cumulative scores:', cumulativeScores);
+      console.log('[DEBUG] Player order:', window.playerOrder);
+    }
+
+    /**
+     * Add round scores to the cumulative tracking
+     */
+    function addRoundScores(roundScores) {
+      if (!roundScores || roundScores.length === 0) return;
+
+      console.log('[DEBUG] Adding round scores:', roundScores);
+
+      roundScores.forEach(playerData => {
+        const socketId = playerData.socketId;
+        const score = playerData.score; // The score field from getFinalScores
+
+        if (cumulativeScores[socketId]) {
+          cumulativeScores[socketId].rounds.push(score);
+          cumulativeScores[socketId].total += score;
+          console.log(`[DEBUG] Updated ${cumulativeScores[socketId].name}: added ${score}, total: ${cumulativeScores[socketId].total}`);
+        } else {
+          // Player might have joined during the round, initialize their scores
+          cumulativeScores[socketId] = {
+            name: playerData.name,
+            socketId: socketId,
+            rounds: [score],
+            total: score,
+            joinIndex: window.playerOrder ? window.playerOrder.length : 0
+          };
+          // Add to player order if not already present
+          if (window.playerOrder && !window.playerOrder.includes(socketId)) {
+            window.playerOrder.push(socketId);
+          }
+          console.log(`[DEBUG] Initialized ${playerData.name}: added ${score}, total: ${score}`);
+        }
+      });
+
+      // Update the display
+      updateScoresTable();
+    }
+
+    /**
+     * Update the scores table display with current cumulative scores
+     */
+    function updateScoresTable() {
+      const tableContent = document.getElementById('scoresTableContent');
+      const roundBadge = document.getElementById('currentRoundBadge');
+
+      if (!tableContent) return;
+
+      // Update round badge
+      roundBadge.textContent = `Round ${currentRoundNumber}`;
+
+      const playersArray = Object.values(cumulativeScores);
+
+      if (playersArray.length === 0) {
+        tableContent.innerHTML = '<div class="no-scores-message">Scores will appear here after the first round completes</div>';
+        return;
+      }
+
+      // Keep players in consistent order (by join order, NOT by score)
+      // This prevents player names from shuffling between rounds
+      const orderedPlayers = playersArray.sort((a, b) => {
+        // Use the stored join order if available
+        if (a.joinIndex !== undefined && b.joinIndex !== undefined) {
+          return a.joinIndex - b.joinIndex;
+        }
+        // Fallback to socketId comparison for consistency
+        return a.socketId.localeCompare(b.socketId);
+      });
+
+      // Get the maximum number of rounds played
+      const maxRounds = Math.max(...orderedPlayers.map(p => p.rounds.length), 0);
+
+      if (maxRounds === 0) {
+        tableContent.innerHTML = '<div class="no-scores-message">Scores will appear here after the first round completes</div>';
+        return;
+      }
+
+      // Build the table HTML
+      let html = '<table class="scores-table">';
+
+      // Table header
+      html += '<thead><tr>';
+      html += '<th>Player</th>';
+      for (let i = 1; i <= maxRounds; i++) {
+        html += `<th>Round ${i}</th>`;
+      }
+      html += '<th class="total-header">Total</th>';
+      html += '</tr></thead>';
+
+      // Table body
+      html += '<tbody>';
+      orderedPlayers.forEach(player => {
+        const isYou = player.socketId === socket.id;
+        const rowClass = isYou ? 'player-row you-row' : 'player-row';
+
+        html += `<tr class="${rowClass}">`;
+        html += `<td class="player-name ${isYou ? 'you' : ''}">${player.name}${isYou ? ' (You)' : ''}</td>`;
+
+        // Round scores
+        for (let i = 0; i < maxRounds; i++) {
+          const score = player.rounds[i] !== undefined ? player.rounds[i] : null;
+          const scoreClass = score > 0 ? 'positive' : (score < 0 ? 'negative' : '');
+
+          if (score !== null) {
+            html += `<td class="round-score ${scoreClass}">${score > 0 ? '+' : ''}${score}</td>`;
+          } else {
+            html += '<td class="round-score empty">-</td>';
+          }
+        }
+
+        // Total score - recalculate to ensure accuracy
+        const recalculatedTotal = player.rounds.reduce((sum, roundScore) => sum + (roundScore || 0), 0);
+        // Update the stored total if it differs from recalculated
+        if (player.total !== recalculatedTotal) {
+          console.log(`[DEBUG] Correcting total for ${player.name}: was ${player.total}, should be ${recalculatedTotal}`);
+          player.total = recalculatedTotal;
+        }
+
+        const totalClass = player.total > 0 ? 'positive' : (player.total < 0 ? 'negative' : '');
+        html += `<td class="total-score ${totalClass}">${player.total > 0 ? '+' : ''}${player.total}</td>`;
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+
+      tableContent.innerHTML = html;
+
+      console.log('[DEBUG] Scores table updated with', orderedPlayers.length, 'players and', maxRounds, 'rounds');
+      console.log('[DEBUG] Player order maintained:', orderedPlayers.map(p => p.name));
+    }
+
+    /**
+     * Reset cumulative scores (for new room)
+     */
+    function resetCumulativeScores() {
+      cumulativeScores = {};
+      window.playerOrder = []; // Reset player order
+      currentRoundNumber = 1;
+      updateScoresTable();
+      console.log('[DEBUG] Cumulative scores reset');
+    }
+
+    /**
+     * Increment round number and update badge
+     */
+    function incrementRoundNumber() {
+      currentRoundNumber++;
+      document.getElementById('currentRoundBadge').textContent = `Round ${currentRoundNumber}`;
+      console.log('[DEBUG] Round number incremented to', currentRoundNumber);
+    }
+
+    // Listen for next round events
+    socket.on('NEXT_ROUND_STARTED', (data) => {
+      log(`Round ${data.roundNumber} started!`, 'success');
+      updatePhase('bidding');
+
+      // Update round number for non-host players
+      currentRoundNumber = data.roundNumber;
+      currentTrumpSuit = null; // Reset trump suit for new round
+      document.getElementById('currentRoundBadge').textContent = `Round ${currentRoundNumber}`;
+
+      // Reset UI for new round
+      document.getElementById('gamePanel').classList.add('hidden');
+      document.getElementById('biddingPanel').classList.remove('hidden');
+      document.getElementById('selectionPanel').classList.add('hidden');
+
+      // Reset individual scores display
+      updateIndividualScores([]);
+
+      // Reset partner assignment for new round
+      isPartner = false;
+      currentPartnerId = null;
+      document.getElementById('partnerMessage').classList.add('hidden');
+
+      // Clear player badges from previous round
+      document.querySelectorAll('.player-card').forEach(card => {
+        card.classList.remove('partner', 'opponent', 'leader');
+        const badges = card.querySelectorAll('.badge-partner, .badge-opponent, .badge-leader');
+        badges.forEach(badge => badge.parentElement.remove());
+      });
+
+      // Refresh card display to remove trump highlighting from previous round
+      if (myCards && myCards.length > 0) {
+        displayCards(myCards, false); // Re-display cards without trump highlighting
+      }
+
+      console.log('[DEBUG] UI reset for new round');
+    });
+  </script>
+</body>
+</html>
