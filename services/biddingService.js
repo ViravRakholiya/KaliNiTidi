@@ -508,6 +508,51 @@ class BiddingService {
   }
 
   /**
+   * Declare the full list of partner cards at once (RULES.md §6).
+   * Each entry is { rank, suit, occurrence } where occurrence is the Nth time
+   * that exact card is played in the round (1..numberOfDecks).
+   */
+  setPartnerCards(roomId, socketId, partners) {
+    const bidding = this.activeBiddings.get(roomId);
+    if (!bidding) return { success: false, error: 'BIDDING_NOT_FOUND', message: 'Bidding not found' };
+    if (!bidding.completed) return { success: false, error: 'BIDDING_NOT_COMPLETED', message: 'Bidding must finish first' };
+    if (bidding.highestBidder !== socketId) return { success: false, error: 'NOT_LEADER', message: 'Only the leader can choose partners' };
+    if (!bidding.trump) return { success: false, error: 'TRUMP_NOT_SELECTED', message: 'Select trump first' };
+    if (!Array.isArray(partners) || partners.length === 0) {
+      return { success: false, error: 'NO_PARTNERS', message: 'Choose at least one partner card' };
+    }
+    if (partners.length > bidding.numberOfPartners) {
+      return { success: false, error: 'TOO_MANY_PARTNERS', message: `You may choose at most ${bidding.numberOfPartners} partner(s)` };
+    }
+
+    const validRanks = ['A', 'K', 'Q', 'J', '10', '9', '8', '5', '3'];
+    const validSuits = ['spades', 'hearts', 'diamonds', 'clubs'];
+    const maxOcc = bidding.numberOfSets; // a card appears at most once per deck
+    const cleaned = [];
+    const seen = new Set();
+
+    for (const p of partners) {
+      if (!p || !validRanks.includes(p.rank) || !validSuits.includes(p.suit)) {
+        return { success: false, error: 'INVALID_CARD', message: 'Invalid partner card' };
+      }
+      const occurrence = parseInt(p.occurrence, 10) || 1;
+      if (occurrence < 1 || occurrence > maxOcc) {
+        return { success: false, error: 'INVALID_OCCURRENCE', message: `Occurrence must be 1..${maxOcc}` };
+      }
+      const key = `${p.rank}_${p.suit}_${occurrence}`;
+      if (seen.has(key)) {
+        return { success: false, error: 'DUPLICATE_PARTNER', message: 'Each card+occurrence can be chosen once' };
+      }
+      seen.add(key);
+      cleaned.push({ rank: p.rank, suit: p.suit, occurrence });
+    }
+
+    bidding.partnerCards = cleaned;
+    logger.info(`Partners declared in room ${roomId}: ${cleaned.map(c => `${c.occurrence}× ${c.rank}${c.suit[0]}`).join(', ')}`);
+    return { success: true, partnerCards: cleaned };
+  }
+
+  /**
    * Complete bidding phase and transition to playing
    */
   completeSelection(roomId) {

@@ -333,6 +333,7 @@
       <span class="chip"><span id="connDot" class="conn-dot"></span> <span id="roomChip">—</span></span>
       <span id="trumpChip" class="chip hidden">Trump <b id="trumpVal">—</b></span>
       <span id="bidChip" class="chip hidden">Bid <b id="bidVal">—</b></span>
+      <span id="partnerChip" class="chip hidden">🤝 <b id="partnerVal">—</b></span>
       <span id="roundChip" class="chip hidden">Round <b id="roundVal">1</b></span>
       <span class="spacer"></span>
       <button class="icon-btn" id="soundBtn" onclick="ui.toggleSound()" title="Sound">🔊</button>
@@ -381,7 +382,7 @@
   <div id="partnerOverlay" class="overlay">
     <div class="panel modal">
       <h2>👑 You Won the Bid</h2>
-      <p style="text-align:center;font-size:13px;color:rgba(246,236,210,.75);margin-bottom:14px">Choose trump suit and your partner card.</p>
+      <p style="text-align:center;font-size:13px;color:rgba(246,236,210,.75);margin-bottom:14px">Pick the trump suit, then declare your partner cards.</p>
       <div class="field">
         <label>Trump Suit</label>
         <select id="selTrump">
@@ -393,15 +394,16 @@
       <button id="btnConfirmTrump" class="btn block" onclick="ui.confirmTrump()">Confirm Trump</button>
 
       <div id="partnerPick" class="hidden" style="margin-top:16px">
-        <div class="field">
-          <label>Partner Card</label>
-          <select id="selPartner"><option value="">Select card…</option></select>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <label style="font-size:12px;font-weight:600;color:var(--gold);text-transform:uppercase">Partner cards</label>
+          <span id="partnerAllowed" style="font-size:11.5px;color:rgba(246,236,210,.7)"></span>
         </div>
-        <div class="field" id="posWrap">
-          <label>Preferred Position (which play reveals partner)</label>
-          <select id="selPos"></select>
-        </div>
-        <button id="btnConfirmPartner" class="btn block" onclick="ui.confirmPartner()">Confirm Partner Card</button>
+        <p style="font-size:11.5px;color:rgba(246,236,210,.6);margin-bottom:10px">
+          Each row = a card + which occurrence (1st/2nd…) reveals a partner when played.
+        </p>
+        <div id="partnerRows"></div>
+        <button id="btnAddPartner" class="btn ghost block" style="margin-top:4px" onclick="ui.addPartnerRow()">+ Add partner card</button>
+        <button id="btnStartPlay" class="btn block lg" style="margin-top:12px" onclick="ui.declareAndStart()">Start Game</button>
       </div>
     </div>
   </div>
@@ -439,7 +441,8 @@
     const S = {
       socketId: null, roomId: null, name: null, isHost: false,
       players: [], phase: 'lobby',
-      hand: [], trump: null, leader: null, bidWinner: null, partnerId: null, partnerCard: null,
+      hand: [], trump: null, leader: null, bidWinner: null,
+      partnerIds: [], partnerCards: [], partnerCard: null, allowedPartners: 1,
       winningBid: 0, minBid: 0, currentBid: 0, bidStep: 5, currentTurn: null,
       numberOfSets: 2, cardsPerPlayer: 13, roundNumber: 1, maxPlayers: 4,
       scores: {}, cumulative: {}, cardPool: [],
@@ -570,7 +573,8 @@
       S.phase = 'bidding';
       S.spectating = false; // we're in this round now
       // Fresh round: clear last round's trump / partner / team state.
-      S.trump = null; S.partnerCard = null; S.partnerId = null; S.bidWinner = null; S.leader = null;
+      S.trump = null; S.partnerCard = null; S.partnerCards = []; S.partnerIds = []; S.allowedPartners = 1;
+      S.bidWinner = null; S.leader = null;
       S.players.forEach(p => { p._passed = false; p._team = null; });
       clearTrick();
       S.minBid = d.minBid; S.currentBid = d.minBid; S.winningBid = d.minBid;
@@ -608,10 +612,11 @@
       S.phase = 'selection';
       S.leader = d.leader; S.bidWinner = d.leader; S.winningBid = d.winningBid;
       S.cardPool = d.cardPool || [];
+      S.allowedPartners = d.allowedPartners || 1;
       S.currentTurn = null;
       S.players.forEach(p => p._passed = false);
       renderAll();
-      if (d.leader === socket.id) { openPartnerModal(); toast('You won the bid!', 'gold'); }
+      if (d.leader === socket.id) { openPartnerModal(); toast(`You won! Choose up to ${S.allowedPartners} partner(s)`, 'gold'); }
       else toast(`${getName(d.leader)} won the bid (${d.winningBid})`, 'gold');
     });
 
@@ -625,13 +630,20 @@
       if (d.selectedBy !== socket.id) toast(`Partner card chosen`, 'gold');
     });
 
+    socket.on('PARTNERS_DECLARED', (d) => {
+      S.partnerCards = d.partners || [];
+      if (d.selectedBy !== socket.id) toast(`Partner cards declared`, 'gold');
+    });
+
     socket.on('GAMEPLAY_STARTED', (d) => {
       S.phase = 'playing';
       S.trump = d.trump; S.leader = d.leader; S.bidWinner = d.leader;
       S.partnerCard = d.partnerCard || S.partnerCard;
+      S.partnerCards = d.partnerCards || S.partnerCards;
       S.winningBid = d.winningBid || S.winningBid;
       S.currentTurn = d.leader;
       if (d.players) S.players = mergeConn(d.players);
+      const b = getPlayer(S.bidWinner); if (b) b._team = 'bidder';
       closeOverlays();
       renderTrumpChip(); renderBidChip(); renderAll();
       toast('Game on!', 'ok');
@@ -644,16 +656,16 @@
         S.hand = S.hand.filter(c => c.id !== d.card.id);
         renderHand(); renderMe();
       }
+      if (Array.isArray(d.partnerIds)) S.partnerIds = d.partnerIds;
       if (d.partnerAssigned && d.partnerId) {
-        S.partnerId = d.partnerId;
+        if (!S.partnerIds.includes(d.partnerId)) S.partnerIds.push(d.partnerId);
         const p = getPlayer(d.partnerId); if (p) p._team = 'bidder';
         const b = getPlayer(S.bidWinner); if (b) b._team = 'bidder';
-        toast(`🤝 ${d.partnerName} is the partner!`, 'gold');
+        toast(`🤝 ${d.partnerName} joined the bidder's team!`, 'gold');
         if (d.partnerId === socket.id) setMeTag();
-      }
-      if (d.secondPartnerCardPlayed && d.opponentId) {
-        const o = getPlayer(d.opponentId); if (o) o._team = 'opp';
-        toast(`⚔️ ${d.opponentName} is an opponent`);
+      } else if (d.partnerLost) {
+        const why = d.partnerLostReason === 'bidder' ? 'bidder played it' : 'already a partner';
+        toast(`💔 A partner slot was lost (${why})`);
       }
       if (!d.trickComplete) { S.currentTurn = d.nextPlayerId; renderSeats(); renderActions(); renderHand(); }
       SFX.play();
@@ -690,13 +702,15 @@
       if (g.players && g.players.length) S.players = mergeConn(g.players);
       S.hand = Array.isArray(g.hand) ? g.hand : S.hand;
       S.trump = g.trump; S.leader = g.leader; S.bidWinner = g.bidWinner;
-      S.partnerId = g.partnerId; S.partnerCard = g.partnerCard;
+      S.partnerIds = g.partnerIds || []; S.partnerCards = g.partnerCards || []; S.partnerCard = g.partnerCard;
+      S.allowedPartners = g.allowedPartners || S.allowedPartners;
       S.winningBid = g.winningBid || 0; S.currentBid = g.bidding?.currentBid || g.winningBid || 0;
       S.minBid = g.bidding?.minimumBid || S.currentBid;
       S.currentTurn = g.currentTurn; S.roundNumber = g.roundNumber || 1;
       if (g.bidding?.numberOfSets) S.numberOfSets = g.bidding.numberOfSets;
       (g.bidding?.passedPlayers || []).forEach(pid => { const p = getPlayer(pid); if (p) p._passed = true; });
-      if (S.partnerId) { const p = getPlayer(S.partnerId); if (p) p._team = 'bidder'; const b = getPlayer(S.bidWinner); if (b) b._team = 'bidder'; }
+      if (S.bidWinner) { const b = getPlayer(S.bidWinner); if (b) b._team = 'bidder'; }
+      S.partnerIds.forEach(pid => { const p = getPlayer(pid); if (p) p._team = 'bidder'; });
 
       enterTable();
       clearTrick();
@@ -734,6 +748,14 @@
       const c = $('bidChip');
       if ((S.phase === 'selection' || S.phase === 'playing') && S.winningBid) { c.classList.remove('hidden'); $('bidVal').textContent = S.winningBid; }
       else c.classList.add('hidden');
+      renderPartnerChip();
+    }
+    function renderPartnerChip() {
+      const c = $('partnerChip');
+      if (S.phase === 'playing' && S.partnerCards && S.partnerCards.length) {
+        c.classList.remove('hidden');
+        $('partnerVal').textContent = S.partnerCards.map(p => `${p.occurrence ? p.occurrence + '×' : ''}${p.rank}${SUIT[p.suit]}`).join(' ');
+      } else c.classList.add('hidden');
     }
 
     function renderSeats() {
@@ -744,13 +766,13 @@
         let cls = 'seat';
         if (p.socketId === S.currentTurn) cls += ' active';
         if (p.connected === false) cls += ' off';
-        if (p._team === 'bidder' || p.socketId === S.bidWinner || p.socketId === S.partnerId) cls += ' team-bidder';
+        if (p._team === 'bidder' || p.socketId === S.bidWinner || S.partnerIds.includes(p.socketId)) cls += ' team-bidder';
         else if (p._team === 'opp') cls += ' team-opp';
         el.className = cls;
 
         const roles = [];
         if (p.socketId === S.leader || p.socketId === S.bidWinner) roles.push('👑');
-        if (p.socketId === S.partnerId) roles.push('🤝');
+        if (S.partnerIds.includes(p.socketId)) roles.push('🤝');
         if (p.isBot) roles.push('🤖');
         if (p.isHost) roles.push('★');
 
@@ -809,7 +831,7 @@
       const tag = $('meTag');
       let t = '';
       if (S.bidWinner === socket.id) t = '👑 Bidder';
-      else if (S.partnerId === socket.id) t = '🤝 Partner';
+      else if (S.partnerIds.includes(socket.id)) t = '🤝 Partner';
       if (t) { tag.textContent = t; tag.classList.remove('hidden'); } else tag.classList.add('hidden');
     }
 
@@ -953,55 +975,68 @@
     // =====================================================
     //  PARTNER / TRUMP MODAL
     // =====================================================
+    const ordinal = (n) => n + (['th','st','nd','rd'][(n % 100 - 20) % 10] || ['th','st','nd','rd'][n] || 'th');
+
     function openPartnerModal() {
       $('selTrump').value = S.trump || '';
       $('partnerPick').classList.toggle('hidden', !S.trump);
-      if (S.trump) populatePartnerSelect();
+      $('partnerAllowed').textContent = `up to ${S.allowedPartners || 1}`;
+      $('partnerRows').innerHTML = '';
+      if (S.trump) { ui.addPartnerRow(); }
       $('partnerOverlay').classList.add('show');
     }
-    function populatePartnerSelect() {
-      const sel = $('selPartner'); sel.innerHTML = '<option value="">Select card…</option>';
-      (S.cardPool || []).forEach(k => {
-        const [rank, suit] = k.split('_');
-        const o = document.createElement('option'); o.value = k; o.textContent = `${rank} ${SUIT[suit]} ${cap(suit)}`;
-        sel.appendChild(o);
-      });
-      sel.onchange = updatePositions;
-      updatePositions();
-    }
-    function updatePositions() {
-      const k = $('selPartner').value; const sel = $('selPos'); sel.innerHTML = '';
-      if (!k) { $('posWrap').classList.add('hidden'); return; }
-      const [rank, suit] = k.split('_');
-      const have = S.hand.filter(c => c.rank === rank && c.suit === suit).length;
-      const maxPos = Math.max(1, (S.numberOfSets || 2) - have);
-      $('posWrap').classList.remove('hidden');
-      for (let i = 1; i <= maxPos; i++) {
-        const o = document.createElement('option'); o.value = i;
-        o.textContent = i === 1 ? '1st player to play it becomes partner' : `${i}${i===2?'nd':i===3?'rd':'th'} player to play it`;
-        sel.appendChild(o);
-      }
-    }
+
+    // Build one partner-card row: a card dropdown + an occurrence dropdown + remove.
+    ui.addPartnerRow = function () {
+      const rows = $('partnerRows');
+      if (rows.children.length >= (S.allowedPartners || 1)) { toast(`Max ${S.allowedPartners} partners`, 'err'); return; }
+      const decks = S.numberOfSets || 2;
+      const row = document.createElement('div');
+      row.className = 'row2'; row.style.cssText = 'gap:8px;margin-bottom:8px;grid-template-columns:1fr auto auto;align-items:center';
+      const cardSel = document.createElement('select');
+      cardSel.innerHTML = '<option value="">Select card…</option>' + (S.cardPool || []).map(k => {
+        const [rank, suit] = k.split('_'); return `<option value="${k}">${rank} ${SUIT[suit]} ${cap(suit)}</option>`;
+      }).join('');
+      cardSel.style.cssText = 'padding:11px;border-radius:10px;background:rgba(0,0,0,.35);color:var(--cream);border:1px solid rgba(232,196,104,.25)';
+      const occSel = document.createElement('select');
+      occSel.innerHTML = Array.from({ length: decks }, (_, i) => `<option value="${i + 1}">${ordinal(i + 1)}</option>`).join('');
+      occSel.title = 'Which occurrence (Nth time the card is played)';
+      occSel.style.cssText = 'padding:11px;border-radius:10px;background:rgba(0,0,0,.35);color:var(--cream);border:1px solid rgba(232,196,104,.25)';
+      const del = document.createElement('button');
+      del.className = 'icon-btn'; del.textContent = '✕'; del.onclick = () => row.remove();
+      row.appendChild(cardSel); row.appendChild(occSel); row.appendChild(del);
+      rows.appendChild(row);
+    };
+
     window.ui = window.ui || {};
     ui.confirmTrump = function () {
       const suit = $('selTrump').value;
       if (!suit) return toast('Pick a trump suit', 'err');
       socket.emit('SELECT_TRUMP', { roomId: S.roomId, suit }, (r) => {
-        if (r && r.success) { S.trump = suit; renderTrumpChip(); renderHand(); $('partnerPick').classList.remove('hidden'); populatePartnerSelect(); }
-        else toast(r?.message || 'Trump failed', 'err');
+        if (r && r.success) {
+          S.trump = suit; renderTrumpChip(); renderHand();
+          $('partnerPick').classList.remove('hidden');
+          if ($('partnerRows').children.length === 0) ui.addPartnerRow();
+        } else toast(r?.message || 'Trump failed', 'err');
       });
     };
-    ui.confirmPartner = function () {
-      const k = $('selPartner').value;
-      if (!k) return toast('Pick a partner card', 'err');
-      const [rank, suit] = k.split('_');
-      const preferredPosition = parseInt($('selPos').value) || 1;
-      socket.emit('SELECT_PARTNER_CARD', { roomId: S.roomId, rank, suit, preferredPosition }, (r) => {
+
+    // Collect all partner rows, declare them, then start the game.
+    ui.declareAndStart = function () {
+      const partners = [];
+      [...$('partnerRows').children].forEach(row => {
+        const sels = row.querySelectorAll('select');
+        const k = sels[0].value; if (!k) return;
+        const [rank, suit] = k.split('_');
+        partners.push({ rank, suit, occurrence: parseInt(sels[1].value) || 1 });
+      });
+      if (!partners.length) return toast('Add at least one partner card', 'err');
+      socket.emit('DECLARE_PARTNERS', { roomId: S.roomId, partners }, (r) => {
         if (r && r.success) {
-          S.partnerCard = { rank, suit };
+          S.partnerCards = r.partnerCards;
           socket.emit('START_GAMEPLAY', { roomId: S.roomId }, (g) => { if (g && !g.success) toast(g.message || 'Could not start play', 'err'); });
           closeOverlays();
-        } else toast(r?.message || 'Partner selection failed', 'err');
+        } else toast(r?.message || 'Could not declare partners', 'err');
       });
     };
 

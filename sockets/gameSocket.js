@@ -120,7 +120,8 @@ function broadcastCardPlayed(io, roomId, playerId, result) {
     cardsRemaining: result.cardsRemaining, nextPlayerId, trickComplete: result.trickComplete,
     partnerCardPlayed: result.partnerCardPlayed, partnerAssigned: result.partnerAssigned,
     partnerId: result.partnerId, partnerName: result.partnerName,
-    secondPartnerCardPlayed: result.secondPartnerCardPlayed, opponentId: result.opponentId, opponentName: result.opponentName
+    partnerLost: result.partnerLost, partnerLostReason: result.partnerLostReason,
+    partnerIds: result.partnerIds
   });
 
   if (result.trickComplete) {
@@ -147,7 +148,7 @@ function mostCommonSuit(hand) {
   return best;
 }
 
-function pickPartnerCard(gameState, botId) {
+function pickPartnerCards(gameState, botId, count) {
   const botSet = new Set((gameState.hands[botId] || []).map(c => `${c.rank}_${c.suit}`));
   const pool = new Set();
   for (const sid in gameState.hands) {
@@ -156,13 +157,22 @@ function pickPartnerCard(gameState, botId) {
   }
   const order = ['A', 'K', 'Q', 'J', '10', '9', '8', '5', '3'];
   const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
-  for (const r of order) for (const s of suits) {
-    const key = `${r}_${s}`;
-    if (pool.has(key) && !botSet.has(key)) return { rank: r, suit: s };
+  const picks = [];
+  for (const r of order) {
+    for (const s of suits) {
+      if (picks.length >= count) break;
+      const key = `${r}_${s}`;
+      if (pool.has(key) && !botSet.has(key)) picks.push({ rank: r, suit: s, occurrence: 1 });
+    }
+    if (picks.length >= count) break;
   }
-  const first = Array.from(pool)[0];
-  if (first) { const [rank, suit] = first.split('_'); return { rank, suit }; }
-  return { rank: 'A', suit: 'spades' };
+  // Fallback: if nothing suitable, just take any pool cards
+  if (picks.length === 0) {
+    const first = Array.from(pool)[0];
+    if (first) { const [rank, suit] = first.split('_'); picks.push({ rank, suit, occurrence: 1 }); }
+    else picks.push({ rank: 'A', suit: 'spades', occurrence: 1 });
+  }
+  return picks;
 }
 
 function lowestLegalCard(hand, ledSuit) {
@@ -214,21 +224,19 @@ function botLead(io, roomId, botId) {
     io.to(roomId).emit('TRUMP_SELECTED', { roomId, suit: trump, selectedBy: botId });
   }
 
-  const partner = pickPartnerCard(game, botId);
-  const leaderCardCount = hand.filter(c => c.rank === partner.rank && c.suit === partner.suit).length;
-  const pr = biddingService.selectPartnerCard(roomId, botId, partner.rank, partner.suit, 1, leaderCardCount);
-  if (!pr.success) { logger.warn(`Bot partner failed: ${pr.message}`); return; }
-  io.to(roomId).emit('PARTNER_CARD_SELECTED', {
-    roomId, partnerCard: pr.partnerCard, selectedBy: botId, preferredPosition: 1,
-    leaderCardCount, maxPosition: bidding.numberOfSets - leaderCardCount, numberOfSets: bidding.numberOfSets
-  });
+  // Declare up to `numberOfPartners` distinct high cards the bot doesn't hold,
+  // each at occurrence 1.
+  const partners = pickPartnerCards(game, botId, bidding.numberOfPartners);
+  const pr = biddingService.setPartnerCards(roomId, botId, partners);
+  if (!pr.success) { logger.warn(`Bot partner declaration failed: ${pr.message}`); return; }
+  io.to(roomId).emit('PARTNERS_DECLARED', { roomId, partners: pr.partnerCards, selectedBy: botId });
 
   const gp = gameService.startGameplay(roomId, botId);
   if (gp.success) {
     io.to(roomId).emit('GAMEPLAY_STARTED', {
       roomId,
       players: gp.gameState.players.map(p => ({ socketId: p.socketId, name: p.name, isHost: p.isHost })),
-      trump: gp.trump, partnerCard: gp.partnerCard, leader: gp.leader,
+      trump: gp.trump, partnerCard: gp.partnerCard, partnerCards: gp.partnerCards, leader: gp.leader,
       winningBid: gp.winningBid, totalPoints: gp.gameState.totalPointsInDeck
     });
     driveBots(io, roomId);
@@ -867,9 +875,9 @@ export const handleGameSocket = (io, socket) => {
         partnerAssigned: result.partnerAssigned,
         partnerId: result.partnerId,
         partnerName: result.partnerName,
-        secondPartnerCardPlayed: result.secondPartnerCardPlayed,
-        opponentId: result.opponentId,
-        opponentName: result.opponentName
+        partnerLost: result.partnerLost,
+        partnerLostReason: result.partnerLostReason,
+        partnerIds: result.partnerIds
       });
 
       // Check if trick is complete
@@ -948,7 +956,8 @@ export const handleGameSocket = (io, socket) => {
           isHost: p.isHost
         })),
         trump: result.trump,
-        partnerCard: result.partnerCard, // Includes preferredPosition if set
+        partnerCard: result.partnerCard, // legacy single card
+        partnerCards: result.partnerCards, // full list of { rank, suit, occurrence }
         leader: result.leader,
         winningBid: result.winningBid,
         totalPoints: result.gameState.totalPointsInDeck // Fixed: Send actual total points, not card count
@@ -962,6 +971,29 @@ export const handleGameSocket = (io, socket) => {
 
       logger.info(`Gameplay started in room ${roomId}`);
       driveBots(io, roomId);
+    } else {
+      if (typeof callback === 'function') callback(result);
+      socket.emit('ROOM_ERROR', result);
+    }
+  });
+
+  // Declare the full set of partner cards at once (card + occurrence each).
+  socket.on('DECLARE_PARTNERS', (data, callback) => {
+    const roomId = data?.roomId || roomService.findRoomBySocketId(socket.id);
+    const { partners } = data || {};
+
+    if (!roomId) {
+      const error = { success: false, error: 'NOT_IN_ROOM', message: 'Not in any room' };
+      if (typeof callback === 'function') callback(error);
+      socket.emit('ROOM_ERROR', error);
+      return;
+    }
+
+    const result = biddingService.setPartnerCards(roomId, socket.id, partners);
+    if (result.success) {
+      io.to(roomId).emit('PARTNERS_DECLARED', { roomId, partners: result.partnerCards, selectedBy: socket.id });
+      if (typeof callback === 'function') callback(result);
+      logger.info(`Partners declared in room ${roomId} by ${socket.id.substring(0, 8)}...`);
     } else {
       if (typeof callback === 'function') callback(result);
       socket.emit('ROOM_ERROR', result);

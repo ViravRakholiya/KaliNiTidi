@@ -83,6 +83,8 @@ The team can end up smaller than the bidder hoped.
 1. ✅ **Cards & setup** (DONE): host-configured room setup (decks, cards/player, min bid,
    base partners, points-per-extra-partner) + new deck/dealing engine (point cards always
    dealt, balanced with 8s/9s). Earned-partner count scales with the winning bid.
-2. ⏭ **Partner engine** (next): declare multiple `card + occurrence` partners; lose a partner
-   when the bidder or an existing partner plays one. (Today still uses the old 1-partner UI.)
+2. ✅ **Partner engine** (DONE): bidder declares up to `allowedPartners` cards, each as
+   `card + occurrence`. During play, the Nth play of that card resolves: a new player joins
+   the team, while the bidder or an already-partnered player playing it loses a slot.
+   Scoring uses the full team (bidder + all partners).
 3. ⏳ **Scoring** (last): once Virav finalises the rules.

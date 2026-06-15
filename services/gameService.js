@@ -476,7 +476,11 @@ class GameService {
     gameState.phase = 'playing';
     gameState.leader = socketId;
     gameState.trump = bidding.trump;
-    gameState.partnerCard = bidding.partnerCards[0]; // First (and only) partner card
+
+    // Declared partner cards: list of { rank, suit, occurrence } (RULES.md §6)
+    gameState.partnerCards = bidding.partnerCards.map(p => ({ rank: p.rank, suit: p.suit, occurrence: p.occurrence || 1 }));
+    gameState.partnerCard = gameState.partnerCards[0] || null; // legacy single-card field
+    gameState.declaredPartners = gameState.partnerCards.map(p => ({ ...p, resolved: false }));
 
     // Track bidding information for scoring
     gameState.bidWinner = bidding.highestBidder;
@@ -491,25 +495,19 @@ class GameService {
       currentPlayerIndex: gameState.players.findIndex(p => p.socketId === socketId)
     };
 
-    // Track partner card plays for dynamic team assignment
-    gameState.partnerCardPlays = []; // Will track who plays the partner card
-    gameState.teamsAssigned = false; // Will be set to true after both partner card holders have played
+    // Partner tracking state (RULES.md §7)
+    gameState.occurrenceCounts = {}; // `${rank}_${suit}` -> times played this round
+    gameState.partnerIds = [];       // bidder's team members (excluding the bidder)
 
-    // Debug: Log cards in each hand
-    logger.info(`[DEBUG] Cards in hands at START_GAMEPLAY:`);
-    Object.entries(gameState.hands).forEach(([socketId, hand]) => {
-      const player = gameState.players.find(p => p.socketId === socketId);
-      logger.info(`[DEBUG]   ${player?.name || socketId.substring(0, 8)}: ${hand.length} cards`);
-    });
-
-    logger.info(`Gameplay started in room ${roomId}. Leader: ${socketId.substring(0, 8)}..., Trump: ${gameState.trump}, Partner Card: ${gameState.partnerCard.rank} of ${gameState.partnerCard.suit}, Bid: ${gameState.winningBid}`);
-    logger.info(`[DEBUG] Partner card for tracking: Rank=${gameState.partnerCard.rank}, Suit=${gameState.partnerCard.suit}`);
+    const declaredStr = gameState.partnerCards.map(p => `${p.occurrence}× ${p.rank}${p.suit[0]}`).join(', ');
+    logger.info(`Gameplay started in room ${roomId}. Leader: ${socketId.substring(0, 8)}..., Trump: ${gameState.trump}, Partners: [${declaredStr}], Bid: ${gameState.winningBid}`);
 
     return {
       success: true,
       gameState,
       trump: gameState.trump,
       partnerCard: gameState.partnerCard,
+      partnerCards: gameState.partnerCards,
       leader: socketId,
       winningBid: gameState.winningBid,
       bidWinner: gameState.bidWinner
@@ -635,95 +633,6 @@ class GameService {
         partnerCardPlayed: false
       };
 
-      // Check if this card is the partner card (only if partner card is set)
-      let isPartnerCard = false;
-      if (gameState.partnerCard && playedCard) {
-        isPartnerCard = playedCard.rank === gameState.partnerCard.rank &&
-                        playedCard.suit === gameState.partnerCard.suit;
-
-        logger.info(`[PARTNER CHECK] Player played: ${playedCard.rank} of ${playedCard.suit}, Partner card: ${gameState.partnerCard.rank} of ${gameState.partnerCard.suit}, Match: ${isPartnerCard}`);
-      } else {
-        logger.info(`[PARTNER CHECK] Partner card not set (${!gameState.partnerCard}) or card not found`);
-      }
-
-      // Track partner card plays for dynamic team assignment
-      if (isPartnerCard && gameState.partnerCardPlays) {
-        const alreadyPlayed = gameState.partnerCardPlays.find(p => p.playerId === socketId);
-
-        if (!alreadyPlayed) {
-          gameState.partnerCardPlays.push({
-            playerId: socketId,
-            playerName: player.name,
-            card: playedCard,
-            timestamp: new Date().toISOString()
-          });
-
-          logger.info(`Partner card played by ${player.name} (${socketId.substring(0, 8)}...) - Play #${gameState.partnerCardPlays.length}`);
-
-          // Prevent bidder from becoming their own partner
-          if (socketId === gameState.bidWinner) {
-            logger.info(`Skipping partner assignment - bidder cannot be their own partner`);
-          } else if (gameState.partnerId) {
-            // Partner already assigned, log but don't re-assign
-            logger.info(`Partner already assigned to ${gameState.partnerId.substring(0, 8)}... - skipping re-assignment for ${player.name} (${socketId.substring(0, 8)}...)`);
-          } else {
-            // Check partner assignment based on preferred position
-            const bidding = biddingService.activeBiddings.get(roomId);
-            const preferredPosition = bidding?.partnerCards[0]?.preferredPosition;
-
-            // Count non-bidder partner card plays
-            const nonBidderPlays = gameState.partnerCardPlays.filter(p => p.playerId !== gameState.bidWinner);
-            const playCount = nonBidderPlays.length;
-
-            logger.info(`[PARTNER ASSIGNMENT CHECK] Player: ${player.name}, PlayCount: ${playCount}, PreferredPosition: ${preferredPosition || 'none'}`);
-
-            if (preferredPosition && playCount === preferredPosition) {
-              // Leader's preferred position player becomes partner
-              gameState.partnerId = socketId;
-              gameState.partnerAssignedAt = Date.now();
-
-              logger.info(`PARTNER ASSIGNED (Preferred Position ${preferredPosition}): ${player.name} (${socketId.substring(0, 8)}...) is now the partner!`);
-
-              gameState.teamsAssigned = true;
-
-              // Set partner assignment info for result (to be sent to clients)
-              result.partnerAssigned = true;
-              result.partnerId = socketId;
-              result.partnerName = player.name;
-            } else if (playCount === 1 && !preferredPosition) {
-              // First non-bidder player to play partner card becomes partner (no preference)
-              gameState.partnerId = socketId;
-              gameState.partnerAssignedAt = Date.now();
-
-              logger.info(`PARTNER ASSIGNED: ${player.name} (${socketId.substring(0, 8)}...) is now the partner!`);
-
-              // Set partner assignment info for result (to be sent to clients)
-              result.partnerAssigned = true;
-              result.partnerId = socketId;
-              result.partnerName = player.name;
-            } else if (playCount === 2 && !preferredPosition) {
-              // Second non-bidder player to play partner card becomes opponent
-              logger.info(`SECOND PARTNER CARD PLAYED: ${player.name} (${socketId.substring(0, 8)}...) is now an opponent!`);
-              gameState.teamsAssigned = true;
-
-              // Set opponent assignment info for result
-              result.secondPartnerCardPlayed = true;
-              result.opponentId = socketId;
-              result.opponentName = player.name;
-            } else if (playCount === 2 && preferredPosition) {
-              // Second non-bidder player played (not the preferred position) - becomes opponent
-              logger.info(`SECOND PARTNER CARD PLAYED: ${player.name} (${socketId.substring(0, 8)}...) is now an opponent!`);
-              gameState.teamsAssigned = true;
-
-              // Set opponent assignment info for result
-              result.secondPartnerCardPlayed = true;
-              result.opponentId = socketId;
-              result.opponentName = player.name;
-            }
-          }
-        }
-      }
-
       // Validate follow suit rule
       if (gameState.currentTrick.ledSuit) {
         const hasLedSuit = hand.some(c => c.suit === gameState.currentTrick.ledSuit);
@@ -758,7 +667,48 @@ class GameService {
 
       // Finalize result fields now that the card has left the hand
       result.cardsRemaining = hand.length;
-      result.partnerCardPlayed = isPartnerCard;
+
+      // ---- Partner resolution (RULES.md §7) ----
+      // Count how many times this exact card has now been played this round,
+      // then see if the bidder declared THIS occurrence as a partner card.
+      const cardKey = `${playedCard.rank}_${playedCard.suit}`;
+      if (!gameState.occurrenceCounts) gameState.occurrenceCounts = {};
+      gameState.occurrenceCounts[cardKey] = (gameState.occurrenceCounts[cardKey] || 0) + 1;
+      const occurrence = gameState.occurrenceCounts[cardKey];
+
+      const declared = (gameState.declaredPartners || []).find(
+        d => !d.resolved && d.rank === playedCard.rank && d.suit === playedCard.suit && d.occurrence === occurrence
+      );
+
+      if (declared) {
+        declared.resolved = true;
+        result.partnerCardPlayed = true;
+        result.declaredOccurrence = occurrence;
+
+        if (!gameState.partnerIds) gameState.partnerIds = [];
+
+        if (socketId === gameState.bidWinner) {
+          // Bidder played their own partner card → that partner slot is lost.
+          result.partnerLost = true;
+          result.partnerLostReason = 'bidder';
+          logger.info(`Partner slot LOST: bidder played declared ${cardKey} (occ ${occurrence})`);
+        } else if (gameState.partnerIds.includes(socketId)) {
+          // Already on the team → no new partner, team stays one short.
+          result.partnerLost = true;
+          result.partnerLostReason = 'already-partner';
+          logger.info(`Partner slot LOST: ${player.name} already a partner, played declared ${cardKey} (occ ${occurrence})`);
+        } else {
+          // A new player joins the bidder's team.
+          gameState.partnerIds.push(socketId);
+          result.partnerAssigned = true;
+          result.partnerId = socketId;
+          result.partnerName = player.name;
+          logger.info(`PARTNER ASSIGNED: ${player.name} (${socketId.substring(0, 8)}...) via declared ${cardKey} (occ ${occurrence})`);
+        }
+
+        // Always report the current full team so clients stay in sync
+        result.partnerIds = [...gameState.partnerIds];
+      }
 
       // Check if trick is complete
       if (gameState.currentTrick.cards.length === gameState.players.length) {
@@ -801,20 +751,9 @@ class GameService {
 
           logger.info(`All cards played. Calculating final scores...`);
 
-          // DEBUG: Log partner assignment status
-          if (!gameState.partnerId) {
-            logger.warn(`[PARTNER ASSIGNMENT WARNING] No partner assigned! Partner card plays: ${JSON.stringify(gameState.partnerCardPlays?.map(p => ({ name: p.playerName, card: `${p.card.rank} of ${p.card.suit}` }))) || '[]'}`);
-
-            // FALLBACK: Try to assign partner based on who played the partner card
-            if (gameState.partnerCardPlays && gameState.partnerCardPlays.length > 0) {
-              const nonBidderPlays = gameState.partnerCardPlays.filter(p => p.playerId !== gameState.bidWinner);
-              if (nonBidderPlays.length > 0) {
-                // Assign the first non-bidder who played the partner card as the partner
-                const fallbackPartner = nonBidderPlays[0];
-                gameState.partnerId = fallbackPartner.playerId;
-                logger.warn(`[PARTNER FALLBACK] Assigned ${fallbackPartner.playerName} (${fallbackPartner.playerId.substring(0, 8)}...) as partner (fallback assignment)`);
-              }
-            }
+          const partners = gameState.partnerIds || [];
+          if (!partners.length) {
+            logger.warn(`[PARTNER] Bidder ended the round with no partners (declared cards never landed with a new player).`);
           }
 
           // Calculate final team scores
@@ -839,25 +778,23 @@ class GameService {
 
           // Determine game winner
           let gameWinner = null;
-          const bidderScore = finalScores.playerScores[finalScores.bidder];
-          const partnerScore = finalScores.playerScores[finalScores.partner];
+          const teamPartners = finalScores.partners || [];
+          const isBidderTeam = (sid) => sid === finalScores.bidder || teamPartners.includes(sid);
 
-          // Bidder's team wins if they have positive combined score
-          if (bidderScore + partnerScore > 0) {
+          if (finalScores.madeBid) {
             gameWinner = finalScores.bidder;
           } else {
             // Opponent with highest score wins
             let maxOpponentScore = -Infinity;
-            // Calculate opponent team from players who are not bidder or partner
-            const opponentTeam = gameState.players
-              .filter(p => p.socketId !== finalScores.bidder && p.socketId !== finalScores.partner)
-              .map(p => p.socketId);
-            opponentTeam.forEach(socketId => {
-              if (finalScores.playerScores[socketId] > maxOpponentScore) {
-                maxOpponentScore = finalScores.playerScores[socketId];
-                gameWinner = socketId;
-              }
-            });
+            gameState.players
+              .filter(p => !isBidderTeam(p.socketId))
+              .map(p => p.socketId)
+              .forEach(socketId => {
+                if (finalScores.playerScores[socketId] > maxOpponentScore) {
+                  maxOpponentScore = finalScores.playerScores[socketId];
+                  gameWinner = socketId;
+                }
+              });
           }
 
           result.gameWinner = gameWinner;
@@ -1031,21 +968,20 @@ class GameService {
       playerPoints[player.socketId] = player.score;
     });
 
-    // Determine teams
-    const bidderTeam = [gameState.bidWinner];
-    if (gameState.partnerId) {
-      bidderTeam.push(gameState.partnerId);
-    }
+    // Determine teams (bidder + every partner that joined the team)
+    const partnerIds = gameState.partnerIds || (gameState.partnerId ? [gameState.partnerId] : []);
+    const isOnBidderTeam = (sid) => sid === gameState.bidWinner || partnerIds.includes(sid);
+    const bidderTeam = [gameState.bidWinner, ...partnerIds];
 
     const opponentTeam = gameState.players
-      .filter(p => p.socketId !== gameState.bidWinner && p.socketId !== gameState.partnerId)
+      .filter(p => !isOnBidderTeam(p.socketId))
       .map(p => p.socketId);
 
     // Calculate team totals
     const bidderTeamPoints = bidderTeam.reduce((sum, socketId) => sum + (playerPoints[socketId] || 0), 0);
     const opponentTeamPoints = opponentTeam.reduce((sum, socketId) => sum + (playerPoints[socketId] || 0), 0);
 
-    logger.info(`[Final Scores] Bidder: ${gameState.bidWinner?.substring(0, 8)}..., Partner: ${gameState.partnerId?.substring(0, 8) || 'NOT ASSIGNED'}`);
+    logger.info(`[Final Scores] Bidder: ${gameState.bidWinner?.substring(0, 8)}..., Partners: [${partnerIds.map(id => id.substring(0, 8)).join(', ') || 'NONE'}]`);
     logger.info(`[Final Scores] Bidder Team: [${bidderTeam.map(id => id.substring(0, 8)).join(', ')}] = ${bidderTeamPoints} points`);
     logger.info(`[Final Scores] Opponent Team: [${opponentTeam.map(id => id.substring(0, 8)).join(', ')}] = ${opponentTeamPoints} points`);
     logger.info(`[Final Scores] Winning Bid: ${gameState.winningBid}, Made Bid: ${bidderTeamPoints >= gameState.winningBid}`);
@@ -1064,7 +1000,7 @@ class GameService {
           finalScores[player.socketId] = -gameState.winningBid * 2;
           logger.info(`[SCORE] ${player.name} (Bidder) FAILED BID ${gameState.winningBid}: Score = -${gameState.winningBid * 2}`);
         }
-      } else if (player.socketId === gameState.partnerId) {
+      } else if (partnerIds.includes(player.socketId)) {
         // Partner
         if (madeBid) {
           finalScores[player.socketId] = gameState.winningBid;
@@ -1097,7 +1033,8 @@ class GameService {
       winningBid: gameState.winningBid,
       madeBid,
       bidder: gameState.bidWinner,
-      partner: gameState.partnerId
+      partner: partnerIds[0] || null,
+      partners: partnerIds
     };
   }
 
@@ -1116,13 +1053,14 @@ class GameService {
       gameState.finalScores = finalScores;
     }
 
+    const partnerIds = finalScores.partners || (gameState.partnerIds || []);
     return gameState.players.map(p => ({
       socketId: p.socketId,
       name: p.name,
       score: finalScores.playerScores[p.socketId],
-      isPartner: p.socketId === gameState.partnerId,
+      isPartner: partnerIds.includes(p.socketId),
       isBidder: p.socketId === finalScores.bidder,
-      team: p.socketId === finalScores.bidder || p.socketId === finalScores.partner ? 'bidder' : 'opponent'
+      team: (p.socketId === finalScores.bidder || partnerIds.includes(p.socketId)) ? 'bidder' : 'opponent'
     }));
   }
 
@@ -1229,11 +1167,9 @@ class GameService {
       });
     }
 
-    // Partner card play history
-    if (Array.isArray(gameState.partnerCardPlays)) {
-      gameState.partnerCardPlays.forEach(p => {
-        if (p.playerId === oldSocketId) p.playerId = newSocketId;
-      });
+    // Partner team membership
+    if (Array.isArray(gameState.partnerIds)) {
+      gameState.partnerIds = gameState.partnerIds.map(id => (id === oldSocketId ? newSocketId : id));
     }
 
     // Final scores (if already computed)
@@ -1245,6 +1181,7 @@ class GameService {
       }
       if (fs.bidder === oldSocketId) fs.bidder = newSocketId;
       if (fs.partner === oldSocketId) fs.partner = newSocketId;
+      if (Array.isArray(fs.partners)) fs.partners = fs.partners.map(id => (id === oldSocketId ? newSocketId : id));
     }
 
     biddingService.rebindSocket(roomId, oldSocketId, newSocketId);
@@ -1303,9 +1240,12 @@ class GameService {
       trump: gameState.trump || (bidding ? bidding.trump : null),
       leader: gameState.leader || (bidding ? bidding.highestBidder : null),
       partnerCard: gameState.partnerCard || (bidding?.partnerCards?.[0] || null),
-      partnerId: gameState.partnerId || null,
+      partnerCards: gameState.partnerCards || (bidding?.partnerCards || []),
+      partnerIds: gameState.partnerIds || [],
+      partnerId: (gameState.partnerIds && gameState.partnerIds[0]) || null,
       bidWinner: gameState.bidWinner || (bidding ? bidding.highestBidder : null),
       winningBid: gameState.winningBid || (bidding ? bidding.currentBid : 0),
+      allowedPartners: bidding ? bidding.numberOfPartners : null,
       roundNumber: gameState.roundNumber || 1,
       // Cards already played in the in-progress trick
       currentTrick: gameState.currentTrick
