@@ -352,22 +352,42 @@
                 position: relative;
                 min-height: 0;
                 overflow: hidden;
-                background:
-                    radial-gradient(
-                        120% 100% at 50% 46%,
-                        rgba(0, 0, 0, 0.12) 0%,
-                        rgba(0, 0, 0, 0.32) 70%,
-                        rgba(0, 0, 0, 0.5) 100%
-                    ),
-                    url("/table-bg.png") center/cover no-repeat,
-                    #241608;
+                background: radial-gradient(
+                    120% 90% at 50% 32%,
+                    #2e2336 0%,
+                    #1c1526 58%,
+                    #0f0a17 100%
+                );
+            }
+            /* green felt table with a wooden rail */
+            .table-surface {
+                position: absolute;
+                left: 50%;
+                top: 47%;
+                transform: translate(-50%, -50%);
+                width: 90%;
+                height: 78%;
+                max-width: 1000px;
+                border-radius: 48% / 46%;
+                background: radial-gradient(
+                    120% 120% at 50% 38%,
+                    #2f9e63 0%,
+                    #1f7d4c 55%,
+                    #14603a 100%
+                );
+                border: 12px solid #5a3b21;
+                box-shadow:
+                    inset 0 0 0 4px rgba(212, 175, 55, 0.45),
+                    inset 0 8px 34px rgba(0, 0, 0, 0.35),
+                    0 18px 50px rgba(0, 0, 0, 0.6);
             }
 
-            /* players arranged around the mandala (positions set in JS) */
+            /* players arranged around the table (positions set in JS) */
             .seats {
                 position: absolute;
                 inset: 0;
                 pointer-events: none;
+                z-index: 2;
             }
             .seat {
                 position: absolute;
@@ -393,12 +413,17 @@
                 box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
             }
             .seat.active {
-                border-color: var(--gold);
+                border-color: #3ddc84;
                 box-shadow:
-                    0 0 0 2px rgba(232, 196, 104, 0.5),
-                    0 0 18px rgba(232, 196, 104, 0.45);
+                    0 0 0 2px rgba(61, 220, 132, 0.6),
+                    0 0 20px rgba(61, 220, 132, 0.5);
             }
+            /* green round border around the avatar of whoever's turn it is */
             .seat.active .avatar {
+                box-shadow:
+                    0 0 0 3px #3ddc84,
+                    0 0 14px rgba(61, 220, 132, 0.7),
+                    inset 0 -3px 6px rgba(0, 0, 0, 0.25);
                 animation: bob 1.2s ease-in-out infinite;
             }
             @keyframes bob {
@@ -837,6 +862,46 @@
                 gap: 6px;
                 pointer-events: none;
             }
+            /* big "partner revealed" banner everyone sees */
+            .reveal {
+                position: fixed;
+                left: 50%;
+                top: 40%;
+                transform: translate(-50%, -50%);
+                z-index: 46;
+                padding: 18px 28px;
+                border-radius: 18px;
+                text-align: center;
+                background: linear-gradient(
+                    180deg,
+                    rgba(20, 70, 44, 0.97),
+                    rgba(12, 44, 28, 0.97)
+                );
+                border: 2px solid var(--gold);
+                box-shadow: 0 22px 60px rgba(0, 0, 0, 0.7);
+                animation: revealIn 0.35s ease;
+                pointer-events: none;
+            }
+            .reveal.hidden {
+                display: none;
+            }
+            .reveal .big {
+                font-family: var(--display);
+                font-size: 22px;
+                color: var(--gold);
+            }
+            .reveal .nm {
+                font-size: 17px;
+                font-weight: 800;
+                margin-top: 4px;
+                color: var(--cream);
+            }
+            @keyframes revealIn {
+                from {
+                    transform: translate(-50%, -50%) scale(0.7);
+                    opacity: 0;
+                }
+            }
             .toast {
                 max-width: 90%;
                 padding: 10px 16px;
@@ -1092,6 +1157,7 @@
             </div>
 
             <div class="felt">
+                <div class="table-surface"></div>
                 <div id="seats" class="seats"></div>
 
                 <div class="center">
@@ -1226,6 +1292,7 @@
             </div>
         </div>
 
+        <div id="reveal" class="reveal hidden"></div>
         <div id="toasts"></div>
 
         <script src="/socket.io.min.js"></script>
@@ -1256,6 +1323,25 @@
                     "5",
                     "3",
                 ];
+                // Gujarati suit names + ordinal words (for the ભેરુ / partner picker)
+                const GU_SUIT = {
+                    spades: "કાળી",
+                    hearts: "લાલી",
+                    diamonds: "સરકટ",
+                    clubs: "ફૂલી",
+                };
+                const GU_ORD = [
+                    "",
+                    "પેલો",
+                    "બીજો",
+                    "ત્રીજો",
+                    "ચોથો",
+                    "પાંચમો",
+                    "છઠ્ઠો",
+                    "સાતમો",
+                    "આઠમો",
+                ];
+                const DECK_RANKS = ["A", "K", "Q", "J", "10", "9", "8", "5", "3"];
                 const $ = (id) => document.getElementById(id);
                 const PLAYER_ID_KEY = "kanitidi_playerId";
                 const SESSION_KEY = "kanitidi_session";
@@ -1398,6 +1484,21 @@
                     el.textContent = msg;
                     $("toasts").appendChild(el);
                     setTimeout(() => el.remove(), 3100);
+                }
+
+                // Big centred banner everyone sees (e.g. a partner being revealed)
+                let revealTimer = null;
+                function showReveal(title, subtitle) {
+                    const el = $("reveal");
+                    el.innerHTML =
+                        `<div class="big">${title}</div>` +
+                        `<div class="nm">${subtitle}</div>`;
+                    el.classList.remove("hidden");
+                    clearTimeout(revealTimer);
+                    revealTimer = setTimeout(
+                        () => el.classList.add("hidden"),
+                        3600,
+                    );
                 }
 
                 // ---------- screens ----------
@@ -1671,10 +1772,9 @@
                         if (p) p._team = "bidder";
                         const b = getPlayer(S.bidWinner);
                         if (b) b._team = "bidder";
-                        toast(
-                            `🤝 ${d.partnerName} joined the bidder's team!`,
-                            "gold",
-                        );
+                        const who =
+                            d.partnerId === socket.id ? "તું" : d.partnerName;
+                        showReveal("🤝 ભેરુ ખૂલ્યો!", `${who} હવે ભેરુ છે`);
                         if (d.partnerId === socket.id) setMeTag();
                     } else if (d.partnerLost) {
                         const why =
@@ -1886,8 +1986,8 @@
                         const isMe = p.socketId === socket.id;
                         // angle: me at 90° (bottom), the rest spread evenly clockwise
                         const a = ((90 + (k * 360) / n) * Math.PI) / 180;
-                        const x = 50 + 40 * Math.cos(a);
-                        const y = 46 + 38 * Math.sin(a);
+                        const x = 50 + 44 * Math.cos(a);
+                        const y = 47 + 41 * Math.sin(a);
 
                         const el = document.createElement("div");
                         let cls = "seat";
@@ -2298,7 +2398,7 @@
                     $("partnerOverlay").classList.add("show");
                 }
 
-                // Build one partner-card row: a card dropdown + an occurrence dropdown + remove.
+                // Build one partner row: suit + occurrence + rank dropdowns + remove.
                 ui.addPartnerRow = function () {
                     const rows = $("partnerRows");
                     if (rows.children.length >= (S.allowedPartners || 1)) {
@@ -2306,44 +2406,54 @@
                         return;
                     }
                     const decks = S.numberOfSets || 2;
+                    const selCss =
+                        "padding:11px 8px;border-radius:10px;background:rgba(0,0,0,.35);color:var(--cream);border:1px solid rgba(232,196,104,.25);font-size:15px";
                     const row = document.createElement("div");
                     row.className = "row2";
                     row.style.cssText =
-                        "gap:8px;margin-bottom:8px;grid-template-columns:1fr auto auto;align-items:center";
-                    const cardSel = document.createElement("select");
-                    cardSel.innerHTML =
-                        '<option value="">Select card…</option>' +
-                        (S.cardPool || [])
-                            .map((k) => {
-                                const [rank, suit] = k.split("_");
-                                return `<option value="${k}">${rank} ${SUIT[suit]} ${cap(suit)}</option>`;
-                            })
-                            .join("");
-                    cardSel.style.cssText =
-                        "padding:11px;border-radius:10px;background:rgba(0,0,0,.35);color:var(--cream);border:1px solid rgba(232,196,104,.25)";
+                        "gap:6px;margin-bottom:8px;grid-template-columns:1fr 1fr 1fr auto;align-items:center";
+
+                    // 1) Suit (કાળી / લાલી / સરકટ / ફૂલી)
+                    const suitSel = document.createElement("select");
+                    suitSel.style.cssText = selCss;
+                    suitSel.innerHTML = ["spades", "hearts", "diamonds", "clubs"]
+                        .map(
+                            (s) =>
+                                `<option value="${s}">${SUIT[s]} ${GU_SUIT[s]}</option>`,
+                        )
+                        .join("");
+
+                    // 2) Occurrence (પેલો / બીજો / ત્રીજો …)
                     const occSel = document.createElement("select");
+                    occSel.style.cssText = selCss;
                     occSel.innerHTML = Array.from(
                         { length: decks },
                         (_, i) =>
-                            `<option value="${i + 1}">${ordinal(i + 1)}</option>`,
+                            `<option value="${i + 1}">${GU_ORD[i + 1] || i + 1}</option>`,
                     ).join("");
-                    occSel.title =
-                        "Which occurrence (Nth time the card is played)";
-                    occSel.style.cssText =
-                        "padding:11px;border-radius:10px;background:rgba(0,0,0,.35);color:var(--cream);border:1px solid rgba(232,196,104,.25)";
+
+                    // 3) Rank (A K Q J 10 9 8 5 3)
+                    const rankSel = document.createElement("select");
+                    rankSel.style.cssText = selCss;
+                    rankSel.innerHTML = DECK_RANKS.map(
+                        (r) => `<option value="${r}">${r}</option>`,
+                    ).join("");
+
                     const del = document.createElement("button");
                     del.className = "icon-btn";
                     del.textContent = "✕";
                     del.onclick = () => row.remove();
-                    row.appendChild(cardSel);
+
+                    row.appendChild(suitSel);
                     row.appendChild(occSel);
+                    row.appendChild(rankSel);
                     row.appendChild(del);
                     rows.appendChild(row);
                 };
 
                 ui.confirmTrump = function () {
                     const suit = $("selTrump").value;
-                    if (!suit) return toast("Pick a trump suit", "err");
+                    if (!suit) return toast("પહેલા હુકમ પસંદ કર", "err");
                     socket.emit(
                         "SELECT_TRUMP",
                         { roomId: S.roomId, suit },
@@ -2365,17 +2475,14 @@
                     const partners = [];
                     [...$("partnerRows").children].forEach((row) => {
                         const sels = row.querySelectorAll("select");
-                        const k = sels[0].value;
-                        if (!k) return;
-                        const [rank, suit] = k.split("_");
-                        partners.push({
-                            rank,
-                            suit,
-                            occurrence: parseInt(sels[1].value) || 1,
-                        });
+                        const suit = sels[0].value;
+                        const occurrence = parseInt(sels[1].value) || 1;
+                        const rank = sels[2].value;
+                        if (!suit || !rank) return;
+                        partners.push({ rank, suit, occurrence });
                     });
                     if (!partners.length)
-                        return toast("Add at least one partner card", "err");
+                        return toast("ઓછામાં ઓછો એક ભેરુ બોલ", "err");
                     socket.emit(
                         "DECLARE_PARTNERS",
                         { roomId: S.roomId, partners },
