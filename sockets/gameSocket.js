@@ -181,6 +181,15 @@ function lowestLegalCard(hand, ledSuit) {
   return legal.slice().sort((a, b) => (RANK_VALUE[a.rank] || 0) - (RANK_VALUE[b.rank] || 0))[0];
 }
 
+// One pending bot action per room at a time. Prevents a bot from being
+// scheduled twice for the same turn (which caused "two cards in one go").
+const botTimers = new Map();
+function scheduleBot(roomId, fn) {
+  clearTimeout(botTimers.get(roomId));
+  const t = setTimeout(() => { botTimers.delete(roomId); fn(); }, BOT_DELAY_MS);
+  botTimers.set(roomId, t);
+}
+
 // ---- the driver: if the current turn belongs to a bot, make it act ----
 function driveBots(io, roomId) {
   const room = roomService.getRoom(roomId);
@@ -191,13 +200,13 @@ function driveBots(io, roomId) {
     const bidding = biddingService.getBiddingState(roomId);
     if (!bidding) return;
     const turnId = bidding.playersOrder[bidding.currentTurnIndex];
-    if (isBotId(room, turnId)) setTimeout(() => botBid(io, roomId, turnId), BOT_DELAY_MS);
+    if (isBotId(room, turnId)) scheduleBot(roomId, () => botBid(io, roomId, turnId));
   } else if (game.phase === 'selection') {
     const bidding = biddingService.getBiddingState(roomId);
-    if (bidding && isBotId(room, bidding.highestBidder)) setTimeout(() => botLead(io, roomId, bidding.highestBidder), BOT_DELAY_MS);
+    if (bidding && isBotId(room, bidding.highestBidder)) scheduleBot(roomId, () => botLead(io, roomId, bidding.highestBidder));
   } else if (game.phase === 'playing' && game.currentTrick) {
     const turnId = game.players[game.currentTrick.currentPlayerIndex] && game.players[game.currentTrick.currentPlayerIndex].socketId;
-    if (isBotId(room, turnId)) setTimeout(() => botPlay(io, roomId, turnId), BOT_DELAY_MS);
+    if (isBotId(room, turnId)) scheduleBot(roomId, () => botPlay(io, roomId, turnId));
   }
 }
 
