@@ -1,1195 +1,2599 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#0e3a23" />
-  <title>Kali ni Tidi</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <style>
-    :root {
-      --felt-1: #1f7a4d;
-      --felt-2: #145c39;
-      --felt-3: #0c3f27;
-      --wood-1: #4a2c14;
-      --wood-2: #2e1a0c;
-      --gold: #e8c468;
-      --gold-soft: #d4af37;
-      --cream: #f6ecd2;
-      --ink: #14241b;
-      --red: #c83232;
-      --black: #1c2530;
-      --danger: #e25563;
-      --ok: #4fd18b;
-      --shadow: 0 10px 30px rgba(0,0,0,.45);
-      --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-      --display: 'Cinzel', 'Times New Roman', serif;
-      --safe-top: env(safe-area-inset-top, 0px);
-      --safe-bottom: env(safe-area-inset-bottom, 0px);
-    }
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+        />
+        <meta name="theme-color" content="#0e3a23" />
+        <title>Kali ni Tidi</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Inter:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <style>
+            :root {
+                --felt-1: #1f7a4d;
+                --felt-2: #145c39;
+                --felt-3: #0c3f27;
+                --wood-1: #4a2c14;
+                --wood-2: #2e1a0c;
+                --gold: #e8c468;
+                --gold-soft: #d4af37;
+                --cream: #f6ecd2;
+                --ink: #14241b;
+                --red: #c83232;
+                --black: #1c2530;
+                --danger: #e25563;
+                --ok: #4fd18b;
+                --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+                --sans:
+                    "Inter", system-ui, -apple-system, "Segoe UI", Roboto,
+                    sans-serif;
+                --display: "Cinzel", "Times New Roman", serif;
+                --safe-top: env(safe-area-inset-top, 0px);
+                --safe-bottom: env(safe-area-inset-bottom, 0px);
+            }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-    html, body { height: 100%; overflow: hidden; }
-    body {
-      font-family: var(--sans);
-      color: var(--cream);
-      background:
-        radial-gradient(120% 90% at 50% 12%, var(--felt-1) 0%, var(--felt-2) 42%, var(--felt-3) 100%),
-        var(--felt-3);
-      -webkit-font-smoothing: antialiased;
-      user-select: none;
-    }
-    /* subtle felt texture */
-    body::before {
-      content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
-      background-image: radial-gradient(rgba(255,255,255,.04) 1px, transparent 1px);
-      background-size: 4px 4px; opacity: .6;
-    }
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+                -webkit-tap-highlight-color: transparent;
+            }
+            html,
+            body {
+                height: 100%;
+                overflow: hidden;
+            }
+            body {
+                font-family: var(--sans);
+                color: var(--cream);
+                background:
+                    radial-gradient(
+                        120% 90% at 50% 12%,
+                        var(--felt-1) 0%,
+                        var(--felt-2) 42%,
+                        var(--felt-3) 100%
+                    ),
+                    var(--felt-3);
+                -webkit-font-smoothing: antialiased;
+                user-select: none;
+            }
+            /* subtle felt texture */
+            body::before {
+                content: "";
+                position: fixed;
+                inset: 0;
+                pointer-events: none;
+                z-index: 0;
+                background-image: radial-gradient(
+                    rgba(255, 255, 255, 0.04) 1px,
+                    transparent 1px
+                );
+                background-size: 4px 4px;
+                opacity: 0.6;
+            }
 
-    button { font-family: inherit; cursor: pointer; border: none; }
-    .hidden { display: none !important; }
+            button {
+                font-family: inherit;
+                cursor: pointer;
+                border: none;
+            }
+            .hidden {
+                display: none !important;
+            }
 
-    /* ---------- generic button ---------- */
-    .btn {
-      padding: 13px 22px; border-radius: 12px; font-weight: 700; font-size: 15px;
-      color: var(--ink); letter-spacing: .3px; transition: transform .12s, filter .12s, box-shadow .12s;
-      background: linear-gradient(180deg, var(--gold) 0%, var(--gold-soft) 100%);
-      box-shadow: 0 4px 0 #9c7a1f, var(--shadow);
-    }
-    .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #9c7a1f, var(--shadow); }
-    .btn:disabled { filter: grayscale(.6) brightness(.8); opacity: .6; box-shadow: none; cursor: not-allowed; }
-    .btn.ghost {
-      background: rgba(0,0,0,.28); color: var(--cream); box-shadow: inset 0 0 0 1px rgba(232,196,104,.4);
-      font-weight: 600;
-    }
-    .btn.ghost:active { transform: translateY(2px); }
-    .btn.danger { background: linear-gradient(180deg, #ef6a78, var(--danger)); color: #fff; box-shadow: 0 4px 0 #8f2d37, var(--shadow); }
-    .btn.block { width: 100%; }
-    .btn.lg { font-size: 17px; padding: 16px 26px; }
+            /* ---------- generic button ---------- */
+            .btn {
+                padding: 13px 22px;
+                border-radius: 12px;
+                font-weight: 700;
+                font-size: 15px;
+                color: var(--ink);
+                letter-spacing: 0.3px;
+                transition:
+                    transform 0.12s,
+                    filter 0.12s,
+                    box-shadow 0.12s;
+                background: linear-gradient(
+                    180deg,
+                    var(--gold) 0%,
+                    var(--gold-soft) 100%
+                );
+                box-shadow:
+                    0 4px 0 #9c7a1f,
+                    var(--shadow);
+            }
+            .btn:active {
+                transform: translateY(3px);
+                box-shadow:
+                    0 1px 0 #9c7a1f,
+                    var(--shadow);
+            }
+            .btn:disabled {
+                filter: grayscale(0.6) brightness(0.8);
+                opacity: 0.6;
+                box-shadow: none;
+                cursor: not-allowed;
+            }
+            .btn.ghost {
+                background: rgba(0, 0, 0, 0.28);
+                color: var(--cream);
+                box-shadow: inset 0 0 0 1px rgba(232, 196, 104, 0.4);
+                font-weight: 600;
+            }
+            .btn.ghost:active {
+                transform: translateY(2px);
+            }
+            .btn.danger {
+                background: linear-gradient(180deg, #ef6a78, var(--danger));
+                color: #fff;
+                box-shadow:
+                    0 4px 0 #8f2d37,
+                    var(--shadow);
+            }
+            .btn.block {
+                width: 100%;
+            }
+            .btn.lg {
+                font-size: 17px;
+                padding: 16px 26px;
+            }
 
-    /* ---------- screen system ---------- */
-    .screen { position: fixed; inset: 0; z-index: 1; display: none; flex-direction: column; }
-    .screen.active { display: flex; }
+            /* ---------- screen system ---------- */
+            .screen {
+                position: fixed;
+                inset: 0;
+                z-index: 1;
+                display: none;
+                flex-direction: column;
+            }
+            .screen.active {
+                display: flex;
+            }
 
-    /* ---------- LOBBY ---------- */
-    #screen-lobby { align-items: center; justify-content: center; padding: 24px; padding-top: calc(24px + var(--safe-top)); overflow-y: auto; }
-    .brand { text-align: center; margin-bottom: 22px; }
-    .brand .suits { font-size: 30px; letter-spacing: 8px; }
-    .brand .suits .r { color: var(--red); } .brand .suits .b { color: #0c1a12; text-shadow: 0 1px 0 rgba(255,255,255,.15); }
-    .brand h1 {
-      font-family: var(--display); font-weight: 900; font-size: 40px; line-height: 1.05;
-      color: var(--gold); text-shadow: 0 2px 0 #6b5113, 0 6px 14px rgba(0,0,0,.5); margin: 8px 0 4px;
-    }
-    .brand p { font-size: 12.5px; color: rgba(246,236,210,.7); }
+            /* ---------- LOBBY ---------- */
+            #screen-lobby {
+                align-items: center;
+                justify-content: center;
+                padding: 24px;
+                padding-top: calc(24px + var(--safe-top));
+                overflow-y: auto;
+            }
+            .brand {
+                text-align: center;
+                margin-bottom: 22px;
+            }
+            .brand .suits {
+                font-size: 30px;
+                letter-spacing: 8px;
+            }
+            .brand .suits .r {
+                color: var(--red);
+            }
+            .brand .suits .b {
+                color: #0c1a12;
+                text-shadow: 0 1px 0 rgba(255, 255, 255, 0.15);
+            }
+            .brand h1 {
+                font-family: var(--display);
+                font-weight: 900;
+                font-size: 40px;
+                line-height: 1.05;
+                color: var(--gold);
+                text-shadow:
+                    0 2px 0 #6b5113,
+                    0 6px 14px rgba(0, 0, 0, 0.5);
+                margin: 8px 0 4px;
+            }
+            .brand p {
+                font-size: 12.5px;
+                color: rgba(246, 236, 210, 0.7);
+            }
 
-    .panel {
-      width: 100%; max-width: 420px;
-      background: linear-gradient(180deg, rgba(8,30,20,.9), rgba(6,24,16,.92));
-      border: 1px solid rgba(232,196,104,.28); border-radius: 20px; padding: 22px;
-      box-shadow: var(--shadow), inset 0 0 0 1px rgba(255,255,255,.03);
-      backdrop-filter: blur(8px);
-    }
-    .field { margin-bottom: 14px; }
-    .field label { display: block; font-size: 12px; font-weight: 600; color: var(--gold); margin-bottom: 6px; letter-spacing: .4px; text-transform: uppercase; }
-    .field input, .field select {
-      width: 100%; padding: 14px; border-radius: 12px; font-size: 16px; font-family: inherit; font-weight: 500;
-      background: rgba(0,0,0,.35); color: var(--cream); border: 1px solid rgba(232,196,104,.25); outline: none;
-    }
-    .field input:focus, .field select:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(232,196,104,.15); }
-    .field input::placeholder { color: rgba(246,236,210,.4); }
-    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .tabs { display: flex; gap: 8px; margin-bottom: 18px; background: rgba(0,0,0,.3); padding: 5px; border-radius: 12px; }
-    .tabs button { flex: 1; padding: 11px; border-radius: 9px; background: transparent; color: rgba(246,236,210,.6); font-weight: 700; font-size: 14px; }
-    .tabs button.on { background: linear-gradient(180deg, var(--gold), var(--gold-soft)); color: var(--ink); }
+            .panel {
+                width: 100%;
+                max-width: 420px;
+                background: linear-gradient(
+                    180deg,
+                    rgba(8, 30, 20, 0.9),
+                    rgba(6, 24, 16, 0.92)
+                );
+                border: 1px solid rgba(232, 196, 104, 0.28);
+                border-radius: 20px;
+                padding: 22px;
+                box-shadow:
+                    var(--shadow),
+                    inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+                backdrop-filter: blur(8px);
+            }
+            .field {
+                margin-bottom: 14px;
+            }
+            .field label {
+                display: block;
+                font-size: 12px;
+                font-weight: 600;
+                color: var(--gold);
+                margin-bottom: 6px;
+                letter-spacing: 0.4px;
+                text-transform: uppercase;
+            }
+            .field input,
+            .field select {
+                width: 100%;
+                padding: 14px;
+                border-radius: 12px;
+                font-size: 16px;
+                font-family: inherit;
+                font-weight: 500;
+                background: rgba(0, 0, 0, 0.35);
+                color: var(--cream);
+                border: 1px solid rgba(232, 196, 104, 0.25);
+                outline: none;
+            }
+            .field input:focus,
+            .field select:focus {
+                border-color: var(--gold);
+                box-shadow: 0 0 0 3px rgba(232, 196, 104, 0.15);
+            }
+            .field input::placeholder {
+                color: rgba(246, 236, 210, 0.4);
+            }
+            .row2 {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 12px;
+            }
+            .tabs {
+                display: flex;
+                gap: 8px;
+                margin-bottom: 18px;
+                background: rgba(0, 0, 0, 0.3);
+                padding: 5px;
+                border-radius: 12px;
+            }
+            .tabs button {
+                flex: 1;
+                padding: 11px;
+                border-radius: 9px;
+                background: transparent;
+                color: rgba(246, 236, 210, 0.6);
+                font-weight: 700;
+                font-size: 14px;
+            }
+            .tabs button.on {
+                background: linear-gradient(
+                    180deg,
+                    var(--gold),
+                    var(--gold-soft)
+                );
+                color: var(--ink);
+            }
 
-    /* ---------- TABLE (in-game) ---------- */
-    #screen-table { display: none; }
-    #screen-table.active { display: flex; }
+            /* ---------- TABLE (in-game) ---------- */
+            #screen-table {
+                display: none;
+            }
+            #screen-table.active {
+                display: flex;
+            }
 
-    .topbar {
-      display: flex; align-items: center; gap: 8px; padding: 8px 10px;
-      padding-top: calc(8px + var(--safe-top));
-      background: linear-gradient(180deg, rgba(0,0,0,.45), rgba(0,0,0,.12));
-      z-index: 5; flex-wrap: wrap;
-    }
-    .chip {
-      display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border-radius: 999px;
-      background: rgba(0,0,0,.35); border: 1px solid rgba(232,196,104,.3); font-size: 12.5px; font-weight: 600;
-      white-space: nowrap;
-    }
-    .chip b { color: var(--gold); font-weight: 800; letter-spacing: .5px; }
-    .chip.suit-red b { color: #ff7b7b; } .chip.suit-black b { color: #cdd6df; }
-    .topbar .spacer { flex: 1; }
-    .icon-btn {
-      width: 38px; height: 38px; border-radius: 10px; background: rgba(0,0,0,.35);
-      border: 1px solid rgba(232,196,104,.3); color: var(--cream); font-size: 17px;
-      display: inline-flex; align-items: center; justify-content: center;
-    }
-    .conn-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
-    .conn-dot.off { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+            .topbar {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 10px;
+                padding-top: calc(8px + var(--safe-top));
+                background: linear-gradient(
+                    180deg,
+                    rgba(0, 0, 0, 0.45),
+                    rgba(0, 0, 0, 0.12)
+                );
+                z-index: 5;
+                flex-wrap: wrap;
+            }
+            .chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                padding: 6px 11px;
+                border-radius: 999px;
+                background: rgba(0, 0, 0, 0.35);
+                border: 1px solid rgba(232, 196, 104, 0.3);
+                font-size: 12.5px;
+                font-weight: 600;
+                white-space: nowrap;
+            }
+            .chip b {
+                color: var(--gold);
+                font-weight: 800;
+                letter-spacing: 0.5px;
+            }
+            .chip.suit-red b {
+                color: #ff7b7b;
+            }
+            .chip.suit-black b {
+                color: #cdd6df;
+            }
+            .topbar .spacer {
+                flex: 1;
+            }
+            .icon-btn {
+                width: 38px;
+                height: 38px;
+                border-radius: 10px;
+                background: rgba(0, 0, 0, 0.35);
+                border: 1px solid rgba(232, 196, 104, 0.3);
+                color: var(--cream);
+                font-size: 17px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .conn-dot {
+                width: 9px;
+                height: 9px;
+                border-radius: 50%;
+                background: var(--ok);
+                box-shadow: 0 0 8px var(--ok);
+            }
+            .conn-dot.off {
+                background: var(--danger);
+                box-shadow: 0 0 8px var(--danger);
+            }
 
-    .felt {
-      flex: 1; position: relative; min-height: 0; overflow: hidden;
-      background:
-        radial-gradient(120% 100% at 50% 46%, rgba(0,0,0,.12) 0%, rgba(0,0,0,.32) 70%, rgba(0,0,0,.5) 100%),
-        url('/table-bg.png') center/cover no-repeat,
-        #241608;
-    }
+            .felt {
+                flex: 1;
+                position: relative;
+                min-height: 0;
+                overflow: hidden;
+                background:
+                    radial-gradient(
+                        120% 100% at 50% 46%,
+                        rgba(0, 0, 0, 0.12) 0%,
+                        rgba(0, 0, 0, 0.32) 70%,
+                        rgba(0, 0, 0, 0.5) 100%
+                    ),
+                    url("/table-bg.png") center/cover no-repeat,
+                    #241608;
+            }
 
-    /* players arranged around the mandala (positions set in JS) */
-    .seats { position: absolute; inset: 0; pointer-events: none; }
-    .seat {
-      position: absolute; transform: translate(-50%, -50%); pointer-events: auto;
-      display: flex; flex-direction: column; align-items: center; gap: 2px;
-      min-width: 58px; max-width: 84px; padding: 5px 7px 6px; border-radius: 13px;
-      background: linear-gradient(180deg, rgba(8,20,12,.78), rgba(6,16,10,.62));
-      border: 1px solid rgba(232,196,104,.25); transition: box-shadow .2s, border-color .2s;
-      box-shadow: 0 6px 16px rgba(0,0,0,.5);
-    }
-    .seat.active { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(232,196,104,.5), 0 0 18px rgba(232,196,104,.45); }
-    .seat.active .avatar { animation: bob 1.2s ease-in-out infinite; }
-    @keyframes bob { 50% { transform: translateY(-3px); } }
-    .seat.off { opacity: .45; filter: grayscale(.5); }
-    .seat .avatar {
-      width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
-      font-weight: 800; font-size: 15px; color: var(--ink);
-      background: radial-gradient(circle at 35% 30%, #ffe9a8, var(--gold-soft));
-      box-shadow: inset 0 -3px 6px rgba(0,0,0,.25), var(--shadow);
-    }
-    .seat.team-bidder .avatar { background: radial-gradient(circle at 35% 30%, #9adcff, #2f8fd0); color: #04263b; }
-    .seat.team-opp .avatar { background: radial-gradient(circle at 35% 30%, #ffb0b0, #d05a5a); color: #3b0606; }
-    .seat .nm { font-size: 11.5px; font-weight: 700; max-width: 86px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .seat .sc { font-size: 10.5px; color: var(--gold); font-weight: 700; }
-    .seat .roles { position: absolute; top: -7px; right: -6px; display: flex; gap: 2px; }
-    .badge { font-size: 11px; line-height: 1; padding: 2px 4px; border-radius: 8px; background: rgba(0,0,0,.6); border: 1px solid rgba(232,196,104,.4); }
-    .seat .status { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; min-height: 14px; }
-    .seat .status.turn { background: var(--gold); color: var(--ink); }
-    .seat .status.passed { background: rgba(0,0,0,.5); color: #ff9d9d; }
-    .seat .status.bid { background: rgba(0,0,0,.5); color: var(--gold); }
-    .seat .status.off { background: rgba(0,0,0,.5); color: #ff9d9d; }
+            /* players arranged around the mandala (positions set in JS) */
+            .seats {
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+            }
+            .seat {
+                position: absolute;
+                transform: translate(-50%, -50%);
+                pointer-events: auto;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 2px;
+                min-width: 58px;
+                max-width: 84px;
+                padding: 5px 7px 6px;
+                border-radius: 13px;
+                background: linear-gradient(
+                    180deg,
+                    rgba(8, 20, 12, 0.78),
+                    rgba(6, 16, 10, 0.62)
+                );
+                border: 1px solid rgba(232, 196, 104, 0.25);
+                transition:
+                    box-shadow 0.2s,
+                    border-color 0.2s;
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+            }
+            .seat.active {
+                border-color: var(--gold);
+                box-shadow:
+                    0 0 0 2px rgba(232, 196, 104, 0.5),
+                    0 0 18px rgba(232, 196, 104, 0.45);
+            }
+            .seat.active .avatar {
+                animation: bob 1.2s ease-in-out infinite;
+            }
+            @keyframes bob {
+                50% {
+                    transform: translateY(-3px);
+                }
+            }
+            .seat.off {
+                opacity: 0.45;
+                filter: grayscale(0.5);
+            }
+            .seat .avatar {
+                width: 38px;
+                height: 38px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-weight: 800;
+                font-size: 15px;
+                color: var(--ink);
+                background: radial-gradient(
+                    circle at 35% 30%,
+                    #ffe9a8,
+                    var(--gold-soft)
+                );
+                box-shadow:
+                    inset 0 -3px 6px rgba(0, 0, 0, 0.25),
+                    var(--shadow);
+            }
+            .seat.team-bidder .avatar {
+                background: radial-gradient(
+                    circle at 35% 30%,
+                    #9adcff,
+                    #2f8fd0
+                );
+                color: #04263b;
+            }
+            .seat.team-opp .avatar {
+                background: radial-gradient(
+                    circle at 35% 30%,
+                    #ffb0b0,
+                    #d05a5a
+                );
+                color: #3b0606;
+            }
+            .seat .nm {
+                font-size: 11.5px;
+                font-weight: 700;
+                max-width: 86px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .seat .sc {
+                font-size: 10.5px;
+                color: var(--gold);
+                font-weight: 700;
+            }
+            .seat .roles {
+                position: absolute;
+                top: -7px;
+                right: -6px;
+                display: flex;
+                gap: 2px;
+            }
+            .badge {
+                font-size: 11px;
+                line-height: 1;
+                padding: 2px 4px;
+                border-radius: 8px;
+                background: rgba(0, 0, 0, 0.6);
+                border: 1px solid rgba(232, 196, 104, 0.4);
+            }
+            .seat .status {
+                font-size: 10px;
+                font-weight: 700;
+                padding: 1px 6px;
+                border-radius: 8px;
+                min-height: 14px;
+            }
+            .seat .status.turn {
+                background: var(--gold);
+                color: var(--ink);
+            }
+            .seat .status.passed {
+                background: rgba(0, 0, 0, 0.5);
+                color: #ff9d9d;
+            }
+            .seat .status.bid {
+                background: rgba(0, 0, 0, 0.5);
+                color: var(--gold);
+            }
+            .seat .status.off {
+                background: rgba(0, 0, 0, 0.5);
+                color: #ff9d9d;
+            }
 
-    /* center play area (sits over the mandala centre) */
-    .center {
-      position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%);
-      width: 64%; max-width: 360px; display: flex; align-items: center; justify-content: center;
-    }
-    .center-felt { display: none; }
-    .prompt {
-      position: relative; text-align: center; max-width: 80%; color: rgba(246,236,210,.85);
-      font-size: 14px; font-weight: 600; line-height: 1.4;
-    }
-    .prompt .big { font-family: var(--display); font-size: 20px; color: var(--gold); display: block; margin-bottom: 4px; }
-    .trick { position: relative; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; padding: 10px 12px; }
-    .trick:not(.hidden) { background: rgba(8,22,14,.6); border-radius: 16px; box-shadow: 0 0 0 1px rgba(232,196,104,.25), 0 8px 24px rgba(0,0,0,.5); backdrop-filter: blur(2px); }
-    .room-chip { cursor: pointer; }
-    .seat.me-seat { border-color: rgba(232,196,104,.55); box-shadow: 0 6px 16px rgba(0,0,0,.5), inset 0 0 0 1px rgba(232,196,104,.2); }
-    .trick .tcard { display: flex; flex-direction: column; align-items: center; gap: 3px; animation: drop .28s ease; }
-    .trick .tcard .who { font-size: 10px; font-weight: 700; color: rgba(246,236,210,.75); max-width: 56px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    @keyframes drop { from { transform: translateY(-26px) scale(.8); opacity: 0; } }
+            /* center play area (sits over the mandala centre) */
+            .center {
+                position: absolute;
+                left: 50%;
+                top: 46%;
+                transform: translate(-50%, -50%);
+                width: 64%;
+                max-width: 360px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .center-felt {
+                display: none;
+            }
+            .prompt {
+                position: relative;
+                text-align: center;
+                max-width: 80%;
+                color: rgba(246, 236, 210, 0.85);
+                font-size: 14px;
+                font-weight: 600;
+                line-height: 1.4;
+            }
+            .prompt .big {
+                font-family: var(--display);
+                font-size: 20px;
+                color: var(--gold);
+                display: block;
+                margin-bottom: 4px;
+            }
+            .trick {
+                position: relative;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                justify-content: center;
+                align-items: center;
+                padding: 10px 12px;
+            }
+            .trick:not(.hidden) {
+                background: rgba(8, 22, 14, 0.6);
+                border-radius: 16px;
+                box-shadow:
+                    0 0 0 1px rgba(232, 196, 104, 0.25),
+                    0 8px 24px rgba(0, 0, 0, 0.5);
+                backdrop-filter: blur(2px);
+            }
+            .room-chip {
+                cursor: pointer;
+            }
+            .seat.me-seat {
+                border-color: rgba(232, 196, 104, 0.55);
+                box-shadow:
+                    0 6px 16px rgba(0, 0, 0, 0.5),
+                    inset 0 0 0 1px rgba(232, 196, 104, 0.2);
+            }
+            .trick .tcard {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 3px;
+                animation: drop 0.28s ease;
+            }
+            .trick .tcard .who {
+                font-size: 10px;
+                font-weight: 700;
+                color: rgba(246, 236, 210, 0.75);
+                max-width: 56px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            @keyframes drop {
+                from {
+                    transform: translateY(-26px) scale(0.8);
+                    opacity: 0;
+                }
+            }
 
-    /* playing card */
-    .card {
-      width: 52px; height: 74px; border-radius: 8px; background: #fbf7ef;
-      box-shadow: var(--shadow), inset 0 0 0 1px rgba(0,0,0,.08);
-      position: relative; flex: none; color: var(--black);
-    }
-    .card .c-rank { position: absolute; top: 4px; left: 6px; font-size: 15px; font-weight: 800; line-height: 1; }
-    .card .c-suit-sm { position: absolute; top: 19px; left: 6px; font-size: 12px; line-height: 1; }
-    .card .c-pip { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 28px; }
-    .card.red { color: var(--red); }
-    .card.trump { box-shadow: 0 0 0 2px var(--gold), 0 0 14px rgba(232,196,104,.6), var(--shadow); }
-    .card.trump::after { content: "★"; position: absolute; bottom: 3px; right: 5px; font-size: 11px; color: var(--gold-soft); }
-    .card .c-pt { position: absolute; bottom: 3px; left: 5px; font-size: 9px; font-weight: 800; color: #b8902a; }
-    .card.sm { width: 44px; height: 62px; } .card.sm .c-pip { font-size: 23px; } .card.sm .c-rank { font-size: 13px; }
+            /* playing card */
+            .card {
+                width: 52px;
+                height: 74px;
+                border-radius: 8px;
+                background: #fbf7ef;
+                box-shadow:
+                    var(--shadow),
+                    inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+                position: relative;
+                flex: none;
+                color: var(--black);
+            }
+            .card .c-rank {
+                position: absolute;
+                top: 4px;
+                left: 6px;
+                font-size: 15px;
+                font-weight: 800;
+                line-height: 1;
+            }
+            .card .c-suit-sm {
+                position: absolute;
+                top: 19px;
+                left: 6px;
+                font-size: 12px;
+                line-height: 1;
+            }
+            .card .c-pip {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 28px;
+            }
+            .card.red {
+                color: var(--red);
+            }
+            .card.trump {
+                box-shadow:
+                    0 0 0 2px var(--gold),
+                    0 0 14px rgba(232, 196, 104, 0.6),
+                    var(--shadow);
+            }
+            .card.trump::after {
+                content: "★";
+                position: absolute;
+                bottom: 3px;
+                right: 5px;
+                font-size: 11px;
+                color: var(--gold-soft);
+            }
+            .card .c-pt {
+                position: absolute;
+                bottom: 3px;
+                left: 5px;
+                font-size: 9px;
+                font-weight: 800;
+                color: #b8902a;
+            }
+            .card.sm {
+                width: 44px;
+                height: 62px;
+            }
+            .card.sm .c-pip {
+                font-size: 23px;
+            }
+            .card.sm .c-rank {
+                font-size: 13px;
+            }
 
-    /* my area */
-    .myarea { background: linear-gradient(0deg, rgba(0,0,0,.5), rgba(0,0,0,.05)); padding: 6px 6px calc(8px + var(--safe-bottom)); z-index: 4; }
-    .me-row { display: flex; align-items: center; gap: 8px; padding: 0 4px 6px; }
-    .me-row .me-name { font-weight: 800; font-size: 14px; }
-    .me-row .me-tag { font-size: 11px; padding: 2px 8px; border-radius: 8px; background: rgba(232,196,104,.18); color: var(--gold); border: 1px solid rgba(232,196,104,.35); }
-    .me-row .me-pts { margin-left: auto; font-size: 12px; color: rgba(246,236,210,.75); }
-    .me-row .me-pts b { color: var(--gold); }
+            /* my area */
+            .myarea {
+                background: linear-gradient(
+                    0deg,
+                    rgba(0, 0, 0, 0.5),
+                    rgba(0, 0, 0, 0.05)
+                );
+                padding: 6px 6px calc(8px + var(--safe-bottom));
+                z-index: 4;
+            }
+            .me-row {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 0 4px 6px;
+            }
+            .me-row .me-name {
+                font-weight: 800;
+                font-size: 14px;
+            }
+            .me-row .me-tag {
+                font-size: 11px;
+                padding: 2px 8px;
+                border-radius: 8px;
+                background: rgba(232, 196, 104, 0.18);
+                color: var(--gold);
+                border: 1px solid rgba(232, 196, 104, 0.35);
+            }
+            .me-row .me-pts {
+                margin-left: auto;
+                font-size: 12px;
+                color: rgba(246, 236, 210, 0.75);
+            }
+            .me-row .me-pts b {
+                color: var(--gold);
+            }
 
-    .hand {
-      display: flex; gap: 0; overflow-x: auto; overflow-y: hidden; padding: 22px 8px 8px;
-      scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
-    }
-    .hand .card { margin-left: -14px; scroll-snap-align: center; transition: transform .15s; }
-    .hand .card:first-child { margin-left: 0; }
-    .hand .card.playable { cursor: pointer; }
-    .hand .card.playable:active { transform: translateY(-14px); }
-    .hand.myturn .card.playable { box-shadow: var(--shadow), inset 0 0 0 1px rgba(0,0,0,.08), 0 -3px 0 rgba(232,196,104,.0); }
-    .hand .card.dim { opacity: .45; }
-    .hand .card.sel { transform: translateY(-16px); box-shadow: 0 0 0 2px var(--gold), var(--shadow); }
+            .hand {
+                display: flex;
+                gap: 0;
+                overflow-x: auto;
+                overflow-y: hidden;
+                padding: 22px 8px 8px;
+                scroll-snap-type: x proximity;
+                -webkit-overflow-scrolling: touch;
+            }
+            .hand .card {
+                margin-left: -14px;
+                scroll-snap-align: center;
+                transition: transform 0.15s;
+            }
+            .hand .card:first-child {
+                margin-left: 0;
+            }
+            .hand .card.playable {
+                cursor: pointer;
+            }
+            .hand .card.playable:active {
+                transform: translateY(-14px);
+            }
+            .hand.myturn .card.playable {
+                box-shadow:
+                    var(--shadow),
+                    inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+                    0 -3px 0 rgba(232, 196, 104, 0);
+            }
+            .hand .card.dim {
+                opacity: 0.45;
+            }
+            .hand .card.sel {
+                transform: translateY(-16px);
+                box-shadow:
+                    0 0 0 2px var(--gold),
+                    var(--shadow);
+            }
 
-    .actionbar { display: flex; gap: 8px; align-items: center; padding: 4px 4px 2px; flex-wrap: wrap; }
-    .actionbar .grow { flex: 1; }
-    .bidbox { display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,.3); border-radius: 12px; padding: 5px; border: 1px solid rgba(232,196,104,.25); }
-    .bidbox button { width: 36px; height: 36px; border-radius: 9px; font-size: 18px; font-weight: 800; background: rgba(232,196,104,.2); color: var(--gold); }
-    .bidbox .val { min-width: 58px; text-align: center; font-weight: 800; font-size: 18px; color: var(--gold); }
+            .actionbar {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+                padding: 4px 4px 2px;
+                flex-wrap: wrap;
+            }
+            .actionbar .grow {
+                flex: 1;
+            }
+            .bidbox {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                background: rgba(0, 0, 0, 0.3);
+                border-radius: 12px;
+                padding: 5px;
+                border: 1px solid rgba(232, 196, 104, 0.25);
+            }
+            .bidbox button {
+                width: 36px;
+                height: 36px;
+                border-radius: 9px;
+                font-size: 18px;
+                font-weight: 800;
+                background: rgba(232, 196, 104, 0.2);
+                color: var(--gold);
+            }
+            .bidbox .val {
+                min-width: 58px;
+                text-align: center;
+                font-weight: 800;
+                font-size: 18px;
+                color: var(--gold);
+            }
 
-    /* ---------- modal ---------- */
-    .overlay { position: fixed; inset: 0; z-index: 20; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; padding: 18px; backdrop-filter: blur(3px); }
-    .overlay.show { display: flex; }
-    .modal { width: 100%; max-width: 440px; max-height: 86vh; overflow-y: auto; }
-    .modal h2 { font-family: var(--display); color: var(--gold); font-size: 24px; text-align: center; margin-bottom: 14px; }
-    .scoretable { width: 100%; border-collapse: collapse; font-size: 14px; }
-    .scoretable th, .scoretable td { padding: 9px 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,.08); }
-    .scoretable th { color: var(--gold); font-size: 12px; text-transform: uppercase; }
-    .scoretable td.num { text-align: right; font-weight: 700; }
-    .scoretable .pos { color: var(--ok); } .scoretable .neg { color: #ff9d9d; }
-    .winner-line { text-align: center; font-size: 16px; margin: 8px 0 16px; }
-    .winner-line b { color: var(--gold); }
+            /* ---------- modal ---------- */
+            .overlay {
+                position: fixed;
+                inset: 0;
+                z-index: 20;
+                background: rgba(0, 0, 0, 0.6);
+                display: none;
+                align-items: center;
+                justify-content: center;
+                padding: 18px;
+                backdrop-filter: blur(3px);
+            }
+            .overlay.show {
+                display: flex;
+            }
+            .modal {
+                width: 100%;
+                max-width: 440px;
+                max-height: 86vh;
+                overflow-y: auto;
+            }
+            .modal h2 {
+                font-family: var(--display);
+                color: var(--gold);
+                font-size: 24px;
+                text-align: center;
+                margin-bottom: 14px;
+            }
+            .scoretable {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 14px;
+            }
+            .scoretable th,
+            .scoretable td {
+                padding: 9px 8px;
+                text-align: left;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            }
+            .scoretable th {
+                color: var(--gold);
+                font-size: 12px;
+                text-transform: uppercase;
+            }
+            .scoretable td.num {
+                text-align: right;
+                font-weight: 700;
+            }
+            .scoretable .pos {
+                color: var(--ok);
+            }
+            .scoretable .neg {
+                color: #ff9d9d;
+            }
+            .winner-line {
+                text-align: center;
+                font-size: 16px;
+                margin: 8px 0 16px;
+            }
+            .winner-line b {
+                color: var(--gold);
+            }
 
-    /* ---------- toasts ---------- */
-    #toasts { position: fixed; left: 0; right: 0; top: calc(8px + var(--safe-top)); z-index: 40; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
-    .toast {
-      max-width: 90%; padding: 10px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 600;
-      background: rgba(12,40,26,.95); border: 1px solid rgba(232,196,104,.4); box-shadow: var(--shadow);
-      animation: tin .25s ease, tout .3s ease forwards; animation-delay: 0s, 2.7s;
-    }
-    .toast.ok { border-color: rgba(79,209,139,.6); } .toast.err { border-color: rgba(226,85,99,.7); }
-    .toast.gold { color: var(--gold); }
-    @keyframes tin { from { transform: translateY(-14px); opacity: 0; } }
-    @keyframes tout { to { transform: translateY(-10px); opacity: 0; } }
+            /* ---------- toasts ---------- */
+            #toasts {
+                position: fixed;
+                left: 0;
+                right: 0;
+                top: calc(8px + var(--safe-top));
+                z-index: 40;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 6px;
+                pointer-events: none;
+            }
+            .toast {
+                max-width: 90%;
+                padding: 10px 16px;
+                border-radius: 12px;
+                font-size: 13.5px;
+                font-weight: 600;
+                background: rgba(12, 40, 26, 0.95);
+                border: 1px solid rgba(232, 196, 104, 0.4);
+                box-shadow: var(--shadow);
+                animation:
+                    tin 0.25s ease,
+                    tout 0.3s ease forwards;
+                animation-delay: 0s, 2.7s;
+            }
+            .toast.ok {
+                border-color: rgba(79, 209, 139, 0.6);
+            }
+            .toast.err {
+                border-color: rgba(226, 85, 99, 0.7);
+            }
+            .toast.gold {
+                color: var(--gold);
+            }
+            @keyframes tin {
+                from {
+                    transform: translateY(-14px);
+                    opacity: 0;
+                }
+            }
+            @keyframes tout {
+                to {
+                    transform: translateY(-10px);
+                    opacity: 0;
+                }
+            }
 
-    @media (min-width: 620px) {
-      .card { width: 60px; height: 86px; } .card .c-pip { font-size: 34px; } .card .c-rank { font-size: 17px; }
-      .hand .card { margin-left: -10px; }
-      .seat { min-width: 84px; }
-      .felt { padding: 10px 16px; }
-    }
-  </style>
-</head>
-<body>
-  <!-- ===================== LOBBY ===================== -->
-  <section id="screen-lobby" class="screen active">
-    <div class="brand">
-      <div class="suits"><span class="b">♠</span> <span class="r">♥</span> <span class="r">♦</span> <span class="b">♣</span></div>
-      <h1>Kali ni Tidi</h1>
-      <p>Regensburg Gujarati Valav — by Virav</p>
-    </div>
-    <div class="panel">
-      <div class="tabs">
-        <button id="tabJoin" class="on" onclick="ui.setMode('join')">Join Room</button>
-        <button id="tabCreate" onclick="ui.setMode('create')">Create Room</button>
-      </div>
+            @media (min-width: 620px) {
+                .card {
+                    width: 60px;
+                    height: 86px;
+                }
+                .card .c-pip {
+                    font-size: 34px;
+                }
+                .card .c-rank {
+                    font-size: 17px;
+                }
+                .hand .card {
+                    margin-left: -10px;
+                }
+                .seat {
+                    min-width: 84px;
+                }
+                .felt {
+                    padding: 10px 16px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <!-- ===================== LOBBY ===================== -->
+        <section id="screen-lobby" class="screen active">
+            <div class="brand">
+                <div class="suits">
+                    <span class="b">♠</span> <span class="r">♥</span>
+                    <span class="r">♦</span> <span class="b">♣</span>
+                </div>
+                <h1>Kali ni Tidi</h1>
+                <p>Regensburg Gujarati Valav — by Virav</p>
+            </div>
+            <div class="panel">
+                <div class="tabs">
+                    <button
+                        id="tabJoin"
+                        class="on"
+                        onclick="ui.setMode('join')"
+                    >
+                        Join Room
+                    </button>
+                    <button id="tabCreate" onclick="ui.setMode('create')">
+                        Create Room
+                    </button>
+                </div>
 
-      <div class="field">
-        <label>Your Name</label>
-        <input id="inpName" type="text" placeholder="Enter your name" maxlength="16" autocomplete="off" />
-      </div>
+                <div class="field">
+                    <label>Your Name</label>
+                    <input
+                        id="inpName"
+                        type="text"
+                        placeholder="Enter your name"
+                        maxlength="16"
+                        autocomplete="off"
+                    />
+                </div>
 
-      <div id="joinFields">
-        <div class="field">
-          <label>Room Code</label>
-          <input id="inpRoom" type="text" placeholder="e.g. 08SNH8" maxlength="6" autocomplete="off" style="text-transform:uppercase" />
+                <div id="joinFields">
+                    <div class="field">
+                        <label>Room Code</label>
+                        <input
+                            id="inpRoom"
+                            type="text"
+                            placeholder="e.g. 08SNH8"
+                            maxlength="6"
+                            autocomplete="off"
+                            style="text-transform: uppercase"
+                        />
+                    </div>
+                </div>
+
+                <div id="createFields" class="hidden">
+                    <div class="row2">
+                        <div class="field">
+                            <label>Max Players</label>
+                            <select id="inpPlayers" onchange="ui.cfgHint()">
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                                <option value="8">8</option>
+                                <option value="9">9</option>
+                                <option value="10">10</option>
+                                <option value="11">11</option>
+                                <option value="12">12</option>
+                            </select>
+                        </div>
+                        <div class="field">
+                            <label>Decks</label>
+                            <select id="inpDecks" onchange="ui.cfgHint()">
+                                <option value="1">1</option>
+                                <option value="2" selected>2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                                <option value="8">8</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>Cards per player</label>
+                        <input
+                            id="inpCards"
+                            type="number"
+                            value="13"
+                            min="1"
+                            max="52"
+                            oninput="ui.cfgHint()"
+                        />
+                    </div>
+                    <div class="row2">
+                        <div class="field">
+                            <label>Minimum bid</label>
+                            <input
+                                id="inpMinBid"
+                                type="number"
+                                value="250"
+                                min="0"
+                                step="5"
+                            />
+                        </div>
+                        <div class="field">
+                            <label>Base partners</label>
+                            <input
+                                id="inpBasePartners"
+                                type="number"
+                                value="1"
+                                min="0"
+                                max="10"
+                            />
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label>Points per extra partner</label>
+                        <input
+                            id="inpExtraStep"
+                            type="number"
+                            value="250"
+                            min="0"
+                            step="5"
+                        />
+                    </div>
+                    <div
+                        id="cfgHint"
+                        style="
+                            font-size: 11.5px;
+                            color: var(--gold);
+                            text-align: center;
+                            margin-top: -4px;
+                            margin-bottom: 8px;
+                        "
+                    ></div>
+                </div>
+
+                <button id="btnGo" class="btn block lg" onclick="ui.go()">
+                    Join Table
+                </button>
+                <p
+                    style="
+                        text-align: center;
+                        font-size: 11.5px;
+                        color: rgba(246, 236, 210, 0.5);
+                        margin-top: 12px;
+                    "
+                >
+                    Min 4 players to start. Short? Add bots from the table.
+                </p>
+            </div>
+        </section>
+
+        <!-- ===================== TABLE ===================== -->
+        <section id="screen-table" class="screen">
+            <div class="topbar">
+                <span
+                    class="chip room-chip"
+                    onclick="ui.share()"
+                    title="Tap to share"
+                    ><span id="connDot" class="conn-dot"></span>
+                    <b id="roomChip">—</b>
+                    <span style="opacity: 0.8">🔗</span></span
+                >
+                <span id="trumpChip" class="chip hidden"
+                    >હુકમ <b id="trumpVal">—</b></span
+                >
+                <span id="bidChip" class="chip hidden"
+                    >Bid <b id="bidVal">—</b></span
+                >
+                <span id="partnerChip" class="chip hidden"
+                    >🤝 <b id="partnerVal">—</b></span
+                >
+                <span id="roundChip" class="chip hidden"
+                    >Round <b id="roundVal">1</b></span
+                >
+                <span class="spacer"></span>
+                <button
+                    class="icon-btn"
+                    id="soundBtn"
+                    onclick="ui.toggleSound()"
+                    title="Sound"
+                >
+                    🔊
+                </button>
+                <button
+                    class="icon-btn"
+                    onclick="ui.openScores()"
+                    title="Scores"
+                >
+                    🏆
+                </button>
+                <button class="icon-btn" onclick="ui.leave()" title="Leave">
+                    ⎋
+                </button>
+            </div>
+
+            <div class="felt">
+                <div id="seats" class="seats"></div>
+
+                <div class="center">
+                    <div class="center-felt"></div>
+                    <div id="prompt" class="prompt"></div>
+                    <div id="trick" class="trick hidden"></div>
+                </div>
+            </div>
+
+            <div class="myarea">
+                <div class="me-row">
+                    <span class="me-name" id="meName">You</span>
+                    <span id="meTag" class="me-tag hidden"></span>
+                    <span class="me-pts"
+                        >Hand: <b id="meCount">0</b> ·
+                        <b id="mePts">0</b> pts</span
+                    >
+                </div>
+                <div id="hand" class="hand"></div>
+                <div id="actionbar" class="actionbar"></div>
+            </div>
+        </section>
+
+        <!-- ===================== MODALS ===================== -->
+        <div id="scoreOverlay" class="overlay">
+            <div class="panel modal">
+                <h2>🏆 Scores</h2>
+                <div id="scoreBody"></div>
+                <button
+                    class="btn block ghost"
+                    style="margin-top: 14px"
+                    onclick="ui.closeScores()"
+                >
+                    Close
+                </button>
+            </div>
         </div>
-      </div>
 
-      <div id="createFields" class="hidden">
-        <div class="row2">
-          <div class="field">
-            <label>Max Players</label>
-            <select id="inpPlayers" onchange="ui.cfgHint()">
-              <option value="4">4</option><option value="5">5</option><option value="6">6</option>
-              <option value="7">7</option><option value="8">8</option><option value="9">9</option>
-              <option value="10">10</option><option value="11">11</option><option value="12">12</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Decks</label>
-            <select id="inpDecks" onchange="ui.cfgHint()">
-              <option value="1">1</option><option value="2" selected>2</option><option value="3">3</option>
-              <option value="4">4</option><option value="5">5</option><option value="6">6</option>
-              <option value="7">7</option><option value="8">8</option>
-            </select>
-          </div>
+        <div id="overOverlay" class="overlay">
+            <div class="panel modal">
+                <h2>Round Over</h2>
+                <div id="overBody"></div>
+                <div id="overActions" style="margin-top: 14px"></div>
+            </div>
         </div>
-        <div class="field">
-          <label>Cards per player</label>
-          <input id="inpCards" type="number" value="13" min="1" max="52" oninput="ui.cfgHint()" />
+
+        <div id="partnerOverlay" class="overlay">
+            <div class="panel modal">
+                <h2>👑 હાલ ભાઈ, ફટાફટ હુકમ પાડ</h2>
+                <p
+                    style="
+                        text-align: center;
+                        font-size: 13px;
+                        color: rgba(246, 236, 210, 0.75);
+                        margin-bottom: 14px;
+                    "
+                >
+                    હુકમ પાડ અને ભેરુ બોલ
+                </p>
+                <div class="field">
+                    <label>હુકમનું કાર્ડ</label>
+                    <select id="selTrump">
+                        <option value="">હુકમ પસંદ કર ભાઈ હવે…</option>
+                        <option value="spades">♠ કાળી</option>
+                        <option value="hearts">♥ લાલી</option>
+                        <option value="diamonds">♦ સરકટ</option>
+                        <option value="clubs">♣ ફૂલી</option>
+                    </select>
+                </div>
+                <button
+                    id="btnConfirmTrump"
+                    class="btn block"
+                    onclick="ui.confirmTrump()"
+                >
+                    નક્કી કર
+                </button>
+
+                <div id="partnerPick" class="hidden" style="margin-top: 16px">
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                            margin-bottom: 8px;
+                        "
+                    >
+                        <label
+                            style="
+                                font-size: 12px;
+                                font-weight: 600;
+                                color: var(--gold);
+                                text-transform: uppercase;
+                            "
+                            >ભેરુ બોલ</label
+                        >
+                        <span
+                            id="partnerAllowed"
+                            style="
+                                font-size: 11.5px;
+                                color: rgba(246, 236, 210, 0.7);
+                            "
+                        ></span>
+                    </div>
+                    <p
+                        style="
+                            font-size: 11.5px;
+                            color: rgba(246, 236, 210, 0.6);
+                            margin-bottom: 10px;
+                        "
+                    >
+                        દરેક હરોળ = એક કાર્ડ + એ કાર્ડ કેટલામી વાર રમાય
+                        (1લી/2જી…) ત્યારે ભેરુ બને.
+                    </p>
+                    <div id="partnerRows"></div>
+                    <button
+                        id="btnAddPartner"
+                        class="btn ghost block"
+                        style="margin-top: 4px"
+                        onclick="ui.addPartnerRow()"
+                    >
+                        + બીજો ભેરુ ઉમેર
+                    </button>
+                    <button
+                        id="btnStartPlay"
+                        class="btn block lg"
+                        style="margin-top: 12px"
+                        onclick="ui.declareAndStart()"
+                    >
+                        હાલો ભાઈ, ચાલુ કર
+                    </button>
+                </div>
+            </div>
         </div>
-        <div class="row2">
-          <div class="field">
-            <label>Minimum bid</label>
-            <input id="inpMinBid" type="number" value="250" min="0" step="5" />
-          </div>
-          <div class="field">
-            <label>Base partners</label>
-            <input id="inpBasePartners" type="number" value="1" min="0" max="10" />
-          </div>
-        </div>
-        <div class="field">
-          <label>Points per extra partner</label>
-          <input id="inpExtraStep" type="number" value="250" min="0" step="5" />
-        </div>
-        <div id="cfgHint" style="font-size:11.5px;color:var(--gold);text-align:center;margin-top:-4px;margin-bottom:8px"></div>
-      </div>
 
-      <button id="btnGo" class="btn block lg" onclick="ui.go()">Join Table</button>
-      <p style="text-align:center;font-size:11.5px;color:rgba(246,236,210,.5);margin-top:12px">
-        Min 4 players to start. Short? Add bots from the table.
-      </p>
-    </div>
-  </section>
+        <div id="toasts"></div>
 
-  <!-- ===================== TABLE ===================== -->
-  <section id="screen-table" class="screen">
-    <div class="topbar">
-      <span class="chip room-chip" onclick="ui.share()" title="Tap to share"><span id="connDot" class="conn-dot"></span> <b id="roomChip">—</b> <span style="opacity:.8">🔗</span></span>
-      <span id="trumpChip" class="chip hidden">Trump <b id="trumpVal">—</b></span>
-      <span id="bidChip" class="chip hidden">Bid <b id="bidVal">—</b></span>
-      <span id="partnerChip" class="chip hidden">🤝 <b id="partnerVal">—</b></span>
-      <span id="roundChip" class="chip hidden">Round <b id="roundVal">1</b></span>
-      <span class="spacer"></span>
-      <button class="icon-btn" id="soundBtn" onclick="ui.toggleSound()" title="Sound">🔊</button>
-      <button class="icon-btn" onclick="ui.openScores()" title="Scores">🏆</button>
-      <button class="icon-btn" onclick="ui.leave()" title="Leave">⎋</button>
-    </div>
+        <script src="/socket.io.min.js"></script>
+        <script>
+            (function () {
+                "use strict";
 
-    <div class="felt">
-      <div id="seats" class="seats"></div>
+                // Expose the UI namespace up front so inline onclick handlers and the
+                // ui.* assignments below always have an object to attach to.
+                window.ui = window.ui || {};
 
-      <div class="center">
-        <div class="center-felt"></div>
-        <div id="prompt" class="prompt"></div>
-        <div id="trick" class="trick hidden"></div>
-      </div>
-    </div>
+                // ---------- constants / helpers ----------
+                const SUIT = {
+                    spades: "♠",
+                    hearts: "♥",
+                    diamonds: "♦",
+                    clubs: "♣",
+                };
+                const RED = { hearts: 1, diamonds: 1 };
+                const RANK_ORDER = [
+                    "A",
+                    "K",
+                    "Q",
+                    "J",
+                    "10",
+                    "9",
+                    "8",
+                    "5",
+                    "3",
+                ];
+                const $ = (id) => document.getElementById(id);
+                const PLAYER_ID_KEY = "kanitidi_playerId";
+                const SESSION_KEY = "kanitidi_session";
 
-    <div class="myarea">
-      <div class="me-row">
-        <span class="me-name" id="meName">You</span>
-        <span id="meTag" class="me-tag hidden"></span>
-        <span class="me-pts">Hand: <b id="meCount">0</b> · <b id="mePts">0</b> pts</span>
-      </div>
-      <div id="hand" class="hand"></div>
-      <div id="actionbar" class="actionbar"></div>
-    </div>
-  </section>
+                function getPlayerId() {
+                    let id = null;
+                    try {
+                        id = localStorage.getItem(PLAYER_ID_KEY);
+                    } catch (e) {}
+                    if (!id) {
+                        id =
+                            window.crypto && crypto.randomUUID
+                                ? crypto.randomUUID()
+                                : "p_" +
+                                  Date.now() +
+                                  "_" +
+                                  Math.random().toString(36).slice(2);
+                        try {
+                            localStorage.setItem(PLAYER_ID_KEY, id);
+                        } catch (e) {}
+                    }
+                    return id;
+                }
+                const setPlayerId = (id) => {
+                    try {
+                        id && localStorage.setItem(PLAYER_ID_KEY, id);
+                    } catch (e) {}
+                };
+                const saveSession = (roomId, name) => {
+                    try {
+                        localStorage.setItem(
+                            SESSION_KEY,
+                            JSON.stringify({ roomId, name }),
+                        );
+                    } catch (e) {}
+                };
+                const getSession = () => {
+                    try {
+                        return JSON.parse(
+                            localStorage.getItem(SESSION_KEY) || "null",
+                        );
+                    } catch (e) {
+                        return null;
+                    }
+                };
+                const clearSession = () => {
+                    try {
+                        localStorage.removeItem(SESSION_KEY);
+                    } catch (e) {}
+                };
 
-  <!-- ===================== MODALS ===================== -->
-  <div id="scoreOverlay" class="overlay">
-    <div class="panel modal">
-      <h2>🏆 Scores</h2>
-      <div id="scoreBody"></div>
-      <button class="btn block ghost" style="margin-top:14px" onclick="ui.closeScores()">Close</button>
-    </div>
-  </div>
+                // ---------- state ----------
+                const S = {
+                    socketId: null,
+                    roomId: null,
+                    name: null,
+                    isHost: false,
+                    players: [],
+                    phase: "lobby",
+                    hand: [],
+                    trump: null,
+                    leader: null,
+                    bidWinner: null,
+                    partnerIds: [],
+                    partnerCards: [],
+                    partnerCard: null,
+                    allowedPartners: 1,
+                    winningBid: 0,
+                    minBid: 0,
+                    currentBid: 0,
+                    bidStep: 5,
+                    currentTurn: null,
+                    numberOfSets: 2,
+                    cardsPerPlayer: 13,
+                    roundNumber: 1,
+                    maxPlayers: 4,
+                    scores: {},
+                    cumulative: {},
+                    cardPool: [],
+                    muted: false,
+                    selectedCardId: null,
+                    spectating: false,
+                    config: null,
+                    trickDone: false,
+                };
 
-  <div id="overOverlay" class="overlay">
-    <div class="panel modal">
-      <h2>Round Over</h2>
-      <div id="overBody"></div>
-      <div id="overActions" style="margin-top:14px"></div>
-    </div>
-  </div>
+                const cardKey = (c) => `${c.rank}_${c.suit}`;
+                const isRed = (suit) => !!RED[suit];
+                const getPlayer = (sid) =>
+                    S.players.find((p) => p.socketId === sid);
+                const getName = (sid) => {
+                    const p = getPlayer(sid);
+                    return p ? p.name : "—";
+                };
+                const initials = (name) =>
+                    (name || "?").trim().slice(0, 2).toUpperCase();
+                const cap = (s) =>
+                    s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
 
-  <div id="partnerOverlay" class="overlay">
-    <div class="panel modal">
-      <h2>👑 You Won the Bid</h2>
-      <p style="text-align:center;font-size:13px;color:rgba(246,236,210,.75);margin-bottom:14px">Pick the trump suit, then declare your partner cards.</p>
-      <div class="field">
-        <label>Trump Suit</label>
-        <select id="selTrump">
-          <option value="">Select trump…</option>
-          <option value="spades">♠ Spades</option><option value="hearts">♥ Hearts</option>
-          <option value="diamonds">♦ Diamonds</option><option value="clubs">♣ Clubs</option>
-        </select>
-      </div>
-      <button id="btnConfirmTrump" class="btn block" onclick="ui.confirmTrump()">Confirm Trump</button>
+                // ---------- sound (tiny WebAudio blips, no assets) ----------
+                let actx = null;
+                function beep(freq, dur, type, vol) {
+                    if (S.muted) return;
+                    try {
+                        actx =
+                            actx ||
+                            new (
+                                window.AudioContext || window.webkitAudioContext
+                            )();
+                        const o = actx.createOscillator(),
+                            g = actx.createGain();
+                        o.type = type || "sine";
+                        o.frequency.value = freq;
+                        g.gain.value = vol || 0.05;
+                        o.connect(g);
+                        g.connect(actx.destination);
+                        o.start();
+                        g.gain.exponentialRampToValueAtTime(
+                            0.0001,
+                            actx.currentTime + (dur || 0.12),
+                        );
+                        o.stop(actx.currentTime + (dur || 0.12));
+                    } catch (e) {}
+                }
+                const SFX = {
+                    play: () => beep(420, 0.09, "triangle", 0.06),
+                    deal: () => beep(300, 0.06, "sine", 0.04),
+                    win: () => {
+                        beep(523, 0.1, "sine", 0.06);
+                        setTimeout(() => beep(784, 0.14, "sine", 0.06), 90);
+                    },
+                    turn: () => beep(660, 0.12, "sine", 0.05),
+                    bid: () => beep(500, 0.08, "square", 0.04),
+                };
 
-      <div id="partnerPick" class="hidden" style="margin-top:16px">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <label style="font-size:12px;font-weight:600;color:var(--gold);text-transform:uppercase">Partner cards</label>
-          <span id="partnerAllowed" style="font-size:11.5px;color:rgba(246,236,210,.7)"></span>
-        </div>
-        <p style="font-size:11.5px;color:rgba(246,236,210,.6);margin-bottom:10px">
-          Each row = a card + which occurrence (1st/2nd…) reveals a partner when played.
-        </p>
-        <div id="partnerRows"></div>
-        <button id="btnAddPartner" class="btn ghost block" style="margin-top:4px" onclick="ui.addPartnerRow()">+ Add partner card</button>
-        <button id="btnStartPlay" class="btn block lg" style="margin-top:12px" onclick="ui.declareAndStart()">Start Game</button>
-      </div>
-    </div>
-  </div>
+                // ---------- toasts ----------
+                function toast(msg, kind) {
+                    const el = document.createElement("div");
+                    el.className = "toast " + (kind || "");
+                    el.textContent = msg;
+                    $("toasts").appendChild(el);
+                    setTimeout(() => el.remove(), 3100);
+                }
 
-  <div id="toasts"></div>
+                // ---------- screens ----------
+                function show(screen) {
+                    document
+                        .querySelectorAll(".screen")
+                        .forEach((s) => s.classList.remove("active"));
+                    $("screen-" + screen).classList.add("active");
+                }
 
-  <script src="/socket.io.min.js"></script>
-  <script>
-  (function () {
-    'use strict';
+                // =====================================================
+                //  SOCKET
+                // =====================================================
+                // The page is served by the same Node server that hosts Socket.io, so
+                // connect to the same origin (works in local dev and production alike).
+                const socket = io({
+                    transports: ["websocket", "polling"],
+                    reconnection: true,
+                });
 
-    // Expose the UI namespace up front so inline onclick handlers and the
-    // ui.* assignments below always have an object to attach to.
-    window.ui = window.ui || {};
+                socket.on("connect", () => {
+                    S.socketId = socket.id;
+                    $("connDot").classList.remove("off");
+                    if (getSession()) attemptReconnect();
+                });
+                socket.on("disconnect", () => {
+                    $("connDot").classList.add("off");
+                    if (getSession())
+                        toast("Disconnected — 2 min to return", "err");
+                });
+                socket.on("CONNECTED", () => {});
+                socket.on("ROOM_ERROR", (e) =>
+                    toast(e && e.message ? e.message : "Error", "err"),
+                );
 
-    // ---------- constants / helpers ----------
-    const SUIT = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
-    const RED = { hearts: 1, diamonds: 1 };
-    const RANK_ORDER = ['A','K','Q','J','10','9','8','7','6','5','4','3','2'];
-    const $ = (id) => document.getElementById(id);
-    const PLAYER_ID_KEY = 'kanitidi_playerId';
-    const SESSION_KEY = 'kanitidi_session';
+                function attemptReconnect() {
+                    const s = getSession();
+                    if (!s || !s.roomId) return;
+                    socket.emit(
+                        "REJOIN_ROOM",
+                        {
+                            roomId: s.roomId,
+                            playerId: getPlayerId(),
+                            name: s.name,
+                        },
+                        (r) => {
+                            if (r && !r.success)
+                                toast(r.message || "Reconnect failed", "err");
+                        },
+                    );
+                }
+                document.addEventListener("visibilitychange", () => {
+                    if (!document.hidden && !socket.connected && getSession())
+                        socket.connect();
+                });
 
-    function getPlayerId() {
-      let id = null; try { id = localStorage.getItem(PLAYER_ID_KEY); } catch (e) {}
-      if (!id) {
-        id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
-           : ('p_' + Date.now() + '_' + Math.random().toString(36).slice(2));
-        try { localStorage.setItem(PLAYER_ID_KEY, id); } catch (e) {}
-      }
-      return id;
-    }
-    const setPlayerId = (id) => { try { id && localStorage.setItem(PLAYER_ID_KEY, id); } catch (e) {} };
-    const saveSession = (roomId, name) => { try { localStorage.setItem(SESSION_KEY, JSON.stringify({ roomId, name })); } catch (e) {} };
-    const getSession = () => { try { return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null'); } catch (e) { return null; } };
-    const clearSession = () => { try { localStorage.removeItem(SESSION_KEY); } catch (e) {} };
+                // ---------- lobby results ----------
+                socket.on("ROOM_CREATED", (d) => onSeated(d, true));
+                socket.on("ROOM_JOINED", (d) => onSeated(d, false));
 
-    // ---------- state ----------
-    const S = {
-      socketId: null, roomId: null, name: null, isHost: false,
-      players: [], phase: 'lobby',
-      hand: [], trump: null, leader: null, bidWinner: null,
-      partnerIds: [], partnerCards: [], partnerCard: null, allowedPartners: 1,
-      winningBid: 0, minBid: 0, currentBid: 0, bidStep: 5, currentTurn: null,
-      numberOfSets: 2, cardsPerPlayer: 13, roundNumber: 1, maxPlayers: 4,
-      scores: {}, cumulative: {}, cardPool: [],
-      muted: false, selectedCardId: null, spectating: false, config: null, trickDone: false,
-    };
+                function applyConfig(cfg) {
+                    if (!cfg) return;
+                    S.config = cfg;
+                    if (cfg.numberOfDecks) S.numberOfSets = cfg.numberOfDecks;
+                    if (cfg.cardsPerPlayer)
+                        S.cardsPerPlayer = cfg.cardsPerPlayer;
+                }
 
-    const cardKey = (c) => `${c.rank}_${c.suit}`;
-    const isRed = (suit) => !!RED[suit];
-    const getPlayer = (sid) => S.players.find(p => p.socketId === sid);
-    const getName = (sid) => { const p = getPlayer(sid); return p ? p.name : '—'; };
-    const initials = (name) => (name || '?').trim().slice(0, 2).toUpperCase();
-    const cap = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+                function onSeated(d, host) {
+                    S.roomId = d.roomId;
+                    S.isHost = host;
+                    S.players = d.players || [];
+                    S.maxPlayers = d.maxPlayers || S.maxPlayers;
+                    applyConfig(d.config);
+                    S.spectating = !!d.waitingForNextRound;
+                    setPlayerId(d.playerId);
+                    saveSession(d.roomId, S.name);
+                    S.phase = "waiting";
+                    enterTable();
+                    if (S.spectating)
+                        toast(
+                            "Round in progress — you’ll join next round",
+                            "gold",
+                        );
+                    else
+                        toast(
+                            host
+                                ? `Room ${d.roomId} created`
+                                : `Joined ${d.roomId}`,
+                            "ok",
+                        );
+                }
 
-    // ---------- sound (tiny WebAudio blips, no assets) ----------
-    let actx = null;
-    function beep(freq, dur, type, vol) {
-      if (S.muted) return;
-      try {
-        actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-        const o = actx.createOscillator(), g = actx.createGain();
-        o.type = type || 'sine'; o.frequency.value = freq;
-        g.gain.value = vol || 0.05; o.connect(g); g.connect(actx.destination);
-        o.start(); g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + (dur || 0.12));
-        o.stop(actx.currentTime + (dur || 0.12));
-      } catch (e) {}
-    }
-    const SFX = {
-      play:   () => beep(420, 0.09, 'triangle', 0.06),
-      deal:   () => beep(300, 0.06, 'sine', 0.04),
-      win:    () => { beep(523, 0.1, 'sine', 0.06); setTimeout(() => beep(784, 0.14, 'sine', 0.06), 90); },
-      turn:   () => beep(660, 0.12, 'sine', 0.05),
-      bid:    () => beep(500, 0.08, 'square', 0.04),
-    };
+                socket.on("PLAYER_JOINED", () => refreshRoom());
+                socket.on("PLAYER_LEFT", (d) => {
+                    if (d && d.newHostId === socket.id) {
+                        S.isHost = true;
+                        toast("You are now the host", "gold");
+                    }
+                    refreshRoom();
+                });
+                socket.on("PLAYER_DISCONNECTED", (d) => {
+                    toast(
+                        `${d.player?.name || "A player"} disconnected`,
+                        "err",
+                    );
+                    refreshRoom();
+                });
+                socket.on("PLAYER_RECONNECTED", (d) => {
+                    toast(`${d.player?.name || "A player"} reconnected`, "ok");
+                    refreshRoom();
+                });
+                socket.on("HOST_ASSIGNED", () => {
+                    refreshRoom();
+                });
 
-    // ---------- toasts ----------
-    function toast(msg, kind) {
-      const el = document.createElement('div');
-      el.className = 'toast ' + (kind || '');
-      el.textContent = msg;
-      $('toasts').appendChild(el);
-      setTimeout(() => el.remove(), 3100);
-    }
+                function refreshRoom() {
+                    socket.emit("GET_ROOM_STATE", { roomId: S.roomId }, (r) => {
+                        if (r && r.success) {
+                            S.players = r.roomState.players;
+                            renderAll();
+                        }
+                    });
+                }
 
-    // ---------- screens ----------
-    function show(screen) {
-      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-      $('screen-' + screen).classList.add('active');
-    }
+                // ---------- game start ----------
+                socket.on("PLAYER_HAND", (d) => {
+                    S.hand = d.cards || [];
+                    S.cardsPerPlayer = d.cardsPerPlayer || S.hand.length;
+                    SFX.deal();
+                    renderHand();
+                    renderMe();
+                });
 
-    // =====================================================
-    //  SOCKET
-    // =====================================================
-    // The page is served by the same Node server that hosts Socket.io, so
-    // connect to the same origin (works in local dev and production alike).
-    const socket = io({ transports: ['websocket', 'polling'], reconnection: true });
+                socket.on("BIDDING_STARTED", (d) => {
+                    S.phase = "bidding";
+                    S.spectating = false; // we're in this round now
+                    // Fresh round: clear last round's trump / partner / team state.
+                    S.trump = null;
+                    S.partnerCard = null;
+                    S.partnerCards = [];
+                    S.partnerIds = [];
+                    S.allowedPartners = 1;
+                    S.bidWinner = null;
+                    S.leader = null;
+                    S.players.forEach((p) => {
+                        p._passed = false;
+                        p._team = null;
+                    });
+                    clearTrick();
+                    S.minBid = d.minBid;
+                    S.currentBid = d.minBid;
+                    S.winningBid = d.minBid;
+                    S.currentTurn = d.currentTurn;
+                    if (d.numberOfSets) S.numberOfSets = d.numberOfSets;
+                    S.totalPoints = d.totalPoints;
+                    $("roundChip").classList.remove("hidden");
+                    $("roundVal").textContent = S.roundNumber;
+                    renderAll();
+                    if (S.currentTurn === socket.id) SFX.turn();
+                });
 
-    socket.on('connect', () => {
-      S.socketId = socket.id;
-      $('connDot').classList.remove('off');
-      if (getSession()) attemptReconnect();
-    });
-    socket.on('disconnect', () => {
-      $('connDot').classList.add('off');
-      if (getSession()) toast('Disconnected — 2 min to return', 'err');
-    });
-    socket.on('CONNECTED', () => {});
-    socket.on('ROOM_ERROR', (e) => toast(e && e.message ? e.message : 'Error', 'err'));
+                socket.on("NEXT_ROUND_STARTED", (d) => {
+                    S.roundNumber = d.roundNumber || S.roundNumber + 1;
+                    if (d.cumulativeScores) S.cumulative = d.cumulativeScores;
+                    $("roundVal").textContent = S.roundNumber;
+                    closeOverlays();
+                    toast(`Round ${S.roundNumber}`, "gold");
+                });
 
-    function attemptReconnect() {
-      const s = getSession(); if (!s || !s.roomId) return;
-      socket.emit('REJOIN_ROOM', { roomId: s.roomId, playerId: getPlayerId(), name: s.name }, (r) => {
-        if (r && !r.success) toast(r.message || 'Reconnect failed', 'err');
-      });
-    }
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden && !socket.connected && getSession()) socket.connect();
-    });
+                socket.on("BID_UPDATED", (d) => {
+                    S.currentBid = d.bidValue;
+                    S.winningBid = d.bidValue;
+                    S.bidWinner = d.bidder;
+                    S.currentTurn = d.nextTurn;
+                    SFX.bid();
+                    renderAll();
+                    if (S.currentTurn === socket.id) SFX.turn();
+                });
 
-    // ---------- lobby results ----------
-    socket.on('ROOM_CREATED', (d) => onSeated(d, true));
-    socket.on('ROOM_JOINED', (d) => onSeated(d, false));
+                socket.on("PLAYER_PASSED", (d) => {
+                    const p = getPlayer(d.player);
+                    if (p) p._passed = true;
+                    S.currentTurn = d.nextTurn;
+                    renderAll();
+                    if (S.currentTurn === socket.id) SFX.turn();
+                });
 
-    function applyConfig(cfg) {
-      if (!cfg) return;
-      S.config = cfg;
-      if (cfg.numberOfDecks) S.numberOfSets = cfg.numberOfDecks;
-      if (cfg.cardsPerPlayer) S.cardsPerPlayer = cfg.cardsPerPlayer;
-    }
+                socket.on("BIDDING_ENDED", (d) => {
+                    S.phase = "selection";
+                    S.leader = d.leader;
+                    S.bidWinner = d.leader;
+                    S.winningBid = d.winningBid;
+                    S.cardPool = d.cardPool || [];
+                    S.allowedPartners = d.allowedPartners || 1;
+                    S.currentTurn = null;
+                    S.players.forEach((p) => (p._passed = false));
+                    renderAll();
+                    if (d.leader === socket.id) {
+                        openPartnerModal();
+                        toast(
+                            `You won! Choose up to ${S.allowedPartners} partner(s)`,
+                            "gold",
+                        );
+                    } else
+                        toast(
+                            `${getName(d.leader)} won the bid (${d.winningBid})`,
+                            "gold",
+                        );
+                });
 
-    function onSeated(d, host) {
-      S.roomId = d.roomId; S.isHost = host;
-      S.players = d.players || [];
-      S.maxPlayers = d.maxPlayers || S.maxPlayers;
-      applyConfig(d.config);
-      S.spectating = !!d.waitingForNextRound;
-      setPlayerId(d.playerId);
-      saveSession(d.roomId, S.name);
-      S.phase = 'waiting';
-      enterTable();
-      if (S.spectating) toast('Round in progress — you’ll join next round', 'gold');
-      else toast(host ? `Room ${d.roomId} created` : `Joined ${d.roomId}`, 'ok');
-    }
+                socket.on("TRUMP_SELECTED", (d) => {
+                    S.trump = d.suit;
+                    renderTrumpChip();
+                    renderHand();
+                    if (d.selectedBy !== socket.id)
+                        toast(`Trump: ${cap(d.suit)} ${SUIT[d.suit]}`);
+                });
 
-    socket.on('PLAYER_JOINED', () => refreshRoom());
-    socket.on('PLAYER_LEFT', (d) => {
-      if (d && d.newHostId === socket.id) { S.isHost = true; toast('You are now the host', 'gold'); }
-      refreshRoom();
-    });
-    socket.on('PLAYER_DISCONNECTED', (d) => { toast(`${d.player?.name || 'A player'} disconnected`, 'err'); refreshRoom(); });
-    socket.on('PLAYER_RECONNECTED', (d) => { toast(`${d.player?.name || 'A player'} reconnected`, 'ok'); refreshRoom(); });
-    socket.on('HOST_ASSIGNED', () => { refreshRoom(); });
+                socket.on("PARTNER_CARD_SELECTED", (d) => {
+                    S.partnerCard = d.partnerCard;
+                    if (d.selectedBy !== socket.id)
+                        toast(`Partner card chosen`, "gold");
+                });
 
-    function refreshRoom() {
-      socket.emit('GET_ROOM_STATE', { roomId: S.roomId }, (r) => {
-        if (r && r.success) { S.players = r.roomState.players; renderAll(); }
-      });
-    }
+                socket.on("PARTNERS_DECLARED", (d) => {
+                    S.partnerCards = d.partners || [];
+                    if (d.selectedBy !== socket.id)
+                        toast(`Partner cards declared`, "gold");
+                });
 
-    // ---------- game start ----------
-    socket.on('PLAYER_HAND', (d) => {
-      S.hand = d.cards || [];
-      S.cardsPerPlayer = d.cardsPerPlayer || S.hand.length;
-      SFX.deal();
-      renderHand(); renderMe();
-    });
+                socket.on("GAMEPLAY_STARTED", (d) => {
+                    S.phase = "playing";
+                    S.trump = d.trump;
+                    S.leader = d.leader;
+                    S.bidWinner = d.leader;
+                    S.partnerCard = d.partnerCard || S.partnerCard;
+                    S.partnerCards = d.partnerCards || S.partnerCards;
+                    S.winningBid = d.winningBid || S.winningBid;
+                    S.currentTurn = d.leader;
+                    if (d.players) S.players = mergeConn(d.players);
+                    const b = getPlayer(S.bidWinner);
+                    if (b) b._team = "bidder";
+                    closeOverlays();
+                    renderTrumpChip();
+                    renderBidChip();
+                    renderAll();
+                    toast("Game on!", "ok");
+                    if (S.currentTurn === socket.id) SFX.turn();
+                });
 
-    socket.on('BIDDING_STARTED', (d) => {
-      S.phase = 'bidding';
-      S.spectating = false; // we're in this round now
-      // Fresh round: clear last round's trump / partner / team state.
-      S.trump = null; S.partnerCard = null; S.partnerCards = []; S.partnerIds = []; S.allowedPartners = 1;
-      S.bidWinner = null; S.leader = null;
-      S.players.forEach(p => { p._passed = false; p._team = null; });
-      clearTrick();
-      S.minBid = d.minBid; S.currentBid = d.minBid; S.winningBid = d.minBid;
-      S.currentTurn = d.currentTurn;
-      if (d.numberOfSets) S.numberOfSets = d.numberOfSets;
-      S.totalPoints = d.totalPoints;
-      $('roundChip').classList.remove('hidden'); $('roundVal').textContent = S.roundNumber;
-      renderAll();
-      if (S.currentTurn === socket.id) SFX.turn();
-    });
+                socket.on("CARD_PLAYED", (d) => {
+                    // If the previous trick was finished and is still on screen, clear it now
+                    // (before the winner's first card lands) so their lead card stays visible.
+                    if (S.trickDone) {
+                        clearTrick();
+                        S.trickDone = false;
+                    }
+                    addTrickCard(d.playerId, d.card);
+                    if (d.playerId === socket.id) {
+                        S.hand = S.hand.filter((c) => c.id !== d.card.id);
+                        renderHand();
+                        renderMe();
+                    }
+                    if (Array.isArray(d.partnerIds))
+                        S.partnerIds = d.partnerIds;
+                    if (d.partnerAssigned && d.partnerId) {
+                        if (!S.partnerIds.includes(d.partnerId))
+                            S.partnerIds.push(d.partnerId);
+                        const p = getPlayer(d.partnerId);
+                        if (p) p._team = "bidder";
+                        const b = getPlayer(S.bidWinner);
+                        if (b) b._team = "bidder";
+                        toast(
+                            `🤝 ${d.partnerName} joined the bidder's team!`,
+                            "gold",
+                        );
+                        if (d.partnerId === socket.id) setMeTag();
+                    } else if (d.partnerLost) {
+                        const why =
+                            d.partnerLostReason === "bidder"
+                                ? "bidder played it"
+                                : "already a partner";
+                        toast(`💔 A partner slot was lost (${why})`);
+                    }
+                    if (!d.trickComplete) {
+                        S.currentTurn = d.nextPlayerId;
+                        renderSeats();
+                        renderActions();
+                        renderHand();
+                    }
+                    SFX.play();
+                    if (!d.trickComplete && d.nextPlayerId === socket.id)
+                        SFX.turn();
+                });
 
-    socket.on('NEXT_ROUND_STARTED', (d) => {
-      S.roundNumber = d.roundNumber || (S.roundNumber + 1);
-      if (d.cumulativeScores) S.cumulative = d.cumulativeScores;
-      $('roundVal').textContent = S.roundNumber;
-      closeOverlays();
-      toast(`Round ${S.roundNumber}`, 'gold');
-    });
+                socket.on("TRICK_COMPLETE", (d) => {
+                    if (d.currentScores)
+                        d.currentScores.forEach((s) => {
+                            const p = getPlayer(s.socketId);
+                            if (p) p.score = s.score;
+                        });
+                    S.currentTurn = d.nextPlayerId;
+                    flashTrickWinner(d.winner, d.points);
+                    SFX.win();
+                    // Keep the completed trick on screen; it's cleared either when the next
+                    // card is played (see CARD_PLAYED) or by this fallback timer.
+                    S.trickDone = true;
+                    renderSeats();
+                    renderActions();
+                    setTimeout(() => {
+                        if (S.trickDone) {
+                            clearTrick();
+                            S.trickDone = false;
+                            renderAll();
+                        }
+                    }, 2200);
+                });
 
-    socket.on('BID_UPDATED', (d) => {
-      S.currentBid = d.bidValue; S.winningBid = d.bidValue; S.bidWinner = d.bidder;
-      S.currentTurn = d.nextTurn; SFX.bid();
-      renderAll();
-      if (S.currentTurn === socket.id) SFX.turn();
-    });
+                socket.on("GAME_OVER", (d) => {
+                    S.phase = "completed";
+                    if (d.scores)
+                        d.scores.forEach((s) => {
+                            S.scores[s.socketId] = s.score;
+                            const p = getPlayer(s.socketId);
+                            if (p) p.score = s.score;
+                        });
+                    openGameOver(d);
+                    SFX.win();
+                });
 
-    socket.on('PLAYER_PASSED', (d) => {
-      const p = getPlayer(d.player); if (p) p._passed = true;
-      S.currentTurn = d.nextTurn;
-      renderAll();
-      if (S.currentTurn === socket.id) SFX.turn();
-    });
+                // ---------- reconnection snapshot ----------
+                socket.on("REJOIN_FAILED", (d) => {
+                    clearSession();
+                    toast(d.message || "Reconnect failed — join again", "err");
+                    show("lobby");
+                });
 
-    socket.on('BIDDING_ENDED', (d) => {
-      S.phase = 'selection';
-      S.leader = d.leader; S.bidWinner = d.leader; S.winningBid = d.winningBid;
-      S.cardPool = d.cardPool || [];
-      S.allowedPartners = d.allowedPartners || 1;
-      S.currentTurn = null;
-      S.players.forEach(p => p._passed = false);
-      renderAll();
-      if (d.leader === socket.id) { openPartnerModal(); toast(`You won! Choose up to ${S.allowedPartners} partner(s)`, 'gold'); }
-      else toast(`${getName(d.leader)} won the bid (${d.winningBid})`, 'gold');
-    });
+                socket.on("REJOINED", (d) => {
+                    S.roomId = d.roomId;
+                    S.isHost = !!d.isHost;
+                    S.players = d.players || [];
+                    if (d.cumulativeScores) S.cumulative = d.cumulativeScores;
+                    if (d.config) applyConfig(d.config);
+                    saveSession(d.roomId, getSession()?.name || S.name);
+                    const g = d.game;
+                    if (!g) {
+                        S.phase = "waiting";
+                        enterTable();
+                        toast("Reconnected", "ok");
+                        return;
+                    }
 
-    socket.on('TRUMP_SELECTED', (d) => {
-      S.trump = d.suit; renderTrumpChip(); renderHand();
-      if (d.selectedBy !== socket.id) toast(`Trump: ${cap(d.suit)} ${SUIT[d.suit]}`);
-    });
+                    S.phase = g.phase === "completed" ? "waiting" : g.phase;
+                    if (g.players && g.players.length)
+                        S.players = mergeConn(g.players);
+                    S.hand = Array.isArray(g.hand) ? g.hand : S.hand;
+                    S.trump = g.trump;
+                    S.leader = g.leader;
+                    S.bidWinner = g.bidWinner;
+                    S.partnerIds = g.partnerIds || [];
+                    S.partnerCards = g.partnerCards || [];
+                    S.partnerCard = g.partnerCard;
+                    S.allowedPartners = g.allowedPartners || S.allowedPartners;
+                    S.winningBid = g.winningBid || 0;
+                    S.currentBid = g.bidding?.currentBid || g.winningBid || 0;
+                    S.minBid = g.bidding?.minimumBid || S.currentBid;
+                    S.currentTurn = g.currentTurn;
+                    S.roundNumber = g.roundNumber || 1;
+                    if (g.bidding?.numberOfSets)
+                        S.numberOfSets = g.bidding.numberOfSets;
+                    (g.bidding?.passedPlayers || []).forEach((pid) => {
+                        const p = getPlayer(pid);
+                        if (p) p._passed = true;
+                    });
+                    if (S.bidWinner) {
+                        const b = getPlayer(S.bidWinner);
+                        if (b) b._team = "bidder";
+                    }
+                    S.partnerIds.forEach((pid) => {
+                        const p = getPlayer(pid);
+                        if (p) p._team = "bidder";
+                    });
 
-    socket.on('PARTNER_CARD_SELECTED', (d) => {
-      S.partnerCard = d.partnerCard;
-      if (d.selectedBy !== socket.id) toast(`Partner card chosen`, 'gold');
-    });
+                    enterTable();
+                    clearTrick();
+                    if (Array.isArray(g.currentTrick))
+                        g.currentTrick.forEach((tc) =>
+                            addTrickCard(tc.playerId, tc.card),
+                        );
+                    setMeTag();
+                    toast("Reconnected to your game", "ok");
+                });
 
-    socket.on('PARTNERS_DECLARED', (d) => {
-      S.partnerCards = d.partners || [];
-      if (d.selectedBy !== socket.id) toast(`Partner cards declared`, 'gold');
-    });
+                function mergeConn(players) {
+                    // keep connection flags from current room view if present
+                    return players.map((p) => {
+                        const old = getPlayer(p.socketId);
+                        return Object.assign({ connected: true }, old || {}, p);
+                    });
+                }
 
-    socket.on('GAMEPLAY_STARTED', (d) => {
-      S.phase = 'playing';
-      S.trump = d.trump; S.leader = d.leader; S.bidWinner = d.leader;
-      S.partnerCard = d.partnerCard || S.partnerCard;
-      S.partnerCards = d.partnerCards || S.partnerCards;
-      S.winningBid = d.winningBid || S.winningBid;
-      S.currentTurn = d.leader;
-      if (d.players) S.players = mergeConn(d.players);
-      const b = getPlayer(S.bidWinner); if (b) b._team = 'bidder';
-      closeOverlays();
-      renderTrumpChip(); renderBidChip(); renderAll();
-      toast('Game on!', 'ok');
-      if (S.currentTurn === socket.id) SFX.turn();
-    });
+                // =====================================================
+                //  RENDERING
+                // =====================================================
+                function enterTable() {
+                    show("table");
+                    renderTopbar();
+                    renderAll();
+                }
 
-    socket.on('CARD_PLAYED', (d) => {
-      // If the previous trick was finished and is still on screen, clear it now
-      // (before the winner's first card lands) so their lead card stays visible.
-      if (S.trickDone) { clearTrick(); S.trickDone = false; }
-      addTrickCard(d.playerId, d.card);
-      if (d.playerId === socket.id) {
-        S.hand = S.hand.filter(c => c.id !== d.card.id);
-        renderHand(); renderMe();
-      }
-      if (Array.isArray(d.partnerIds)) S.partnerIds = d.partnerIds;
-      if (d.partnerAssigned && d.partnerId) {
-        if (!S.partnerIds.includes(d.partnerId)) S.partnerIds.push(d.partnerId);
-        const p = getPlayer(d.partnerId); if (p) p._team = 'bidder';
-        const b = getPlayer(S.bidWinner); if (b) b._team = 'bidder';
-        toast(`🤝 ${d.partnerName} joined the bidder's team!`, 'gold');
-        if (d.partnerId === socket.id) setMeTag();
-      } else if (d.partnerLost) {
-        const why = d.partnerLostReason === 'bidder' ? 'bidder played it' : 'already a partner';
-        toast(`💔 A partner slot was lost (${why})`);
-      }
-      if (!d.trickComplete) { S.currentTurn = d.nextPlayerId; renderSeats(); renderActions(); renderHand(); }
-      SFX.play();
-      if (!d.trickComplete && d.nextPlayerId === socket.id) SFX.turn();
-    });
+                function renderAll() {
+                    renderTopbar();
+                    renderSeats();
+                    renderCenter();
+                    renderHand();
+                    renderMe();
+                    renderActions();
+                }
 
-    socket.on('TRICK_COMPLETE', (d) => {
-      if (d.currentScores) d.currentScores.forEach(s => { const p = getPlayer(s.socketId); if (p) p.score = s.score; });
-      S.currentTurn = d.nextPlayerId;
-      flashTrickWinner(d.winner, d.points);
-      SFX.win();
-      // Keep the completed trick on screen; it's cleared either when the next
-      // card is played (see CARD_PLAYED) or by this fallback timer.
-      S.trickDone = true;
-      renderSeats(); renderActions();
-      setTimeout(() => { if (S.trickDone) { clearTrick(); S.trickDone = false; renderAll(); } }, 2200);
-    });
+                function renderTopbar() {
+                    $("roomChip").textContent = S.roomId || "—";
+                    renderTrumpChip();
+                    renderBidChip();
+                    if (S.phase !== "lobby" && S.phase !== "waiting") {
+                        $("roundChip").classList.remove("hidden");
+                        $("roundVal").textContent = S.roundNumber;
+                    }
+                }
+                function renderTrumpChip() {
+                    const c = $("trumpChip");
+                    if (S.trump) {
+                        c.classList.remove("hidden");
+                        $("trumpVal").textContent =
+                            `${cap(S.trump)} ${SUIT[S.trump]}`;
+                        c.className =
+                            "chip " +
+                            (isRed(S.trump) ? "suit-red" : "suit-black");
+                    } else c.classList.add("hidden");
+                }
+                function renderBidChip() {
+                    const c = $("bidChip");
+                    if (
+                        (S.phase === "selection" || S.phase === "playing") &&
+                        S.winningBid
+                    ) {
+                        c.classList.remove("hidden");
+                        $("bidVal").textContent = S.winningBid;
+                    } else c.classList.add("hidden");
+                    renderPartnerChip();
+                }
+                function renderPartnerChip() {
+                    const c = $("partnerChip");
+                    if (
+                        S.phase === "playing" &&
+                        S.partnerCards &&
+                        S.partnerCards.length
+                    ) {
+                        c.classList.remove("hidden");
+                        $("partnerVal").textContent = S.partnerCards
+                            .map(
+                                (p) =>
+                                    `${p.occurrence ? p.occurrence + "×" : ""}${p.rank}${SUIT[p.suit]}`,
+                            )
+                            .join(" ");
+                    } else c.classList.add("hidden");
+                }
 
-    socket.on('GAME_OVER', (d) => {
-      S.phase = 'completed';
-      if (d.scores) d.scores.forEach(s => { S.scores[s.socketId] = s.score; const p = getPlayer(s.socketId); if (p) p.score = s.score; });
-      openGameOver(d);
-      SFX.win();
-    });
+                function renderSeats() {
+                    const box = $("seats");
+                    box.innerHTML = "";
+                    // Everyone around the mandala, with me anchored at the bottom.
+                    const meIdx = S.players.findIndex(
+                        (p) => p.socketId === socket.id,
+                    );
+                    const ordered =
+                        meIdx < 0
+                            ? S.players.slice()
+                            : [
+                                  ...S.players.slice(meIdx),
+                                  ...S.players.slice(0, meIdx),
+                              ];
+                    const n = ordered.length || 1;
 
-    // ---------- reconnection snapshot ----------
-    socket.on('REJOIN_FAILED', (d) => { clearSession(); toast(d.message || 'Reconnect failed — join again', 'err'); show('lobby'); });
+                    ordered.forEach((p, k) => {
+                        const isMe = p.socketId === socket.id;
+                        // angle: me at 90° (bottom), the rest spread evenly clockwise
+                        const a = ((90 + (k * 360) / n) * Math.PI) / 180;
+                        const x = 50 + 40 * Math.cos(a);
+                        const y = 46 + 38 * Math.sin(a);
 
-    socket.on('REJOINED', (d) => {
-      S.roomId = d.roomId; S.isHost = !!d.isHost; S.players = d.players || [];
-      if (d.cumulativeScores) S.cumulative = d.cumulativeScores;
-      if (d.config) applyConfig(d.config);
-      saveSession(d.roomId, getSession()?.name || S.name);
-      const g = d.game;
-      if (!g) { S.phase = 'waiting'; enterTable(); toast('Reconnected', 'ok'); return; }
+                        const el = document.createElement("div");
+                        let cls = "seat";
+                        if (isMe) cls += " me-seat";
+                        if (p.socketId === S.currentTurn) cls += " active";
+                        if (p.connected === false) cls += " off";
+                        if (
+                            p._team === "bidder" ||
+                            p.socketId === S.bidWinner ||
+                            S.partnerIds.includes(p.socketId)
+                        )
+                            cls += " team-bidder";
+                        else if (p._team === "opp") cls += " team-opp";
+                        el.className = cls;
+                        el.style.left = x + "%";
+                        el.style.top = y + "%";
 
-      S.phase = g.phase === 'completed' ? 'waiting' : g.phase;
-      if (g.players && g.players.length) S.players = mergeConn(g.players);
-      S.hand = Array.isArray(g.hand) ? g.hand : S.hand;
-      S.trump = g.trump; S.leader = g.leader; S.bidWinner = g.bidWinner;
-      S.partnerIds = g.partnerIds || []; S.partnerCards = g.partnerCards || []; S.partnerCard = g.partnerCard;
-      S.allowedPartners = g.allowedPartners || S.allowedPartners;
-      S.winningBid = g.winningBid || 0; S.currentBid = g.bidding?.currentBid || g.winningBid || 0;
-      S.minBid = g.bidding?.minimumBid || S.currentBid;
-      S.currentTurn = g.currentTurn; S.roundNumber = g.roundNumber || 1;
-      if (g.bidding?.numberOfSets) S.numberOfSets = g.bidding.numberOfSets;
-      (g.bidding?.passedPlayers || []).forEach(pid => { const p = getPlayer(pid); if (p) p._passed = true; });
-      if (S.bidWinner) { const b = getPlayer(S.bidWinner); if (b) b._team = 'bidder'; }
-      S.partnerIds.forEach(pid => { const p = getPlayer(pid); if (p) p._team = 'bidder'; });
+                        const roles = [];
+                        if (
+                            p.socketId === S.leader ||
+                            p.socketId === S.bidWinner
+                        )
+                            roles.push("👑");
+                        if (S.partnerIds.includes(p.socketId)) roles.push("🤝");
+                        if (p.isBot) roles.push("🤖");
+                        if (p.isHost) roles.push("★");
 
-      enterTable();
-      clearTrick();
-      if (Array.isArray(g.currentTrick)) g.currentTrick.forEach(tc => addTrickCard(tc.playerId, tc.card));
-      setMeTag();
-      toast('Reconnected to your game', 'ok');
-    });
+                        let status = "";
+                        if (p.connected === false)
+                            status = '<div class="status off">offline</div>';
+                        else if (p.waiting)
+                            status = '<div class="status bid">next round</div>';
+                        else if (
+                            S.phase === "bidding" &&
+                            p.socketId === S.currentTurn
+                        )
+                            status = '<div class="status turn">bidding…</div>';
+                        else if (S.phase === "bidding" && p._passed)
+                            status = '<div class="status passed">passed</div>';
+                        else if (
+                            S.phase === "playing" &&
+                            p.socketId === S.currentTurn
+                        )
+                            status = '<div class="status turn">turn</div>';
+                        else status = "";
 
-    function mergeConn(players) {
-      // keep connection flags from current room view if present
-      return players.map(p => {
-        const old = getPlayer(p.socketId);
-        return Object.assign({ connected: true }, old || {}, p);
-      });
-    }
+                        el.innerHTML =
+                            `<div class="roles">${roles.map((r) => `<span class="badge">${r}</span>`).join("")}</div>` +
+                            `<div class="avatar">${initials(p.name)}</div>` +
+                            `<div class="nm">${escapeHtml(isMe ? "You" : p.name)}</div>` +
+                            (typeof p.score === "number" &&
+                            S.phase === "playing"
+                                ? `<div class="sc">${p.score} pts</div>`
+                                : "") +
+                            (status ? status : "");
+                        box.appendChild(el);
+                    });
+                }
 
-    // =====================================================
-    //  RENDERING
-    // =====================================================
-    function enterTable() { show('table'); renderTopbar(); renderAll(); }
+                function renderCenter() {
+                    const prompt = $("prompt"),
+                        trick = $("trick");
+                    const playing = S.phase === "playing";
+                    trick.classList.toggle("hidden", !playing);
+                    if (playing) {
+                        prompt.classList.add("hidden");
+                        return;
+                    }
+                    prompt.classList.remove("hidden");
 
-    function renderAll() { renderTopbar(); renderSeats(); renderCenter(); renderHand(); renderMe(); renderActions(); }
+                    if (S.phase === "waiting") {
+                        const n = S.players.length;
+                        if (S.spectating) {
+                            prompt.innerHTML = `<span class="big">Round in Progress</span>You're seated — you'll be dealt in when the next round starts.`;
+                        } else {
+                            prompt.innerHTML = `<span class="big">Waiting Room</span>${n} player${n !== 1 ? "s" : ""} seated${S.isHost ? "<br>Add bots or start when ready." : "<br>Waiting for the host to start…"}`;
+                        }
+                    } else if (S.phase === "bidding") {
+                        const who =
+                            S.currentTurn === socket.id
+                                ? "Your turn to bid"
+                                : `${getName(S.currentTurn)} is bidding`;
+                        prompt.innerHTML = `<span class="big">Bidding</span>${who}<br>Highest: <b>${S.currentBid}</b> (min ${S.minBid})`;
+                    } else if (S.phase === "selection") {
+                        prompt.innerHTML =
+                            S.leader === socket.id
+                                ? `<span class="big">Your Call</span>Pick trump &amp; partner card`
+                                : `<span class="big">${getName(S.leader)} won</span>Choosing trump &amp; partner…`;
+                    } else if (S.phase === "completed") {
+                        prompt.innerHTML = `<span class="big">Round Over</span>${S.isHost ? "Start the next round when ready." : "Waiting for the next round…"}`;
+                    }
+                }
 
-    function renderTopbar() {
-      $('roomChip').textContent = S.roomId || '—';
-      renderTrumpChip(); renderBidChip();
-      if (S.phase !== 'lobby' && S.phase !== 'waiting') { $('roundChip').classList.remove('hidden'); $('roundVal').textContent = S.roundNumber; }
-    }
-    function renderTrumpChip() {
-      const c = $('trumpChip');
-      if (S.trump) { c.classList.remove('hidden'); $('trumpVal').textContent = `${cap(S.trump)} ${SUIT[S.trump]}`; c.className = 'chip ' + (isRed(S.trump) ? 'suit-red' : 'suit-black'); }
-      else c.classList.add('hidden');
-    }
-    function renderBidChip() {
-      const c = $('bidChip');
-      if ((S.phase === 'selection' || S.phase === 'playing') && S.winningBid) { c.classList.remove('hidden'); $('bidVal').textContent = S.winningBid; }
-      else c.classList.add('hidden');
-      renderPartnerChip();
-    }
-    function renderPartnerChip() {
-      const c = $('partnerChip');
-      if (S.phase === 'playing' && S.partnerCards && S.partnerCards.length) {
-        c.classList.remove('hidden');
-        $('partnerVal').textContent = S.partnerCards.map(p => `${p.occurrence ? p.occurrence + '×' : ''}${p.rank}${SUIT[p.suit]}`).join(' ');
-      } else c.classList.add('hidden');
-    }
+                function renderMe() {
+                    const me = getPlayer(socket.id);
+                    $("meName").textContent = (me ? me.name : S.name) || "You";
+                    $("meCount").textContent = S.hand.length;
+                    $("mePts").textContent =
+                        me && typeof me.score === "number"
+                            ? me.score
+                            : S.hand.reduce((a, c) => a + (c.points || 0), 0);
+                    setMeTag();
+                }
+                function setMeTag() {
+                    const tag = $("meTag");
+                    let t = "";
+                    if (S.bidWinner === socket.id) t = "👑 Bidder";
+                    else if (S.partnerIds.includes(socket.id)) t = "🤝 Partner";
+                    if (t) {
+                        tag.textContent = t;
+                        tag.classList.remove("hidden");
+                    } else tag.classList.add("hidden");
+                }
 
-    function renderSeats() {
-      const box = $('seats'); box.innerHTML = '';
-      // Everyone around the mandala, with me anchored at the bottom.
-      const meIdx = S.players.findIndex(p => p.socketId === socket.id);
-      const ordered = meIdx < 0 ? S.players.slice() : [...S.players.slice(meIdx), ...S.players.slice(0, meIdx)];
-      const n = ordered.length || 1;
-
-      ordered.forEach((p, k) => {
-        const isMe = p.socketId === socket.id;
-        // angle: me at 90° (bottom), the rest spread evenly clockwise
-        const a = (90 + (k * 360 / n)) * Math.PI / 180;
-        const x = 50 + 40 * Math.cos(a);
-        const y = 46 + 38 * Math.sin(a);
-
-        const el = document.createElement('div');
-        let cls = 'seat';
-        if (isMe) cls += ' me-seat';
-        if (p.socketId === S.currentTurn) cls += ' active';
-        if (p.connected === false) cls += ' off';
-        if (p._team === 'bidder' || p.socketId === S.bidWinner || S.partnerIds.includes(p.socketId)) cls += ' team-bidder';
-        else if (p._team === 'opp') cls += ' team-opp';
-        el.className = cls;
-        el.style.left = x + '%';
-        el.style.top = y + '%';
-
-        const roles = [];
-        if (p.socketId === S.leader || p.socketId === S.bidWinner) roles.push('👑');
-        if (S.partnerIds.includes(p.socketId)) roles.push('🤝');
-        if (p.isBot) roles.push('🤖');
-        if (p.isHost) roles.push('★');
-
-        let status = '';
-        if (p.connected === false) status = '<div class="status off">offline</div>';
-        else if (p.waiting) status = '<div class="status bid">next round</div>';
-        else if (S.phase === 'bidding' && p.socketId === S.currentTurn) status = '<div class="status turn">bidding…</div>';
-        else if (S.phase === 'bidding' && p._passed) status = '<div class="status passed">passed</div>';
-        else if (S.phase === 'playing' && p.socketId === S.currentTurn) status = '<div class="status turn">turn</div>';
-        else status = '';
-
-        el.innerHTML =
-          `<div class="roles">${roles.map(r => `<span class="badge">${r}</span>`).join('')}</div>` +
-          `<div class="avatar">${initials(p.name)}</div>` +
-          `<div class="nm">${escapeHtml(isMe ? 'You' : p.name)}</div>` +
-          (typeof p.score === 'number' && S.phase === 'playing' ? `<div class="sc">${p.score} pts</div>` : '') +
-          (status ? status : '');
-        box.appendChild(el);
-      });
-    }
-
-    function renderCenter() {
-      const prompt = $('prompt'), trick = $('trick');
-      const playing = S.phase === 'playing';
-      trick.classList.toggle('hidden', !playing);
-      if (playing) { prompt.classList.add('hidden'); return; }
-      prompt.classList.remove('hidden');
-
-      if (S.phase === 'waiting') {
-        const n = S.players.length;
-        if (S.spectating) {
-          prompt.innerHTML = `<span class="big">Round in Progress</span>You're seated — you'll be dealt in when the next round starts.`;
-        } else {
-          prompt.innerHTML = `<span class="big">Waiting Room</span>${n} player${n!==1?'s':''} seated${S.isHost ? '<br>Add bots or start when ready.' : '<br>Waiting for the host to start…'}`;
-        }
-      } else if (S.phase === 'bidding') {
-        const who = S.currentTurn === socket.id ? 'Your turn to bid' : `${getName(S.currentTurn)} is bidding`;
-        prompt.innerHTML = `<span class="big">Bidding</span>${who}<br>Highest: <b>${S.currentBid}</b> (min ${S.minBid})`;
-      } else if (S.phase === 'selection') {
-        prompt.innerHTML = S.leader === socket.id
-          ? `<span class="big">Your Call</span>Pick trump &amp; partner card`
-          : `<span class="big">${getName(S.leader)} won</span>Choosing trump &amp; partner…`;
-      } else if (S.phase === 'completed') {
-        prompt.innerHTML = `<span class="big">Round Over</span>${S.isHost ? 'Start the next round when ready.' : 'Waiting for the next round…'}`;
-      }
-    }
-
-    function renderMe() {
-      const me = getPlayer(socket.id);
-      $('meName').textContent = (me ? me.name : S.name) || 'You';
-      $('meCount').textContent = S.hand.length;
-      $('mePts').textContent = me && typeof me.score === 'number' ? me.score : (S.hand.reduce((a, c) => a + (c.points || 0), 0));
-      setMeTag();
-    }
-    function setMeTag() {
-      const tag = $('meTag');
-      let t = '';
-      if (S.bidWinner === socket.id) t = '👑 Bidder';
-      else if (S.partnerIds.includes(socket.id)) t = '🤝 Partner';
-      if (t) { tag.textContent = t; tag.classList.remove('hidden'); } else tag.classList.add('hidden');
-    }
-
-    function cardHTML(c, opts) {
-      opts = opts || {};
-      const red = isRed(c.suit) ? ' red' : '';
-      const trump = (S.trump && c.suit === S.trump) ? ' trump' : '';
-      const sm = opts.sm ? ' sm' : '';
-      const pts = (c.points && opts.showPts !== false) ? `<span class="c-pt">${c.points}</span>` : '';
-      return `<div class="card${red}${trump}${sm}" data-id="${c.id || ''}">
+                function cardHTML(c, opts) {
+                    opts = opts || {};
+                    const red = isRed(c.suit) ? " red" : "";
+                    const trump = S.trump && c.suit === S.trump ? " trump" : "";
+                    const sm = opts.sm ? " sm" : "";
+                    const pts =
+                        c.points && opts.showPts !== false
+                            ? `<span class="c-pt">${c.points}</span>`
+                            : "";
+                    return `<div class="card${red}${trump}${sm}" data-id="${c.id || ""}">
         <span class="c-rank">${c.rank}</span><span class="c-suit-sm">${SUIT[c.suit]}</span>
         <span class="c-pip">${SUIT[c.suit]}</span>${pts}</div>`;
-    }
+                }
 
-    function sortHand(cards) {
-      return [...cards].sort((a, b) => {
-        const sa = (a.suit === S.trump ? -1 : 0), sb = (b.suit === S.trump ? -1 : 0);
-        if (sa !== sb) return sa - sb;
-        if (a.suit !== b.suit) return a.suit < b.suit ? -1 : 1;
-        return RANK_ORDER.indexOf(a.rank) - RANK_ORDER.indexOf(b.rank);
-      });
-    }
+                function sortHand(cards) {
+                    return [...cards].sort((a, b) => {
+                        const sa = a.suit === S.trump ? -1 : 0,
+                            sb = b.suit === S.trump ? -1 : 0;
+                        if (sa !== sb) return sa - sb;
+                        if (a.suit !== b.suit) return a.suit < b.suit ? -1 : 1;
+                        return (
+                            RANK_ORDER.indexOf(a.rank) -
+                            RANK_ORDER.indexOf(b.rank)
+                        );
+                    });
+                }
 
-    function renderHand() {
-      const box = $('hand'); box.innerHTML = '';
-      const myTurn = S.phase === 'playing' && S.currentTurn === socket.id;
-      box.classList.toggle('myturn', myTurn);
-      const led = currentLedSuit();
-      const mustFollow = myTurn && led && S.hand.some(c => c.suit === led);
-      sortHand(S.hand).forEach(c => {
-        const wrap = document.createElement('div');
-        wrap.innerHTML = cardHTML(c);
-        const el = wrap.firstElementChild;
-        const playable = myTurn && (!mustFollow || c.suit === led);
-        if (myTurn) {
-          if (playable) { el.classList.add('playable'); el.onclick = () => playCard(c); }
-          else el.classList.add('dim');
-        }
-        box.appendChild(el);
-      });
-    }
+                function renderHand() {
+                    const box = $("hand");
+                    box.innerHTML = "";
+                    const myTurn =
+                        S.phase === "playing" && S.currentTurn === socket.id;
+                    box.classList.toggle("myturn", myTurn);
+                    const led = currentLedSuit();
+                    const mustFollow =
+                        myTurn && led && S.hand.some((c) => c.suit === led);
+                    sortHand(S.hand).forEach((c) => {
+                        const wrap = document.createElement("div");
+                        wrap.innerHTML = cardHTML(c);
+                        const el = wrap.firstElementChild;
+                        const playable =
+                            myTurn && (!mustFollow || c.suit === led);
+                        if (myTurn) {
+                            if (playable) {
+                                el.classList.add("playable");
+                                el.onclick = () => playCard(c);
+                            } else el.classList.add("dim");
+                        }
+                        box.appendChild(el);
+                    });
+                }
 
-    function renderActions() {
-      const bar = $('actionbar'); bar.innerHTML = '';
-      if (S.phase === 'waiting') {
-        if (S.spectating) {
-          bar.appendChild(info('A round is in progress — you’ll be dealt in next round.'));
-        } else if (S.isHost) {
-          const full = S.players.length >= (S.maxPlayers || 12);
-          const hasBots = S.players.some(p => p.isBot);
-          const ctr = document.createElement('div'); ctr.className = 'actionbar grow'; ctr.style.padding = '0';
-          if (!full) ctr.appendChild(mkBtn('🤖 Add Bot', 'btn ghost', addBot));
-          if (hasBots) ctr.appendChild(mkBtn('Remove Bot', 'btn ghost', removeBot));
-          bar.appendChild(ctr);
-          const start = mkBtn(S.players.length >= 4 ? '▶ Start Game' : `Need ${4 - S.players.length} more`, 'btn', startGame);
-          if (S.players.length < 4) start.disabled = true;
-          bar.appendChild(start);
-        } else {
-          bar.appendChild(info('Waiting for host to start…'));
-        }
-      } else if (S.phase === 'bidding') {
-        if (S.currentTurn === socket.id) {
-          const box = document.createElement('div'); box.className = 'bidbox';
-          let amt = roundUp5(S.currentBid + 5);
-          const valEl = document.createElement('span'); valEl.className = 'val'; valEl.textContent = amt;
-          const dec = mkBtn('–', '', () => { amt = Math.max(roundUp5(S.currentBid + 5), amt - 5); valEl.textContent = amt; });
-          const inc = mkBtn('+', '', () => { amt = amt + 5; valEl.textContent = amt; });
-          box.appendChild(dec); box.appendChild(valEl); box.appendChild(inc);
-          bar.appendChild(box);
-          const bid = mkBtn('Bid', 'btn grow', () => placeBid(amt)); bar.appendChild(bid);
-          const pass = mkBtn('Pass', 'btn ghost', passBid); bar.appendChild(pass);
-        } else {
-          bar.appendChild(info(`${getName(S.currentTurn)} is bidding…`));
-        }
-      } else if (S.phase === 'selection') {
-        if (S.leader === socket.id) {
-          bar.appendChild(mkBtn('Open Trump / Partner', 'btn block', openPartnerModal));
-        } else {
-          bar.appendChild(info(`${getName(S.leader)} is choosing…`));
-        }
-      } else if (S.phase === 'playing') {
-        bar.appendChild(info(S.currentTurn === socket.id ? '▸ Your turn — tap a card to play' : `${getName(S.currentTurn)}'s turn`));
-      } else if (S.phase === 'completed') {
-        if (S.isHost) bar.appendChild(mkBtn('▶ Next Round', 'btn block lg', startGame));
-        else bar.appendChild(info('Waiting for next round…'));
-      }
-    }
+                function renderActions() {
+                    const bar = $("actionbar");
+                    bar.innerHTML = "";
+                    if (S.phase === "waiting") {
+                        if (S.spectating) {
+                            bar.appendChild(
+                                info(
+                                    "A round is in progress — you’ll be dealt in next round.",
+                                ),
+                            );
+                        } else if (S.isHost) {
+                            const full =
+                                S.players.length >= (S.maxPlayers || 12);
+                            const hasBots = S.players.some((p) => p.isBot);
+                            const ctr = document.createElement("div");
+                            ctr.className = "actionbar grow";
+                            ctr.style.padding = "0";
+                            if (!full)
+                                ctr.appendChild(
+                                    mkBtn("🤖 Add Bot", "btn ghost", addBot),
+                                );
+                            if (hasBots)
+                                ctr.appendChild(
+                                    mkBtn("Remove Bot", "btn ghost", removeBot),
+                                );
+                            bar.appendChild(ctr);
+                            const start = mkBtn(
+                                S.players.length >= 4
+                                    ? "▶ Start Game"
+                                    : `Need ${4 - S.players.length} more`,
+                                "btn",
+                                startGame,
+                            );
+                            if (S.players.length < 4) start.disabled = true;
+                            bar.appendChild(start);
+                        } else {
+                            bar.appendChild(info("Waiting for host to start…"));
+                        }
+                    } else if (S.phase === "bidding") {
+                        if (S.currentTurn === socket.id) {
+                            const box = document.createElement("div");
+                            box.className = "bidbox";
+                            let amt = roundUp5(S.currentBid + 5);
+                            const valEl = document.createElement("span");
+                            valEl.className = "val";
+                            valEl.textContent = amt;
+                            const dec = mkBtn("–", "", () => {
+                                amt = Math.max(
+                                    roundUp5(S.currentBid + 5),
+                                    amt - 5,
+                                );
+                                valEl.textContent = amt;
+                            });
+                            const inc = mkBtn("+", "", () => {
+                                amt = amt + 5;
+                                valEl.textContent = amt;
+                            });
+                            box.appendChild(dec);
+                            box.appendChild(valEl);
+                            box.appendChild(inc);
+                            bar.appendChild(box);
+                            const bid = mkBtn("Bid", "btn grow", () =>
+                                placeBid(amt),
+                            );
+                            bar.appendChild(bid);
+                            const pass = mkBtn("Pass", "btn ghost", passBid);
+                            bar.appendChild(pass);
+                        } else {
+                            bar.appendChild(
+                                info(`${getName(S.currentTurn)} is bidding…`),
+                            );
+                        }
+                    } else if (S.phase === "selection") {
+                        if (S.leader === socket.id) {
+                            bar.appendChild(
+                                mkBtn(
+                                    "Open Trump / Partner",
+                                    "btn block",
+                                    openPartnerModal,
+                                ),
+                            );
+                        } else {
+                            bar.appendChild(
+                                info(`${getName(S.leader)} is choosing…`),
+                            );
+                        }
+                    } else if (S.phase === "playing") {
+                        bar.appendChild(
+                            info(
+                                S.currentTurn === socket.id
+                                    ? "▸ Your turn — tap a card to play"
+                                    : `${getName(S.currentTurn)}'s turn`,
+                            ),
+                        );
+                    } else if (S.phase === "completed") {
+                        if (S.isHost)
+                            bar.appendChild(
+                                mkBtn(
+                                    "▶ Next Round",
+                                    "btn block lg",
+                                    startGame,
+                                ),
+                            );
+                        else bar.appendChild(info("Waiting for next round…"));
+                    }
+                }
 
-    function info(txt) { const d = document.createElement('div'); d.className = 'grow'; d.style.cssText = 'text-align:center;font-size:13px;color:rgba(246,236,210,.8);padding:10px;font-weight:600'; d.textContent = txt; return d; }
-    function mkBtn(label, cls, fn) { const b = document.createElement('button'); b.className = cls || 'btn'; b.textContent = label; b.onclick = fn; return b; }
-    const roundUp5 = (n) => Math.ceil(n / 5) * 5;
+                function info(txt) {
+                    const d = document.createElement("div");
+                    d.className = "grow";
+                    d.style.cssText =
+                        "text-align:center;font-size:13px;color:rgba(246,236,210,.8);padding:10px;font-weight:600";
+                    d.textContent = txt;
+                    return d;
+                }
+                function mkBtn(label, cls, fn) {
+                    const b = document.createElement("button");
+                    b.className = cls || "btn";
+                    b.textContent = label;
+                    b.onclick = fn;
+                    return b;
+                }
+                const roundUp5 = (n) => Math.ceil(n / 5) * 5;
 
-    // ---------- trick area ----------
-    let ledSuitTracker = null;
-    function addTrickCard(playerId, card) {
-      const trick = $('trick'); trick.classList.remove('hidden');
-      if (trick.children.length === 0) ledSuitTracker = card.suit;
-      const t = document.createElement('div'); t.className = 'tcard';
-      t.innerHTML = cardHTML(card, { sm: true, showPts: false }) + `<div class="who">${escapeHtml(getName(playerId))}</div>`;
-      trick.appendChild(t);
-    }
-    function clearTrick() { ledSuitTracker = null; $('trick').innerHTML = ''; }
-    function flashTrickWinner(winner, points) {
-      toast(`${getName(winner)} takes the trick (+${points})`, 'gold');
-    }
-    function currentLedSuit() { return ledSuitTracker; }
+                // ---------- trick area ----------
+                let ledSuitTracker = null;
+                function addTrickCard(playerId, card) {
+                    const trick = $("trick");
+                    trick.classList.remove("hidden");
+                    if (trick.children.length === 0) ledSuitTracker = card.suit;
+                    const t = document.createElement("div");
+                    t.className = "tcard";
+                    t.innerHTML =
+                        cardHTML(card, { sm: true, showPts: false }) +
+                        `<div class="who">${escapeHtml(getName(playerId))}</div>`;
+                    trick.appendChild(t);
+                }
+                function clearTrick() {
+                    ledSuitTracker = null;
+                    $("trick").innerHTML = "";
+                }
+                function flashTrickWinner(winner, points) {
+                    toast(
+                        `${getName(winner)} takes the trick (+${points})`,
+                        "gold",
+                    );
+                }
+                function currentLedSuit() {
+                    return ledSuitTracker;
+                }
 
-    function escapeHtml(s) { return (s || '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+                function escapeHtml(s) {
+                    return (s || "").replace(
+                        /[&<>"]/g,
+                        (c) =>
+                            ({
+                                "&": "&amp;",
+                                "<": "&lt;",
+                                ">": "&gt;",
+                                '"': "&quot;",
+                            })[c],
+                    );
+                }
 
-    // =====================================================
-    //  ACTIONS
-    // =====================================================
-    function startGame() {
-      const cards = S.cardsPerPlayer || 13;
-      const sets = S.numberOfSets || 2;
-      socket.emit('START_GAME', { roomId: S.roomId, cardsPerPlayer: cards, numberOfSets: sets }, (r) => {
-        if (r && !r.success) toast(r.message || 'Could not start', 'err');
-      });
-    }
-    function addBot() {
-      socket.emit('ADD_BOT', { roomId: S.roomId }, (r) => {
-        if (r && r.success) refreshRoom(); else toast(r?.message || 'Could not add bot', 'err');
-      });
-    }
-    function removeBot() {
-      socket.emit('REMOVE_BOT', { roomId: S.roomId }, (r) => {
-        if (r && r.success) refreshRoom(); else toast(r?.message || 'Could not remove bot', 'err');
-      });
-    }
-    function placeBid(v) {
-      socket.emit('PLACE_BID', { roomId: S.roomId, bidValue: v }, (r) => { if (r && !r.success) toast(r.message || 'Bid failed', 'err'); });
-    }
-    function passBid() {
-      socket.emit('PASS_BID', { roomId: S.roomId }, (r) => { if (r && !r.success) toast(r.message || 'Pass failed', 'err'); });
-    }
-    function playCard(c) {
-      if (S.currentTurn !== socket.id) return;
-      socket.emit('PLAY_CARD', { roomId: S.roomId, cardId: c.id }, (r) => { if (r && !r.success) toast(r.message || 'Invalid play', 'err'); });
-    }
+                // =====================================================
+                //  ACTIONS
+                // =====================================================
+                function startGame() {
+                    const cards = S.cardsPerPlayer || 13;
+                    const sets = S.numberOfSets || 2;
+                    socket.emit(
+                        "START_GAME",
+                        {
+                            roomId: S.roomId,
+                            cardsPerPlayer: cards,
+                            numberOfSets: sets,
+                        },
+                        (r) => {
+                            if (r && !r.success)
+                                toast(r.message || "Could not start", "err");
+                        },
+                    );
+                }
+                function addBot() {
+                    socket.emit("ADD_BOT", { roomId: S.roomId }, (r) => {
+                        if (r && r.success) refreshRoom();
+                        else toast(r?.message || "Could not add bot", "err");
+                    });
+                }
+                function removeBot() {
+                    socket.emit("REMOVE_BOT", { roomId: S.roomId }, (r) => {
+                        if (r && r.success) refreshRoom();
+                        else toast(r?.message || "Could not remove bot", "err");
+                    });
+                }
+                function placeBid(v) {
+                    socket.emit(
+                        "PLACE_BID",
+                        { roomId: S.roomId, bidValue: v },
+                        (r) => {
+                            if (r && !r.success)
+                                toast(r.message || "Bid failed", "err");
+                        },
+                    );
+                }
+                function passBid() {
+                    socket.emit("PASS_BID", { roomId: S.roomId }, (r) => {
+                        if (r && !r.success)
+                            toast(r.message || "Pass failed", "err");
+                    });
+                }
+                function playCard(c) {
+                    if (S.currentTurn !== socket.id) return;
+                    socket.emit(
+                        "PLAY_CARD",
+                        { roomId: S.roomId, cardId: c.id },
+                        (r) => {
+                            if (r && !r.success)
+                                toast(r.message || "Invalid play", "err");
+                        },
+                    );
+                }
 
-    // =====================================================
-    //  PARTNER / TRUMP MODAL
-    // =====================================================
-    const ordinal = (n) => n + (['th','st','nd','rd'][(n % 100 - 20) % 10] || ['th','st','nd','rd'][n] || 'th');
+                // =====================================================
+                //  PARTNER / TRUMP MODAL
+                // =====================================================
+                const ordinal = (n) =>
+                    n +
+                    (["th", "st", "nd", "rd"][((n % 100) - 20) % 10] ||
+                        ["th", "st", "nd", "rd"][n] ||
+                        "th");
 
-    function openPartnerModal() {
-      $('selTrump').value = S.trump || '';
-      $('partnerPick').classList.toggle('hidden', !S.trump);
-      $('partnerAllowed').textContent = `up to ${S.allowedPartners || 1}`;
-      $('partnerRows').innerHTML = '';
-      if (S.trump) { ui.addPartnerRow(); }
-      $('partnerOverlay').classList.add('show');
-    }
+                function openPartnerModal() {
+                    $("selTrump").value = S.trump || "";
+                    $("partnerPick").classList.toggle("hidden", !S.trump);
+                    $("partnerAllowed").textContent =
+                        `વધુમાં વધુ ${S.allowedPartners || 1}`;
+                    $("partnerRows").innerHTML = "";
+                    if (S.trump) {
+                        ui.addPartnerRow();
+                    }
+                    $("partnerOverlay").classList.add("show");
+                }
 
-    // Build one partner-card row: a card dropdown + an occurrence dropdown + remove.
-    ui.addPartnerRow = function () {
-      const rows = $('partnerRows');
-      if (rows.children.length >= (S.allowedPartners || 1)) { toast(`Max ${S.allowedPartners} partners`, 'err'); return; }
-      const decks = S.numberOfSets || 2;
-      const row = document.createElement('div');
-      row.className = 'row2'; row.style.cssText = 'gap:8px;margin-bottom:8px;grid-template-columns:1fr auto auto;align-items:center';
-      const cardSel = document.createElement('select');
-      cardSel.innerHTML = '<option value="">Select card…</option>' + (S.cardPool || []).map(k => {
-        const [rank, suit] = k.split('_'); return `<option value="${k}">${rank} ${SUIT[suit]} ${cap(suit)}</option>`;
-      }).join('');
-      cardSel.style.cssText = 'padding:11px;border-radius:10px;background:rgba(0,0,0,.35);color:var(--cream);border:1px solid rgba(232,196,104,.25)';
-      const occSel = document.createElement('select');
-      occSel.innerHTML = Array.from({ length: decks }, (_, i) => `<option value="${i + 1}">${ordinal(i + 1)}</option>`).join('');
-      occSel.title = 'Which occurrence (Nth time the card is played)';
-      occSel.style.cssText = 'padding:11px;border-radius:10px;background:rgba(0,0,0,.35);color:var(--cream);border:1px solid rgba(232,196,104,.25)';
-      const del = document.createElement('button');
-      del.className = 'icon-btn'; del.textContent = '✕'; del.onclick = () => row.remove();
-      row.appendChild(cardSel); row.appendChild(occSel); row.appendChild(del);
-      rows.appendChild(row);
-    };
+                // Build one partner-card row: a card dropdown + an occurrence dropdown + remove.
+                ui.addPartnerRow = function () {
+                    const rows = $("partnerRows");
+                    if (rows.children.length >= (S.allowedPartners || 1)) {
+                        toast(`વધુમાં વધુ ${S.allowedPartners} ભેરુ`, "err");
+                        return;
+                    }
+                    const decks = S.numberOfSets || 2;
+                    const row = document.createElement("div");
+                    row.className = "row2";
+                    row.style.cssText =
+                        "gap:8px;margin-bottom:8px;grid-template-columns:1fr auto auto;align-items:center";
+                    const cardSel = document.createElement("select");
+                    cardSel.innerHTML =
+                        '<option value="">Select card…</option>' +
+                        (S.cardPool || [])
+                            .map((k) => {
+                                const [rank, suit] = k.split("_");
+                                return `<option value="${k}">${rank} ${SUIT[suit]} ${cap(suit)}</option>`;
+                            })
+                            .join("");
+                    cardSel.style.cssText =
+                        "padding:11px;border-radius:10px;background:rgba(0,0,0,.35);color:var(--cream);border:1px solid rgba(232,196,104,.25)";
+                    const occSel = document.createElement("select");
+                    occSel.innerHTML = Array.from(
+                        { length: decks },
+                        (_, i) =>
+                            `<option value="${i + 1}">${ordinal(i + 1)}</option>`,
+                    ).join("");
+                    occSel.title =
+                        "Which occurrence (Nth time the card is played)";
+                    occSel.style.cssText =
+                        "padding:11px;border-radius:10px;background:rgba(0,0,0,.35);color:var(--cream);border:1px solid rgba(232,196,104,.25)";
+                    const del = document.createElement("button");
+                    del.className = "icon-btn";
+                    del.textContent = "✕";
+                    del.onclick = () => row.remove();
+                    row.appendChild(cardSel);
+                    row.appendChild(occSel);
+                    row.appendChild(del);
+                    rows.appendChild(row);
+                };
 
-    ui.confirmTrump = function () {
-      const suit = $('selTrump').value;
-      if (!suit) return toast('Pick a trump suit', 'err');
-      socket.emit('SELECT_TRUMP', { roomId: S.roomId, suit }, (r) => {
-        if (r && r.success) {
-          S.trump = suit; renderTrumpChip(); renderHand();
-          $('partnerPick').classList.remove('hidden');
-          if ($('partnerRows').children.length === 0) ui.addPartnerRow();
-        } else toast(r?.message || 'Trump failed', 'err');
-      });
-    };
+                ui.confirmTrump = function () {
+                    const suit = $("selTrump").value;
+                    if (!suit) return toast("Pick a trump suit", "err");
+                    socket.emit(
+                        "SELECT_TRUMP",
+                        { roomId: S.roomId, suit },
+                        (r) => {
+                            if (r && r.success) {
+                                S.trump = suit;
+                                renderTrumpChip();
+                                renderHand();
+                                $("partnerPick").classList.remove("hidden");
+                                if ($("partnerRows").children.length === 0)
+                                    ui.addPartnerRow();
+                            } else toast(r?.message || "Trump failed", "err");
+                        },
+                    );
+                };
 
-    // Collect all partner rows, declare them, then start the game.
-    ui.declareAndStart = function () {
-      const partners = [];
-      [...$('partnerRows').children].forEach(row => {
-        const sels = row.querySelectorAll('select');
-        const k = sels[0].value; if (!k) return;
-        const [rank, suit] = k.split('_');
-        partners.push({ rank, suit, occurrence: parseInt(sels[1].value) || 1 });
-      });
-      if (!partners.length) return toast('Add at least one partner card', 'err');
-      socket.emit('DECLARE_PARTNERS', { roomId: S.roomId, partners }, (r) => {
-        if (r && r.success) {
-          S.partnerCards = r.partnerCards;
-          socket.emit('START_GAMEPLAY', { roomId: S.roomId }, (g) => { if (g && !g.success) toast(g.message || 'Could not start play', 'err'); });
-          closeOverlays();
-        } else toast(r?.message || 'Could not declare partners', 'err');
-      });
-    };
+                // Collect all partner rows, declare them, then start the game.
+                ui.declareAndStart = function () {
+                    const partners = [];
+                    [...$("partnerRows").children].forEach((row) => {
+                        const sels = row.querySelectorAll("select");
+                        const k = sels[0].value;
+                        if (!k) return;
+                        const [rank, suit] = k.split("_");
+                        partners.push({
+                            rank,
+                            suit,
+                            occurrence: parseInt(sels[1].value) || 1,
+                        });
+                    });
+                    if (!partners.length)
+                        return toast("Add at least one partner card", "err");
+                    socket.emit(
+                        "DECLARE_PARTNERS",
+                        { roomId: S.roomId, partners },
+                        (r) => {
+                            if (r && r.success) {
+                                S.partnerCards = r.partnerCards;
+                                socket.emit(
+                                    "START_GAMEPLAY",
+                                    { roomId: S.roomId },
+                                    (g) => {
+                                        if (g && !g.success)
+                                            toast(
+                                                g.message ||
+                                                    "Could not start play",
+                                                "err",
+                                            );
+                                    },
+                                );
+                                closeOverlays();
+                            } else
+                                toast(
+                                    r?.message || "Could not declare partners",
+                                    "err",
+                                );
+                        },
+                    );
+                };
 
-    // =====================================================
-    //  SCORES / GAME OVER
-    // =====================================================
-    function scoreRows(map, nameOf) {
-      const rows = Object.keys(map).map(sid => ({ sid, score: map[sid], name: nameOf(sid) }));
-      rows.sort((a, b) => b.score - a.score);
-      return rows.map(r => `<tr><td>${escapeHtml(r.name)}</td><td class="num ${r.score>=0?'pos':'neg'}">${r.score>=0?'+':''}${r.score}</td></tr>`).join('');
-    }
-    ui.openScores = function () {
-      const body = $('scoreBody');
-      let html = '';
-      if (Object.keys(S.cumulative || {}).length) {
-        html += `<table class="scoretable"><tr><th>Player</th><th class="num">Total</th></tr>${scoreRows(S.cumulative, getName)}</table>`;
-      } else {
-        const live = {}; S.players.forEach(p => live[p.socketId] = (typeof p.score === 'number' ? p.score : 0));
-        html += `<table class="scoretable"><tr><th>Player</th><th class="num">This round</th></tr>${scoreRows(live, getName)}</table>`;
-      }
-      body.innerHTML = html;
-      $('scoreOverlay').classList.add('show');
-    };
-    ui.closeScores = () => $('scoreOverlay').classList.remove('show');
+                // =====================================================
+                //  SCORES / GAME OVER
+                // =====================================================
+                function scoreRows(map, nameOf) {
+                    const rows = Object.keys(map).map((sid) => ({
+                        sid,
+                        score: map[sid],
+                        name: nameOf(sid),
+                    }));
+                    rows.sort((a, b) => b.score - a.score);
+                    return rows
+                        .map(
+                            (r) =>
+                                `<tr><td>${escapeHtml(r.name)}</td><td class="num ${r.score >= 0 ? "pos" : "neg"}">${r.score >= 0 ? "+" : ""}${r.score}</td></tr>`,
+                        )
+                        .join("");
+                }
+                ui.openScores = function () {
+                    const body = $("scoreBody");
+                    let html = "";
+                    if (Object.keys(S.cumulative || {}).length) {
+                        html += `<table class="scoretable"><tr><th>Player</th><th class="num">Total</th></tr>${scoreRows(S.cumulative, getName)}</table>`;
+                    } else {
+                        const live = {};
+                        S.players.forEach(
+                            (p) =>
+                                (live[p.socketId] =
+                                    typeof p.score === "number" ? p.score : 0),
+                        );
+                        html += `<table class="scoretable"><tr><th>Player</th><th class="num">This round</th></tr>${scoreRows(live, getName)}</table>`;
+                    }
+                    body.innerHTML = html;
+                    $("scoreOverlay").classList.add("show");
+                };
+                ui.closeScores = () =>
+                    $("scoreOverlay").classList.remove("show");
 
-    function openGameOver(d) {
-      const winner = d.winner ? getName(d.winner) : '—';
-      const rows = (d.scores || []).slice().sort((a, b) => b.score - a.score).map(s =>
-        `<tr><td>${escapeHtml(s.name)} ${s.isBidder?'👑':s.isPartner?'🤝':''}</td><td>${s.team||''}</td><td class="num ${s.score>=0?'pos':'neg'}">${s.score>=0?'+':''}${s.score}</td></tr>`).join('');
-      $('overBody').innerHTML =
-        `<div class="winner-line">Winner: <b>${escapeHtml(winner)}</b></div>` +
-        `<table class="scoretable"><tr><th>Player</th><th>Team</th><th class="num">Score</th></tr>${rows}</table>`;
-      const act = $('overActions'); act.innerHTML = '';
-      if (S.isHost) act.appendChild(mkBtn('▶ Next Round', 'btn block lg', () => { closeOverlays(); startGame(); }));
-      act.appendChild(mkBtn('View Table', 'btn block ghost', closeOverlays));
-      $('overOverlay').classList.add('show');
-    }
+                function openGameOver(d) {
+                    const winner = d.winner ? getName(d.winner) : "—";
+                    const rows = (d.scores || [])
+                        .slice()
+                        .sort((a, b) => b.score - a.score)
+                        .map(
+                            (s) =>
+                                `<tr><td>${escapeHtml(s.name)} ${s.isBidder ? "👑" : s.isPartner ? "🤝" : ""}</td><td>${s.team || ""}</td><td class="num ${s.score >= 0 ? "pos" : "neg"}">${s.score >= 0 ? "+" : ""}${s.score}</td></tr>`,
+                        )
+                        .join("");
+                    $("overBody").innerHTML =
+                        `<div class="winner-line">Winner: <b>${escapeHtml(winner)}</b></div>` +
+                        `<table class="scoretable"><tr><th>Player</th><th>Team</th><th class="num">Score</th></tr>${rows}</table>`;
+                    const act = $("overActions");
+                    act.innerHTML = "";
+                    if (S.isHost)
+                        act.appendChild(
+                            mkBtn("▶ Next Round", "btn block lg", () => {
+                                closeOverlays();
+                                startGame();
+                            }),
+                        );
+                    act.appendChild(
+                        mkBtn("View Table", "btn block ghost", closeOverlays),
+                    );
+                    $("overOverlay").classList.add("show");
+                }
 
-    function closeOverlays() { document.querySelectorAll('.overlay').forEach(o => o.classList.remove('show')); }
+                function closeOverlays() {
+                    document
+                        .querySelectorAll(".overlay")
+                        .forEach((o) => o.classList.remove("show"));
+                }
 
-    // =====================================================
-    //  LOBBY UI
-    // =====================================================
-    let mode = 'join';
-    ui.setMode = function (m) {
-      mode = m;
-      $('tabJoin').classList.toggle('on', m === 'join');
-      $('tabCreate').classList.toggle('on', m === 'create');
-      $('joinFields').classList.toggle('hidden', m !== 'join');
-      $('createFields').classList.toggle('hidden', m !== 'create');
-      $('btnGo').textContent = m === 'join' ? 'Join Table' : 'Create Table';
-      if (m === 'create') ui.cfgHint();
-    };
-    // Live hint: total points + dealing math, and a warning if the hand is too small.
-    ui.cfgHint = function () {
-      const el = $('cfgHint'); if (!el) return;
-      const players = parseInt($('inpPlayers').value) || 4;
-      const decks = parseInt($('inpDecks').value) || 2;
-      const cpp = parseInt($('inpCards').value) || 13;
-      const total = players * cpp;
-      const pointCards = 25 * decks;
-      if (total < pointCards) {
-        el.style.color = 'var(--danger)';
-        el.textContent = `⚠ ${players}×${cpp}=${total} cards can't hold ${pointCards} point cards. Raise cards or lower decks.`;
-      } else {
-        el.style.color = 'var(--gold)';
-        el.textContent = `Total ${250 * decks} pts · ${total} cards (${pointCards} point + ${total - pointCards} filler)`;
-      }
-    };
-    ui.go = function () {
-      const name = $('inpName').value.trim();
-      if (!name) return toast('Enter your name', 'err');
-      S.name = name;
-      if (mode === 'join') {
-        const roomId = $('inpRoom').value.trim().toUpperCase();
-        if (!roomId) return toast('Enter a room code', 'err');
-        socket.emit('JOIN_ROOM', { roomId, name, playerId: getPlayerId() }, (r) => { if (r && !r.success) toast(r.message || 'Join failed', 'err'); });
-      } else {
-        const maxPlayers = parseInt($('inpPlayers').value) || 4;
-        const config = {
-          numberOfDecks: parseInt($('inpDecks').value) || 2,
-          cardsPerPlayer: parseInt($('inpCards').value) || 13,
-          minimumBid: parseInt($('inpMinBid').value) || 0,
-          basePartners: parseInt($('inpBasePartners').value) || 0,
-          pointsPerExtraPartner: parseInt($('inpExtraStep').value) || 0
-        };
-        socket.emit('CREATE_ROOM', { name, maxPlayers, playerId: getPlayerId(), config }, (r) => { if (r && !r.success) toast(r.message || 'Create failed', 'err'); });
-      }
-    };
-    ui.leave = function () {
-      if (!confirm('Leave the table?')) return;
-      socket.emit('LEAVE_ROOM', { roomId: S.roomId }, () => {});
-      clearSession();
-      location.reload();
-    };
-    ui.toggleSound = function () {
-      S.muted = !S.muted;
-      $('soundBtn').textContent = S.muted ? '🔇' : '🔊';
-      if (!S.muted) SFX.turn();
-    };
-    // Share the room: native share sheet on mobile, clipboard elsewhere.
-    ui.share = function () {
-      if (!S.roomId) return;
-      const link = `${location.origin}/?room=${S.roomId}`;
-      const text = `Join my Kali ni Tidi game! Room ${S.roomId}`;
-      if (navigator.share) {
-        navigator.share({ title: 'Kali ni Tidi', text, url: link }).catch(() => {});
-      } else if (navigator.clipboard) {
-        navigator.clipboard.writeText(link).then(() => toast('Invite link copied!', 'ok')).catch(() => toast(link));
-      } else {
-        toast(link);
-      }
-    };
+                // =====================================================
+                //  LOBBY UI
+                // =====================================================
+                let mode = "join";
+                ui.setMode = function (m) {
+                    mode = m;
+                    $("tabJoin").classList.toggle("on", m === "join");
+                    $("tabCreate").classList.toggle("on", m === "create");
+                    $("joinFields").classList.toggle("hidden", m !== "join");
+                    $("createFields").classList.toggle(
+                        "hidden",
+                        m !== "create",
+                    );
+                    $("btnGo").textContent =
+                        m === "join" ? "Join Table" : "Create Table";
+                    if (m === "create") ui.cfgHint();
+                };
+                // Live hint: total points + dealing math, and a warning if the hand is too small.
+                ui.cfgHint = function () {
+                    const el = $("cfgHint");
+                    if (!el) return;
+                    const players = parseInt($("inpPlayers").value) || 4;
+                    const decks = parseInt($("inpDecks").value) || 2;
+                    const cpp = parseInt($("inpCards").value) || 13;
+                    const total = players * cpp;
+                    const pointCards = 25 * decks;
+                    if (total < pointCards) {
+                        el.style.color = "var(--danger)";
+                        el.textContent = `⚠ ${players}×${cpp}=${total} cards can't hold ${pointCards} point cards. Raise cards or lower decks.`;
+                    } else {
+                        el.style.color = "var(--gold)";
+                        el.textContent = `Total ${250 * decks} pts · ${total} cards (${pointCards} point + ${total - pointCards} filler)`;
+                    }
+                };
+                ui.go = function () {
+                    const name = $("inpName").value.trim();
+                    if (!name) return toast("Enter your name", "err");
+                    S.name = name;
+                    if (mode === "join") {
+                        const roomId = $("inpRoom").value.trim().toUpperCase();
+                        if (!roomId) return toast("Enter a room code", "err");
+                        socket.emit(
+                            "JOIN_ROOM",
+                            { roomId, name, playerId: getPlayerId() },
+                            (r) => {
+                                if (r && !r.success)
+                                    toast(r.message || "Join failed", "err");
+                            },
+                        );
+                    } else {
+                        const maxPlayers = parseInt($("inpPlayers").value) || 4;
+                        const config = {
+                            numberOfDecks: parseInt($("inpDecks").value) || 2,
+                            cardsPerPlayer: parseInt($("inpCards").value) || 13,
+                            minimumBid: parseInt($("inpMinBid").value) || 0,
+                            basePartners:
+                                parseInt($("inpBasePartners").value) || 0,
+                            pointsPerExtraPartner:
+                                parseInt($("inpExtraStep").value) || 0,
+                        };
+                        socket.emit(
+                            "CREATE_ROOM",
+                            {
+                                name,
+                                maxPlayers,
+                                playerId: getPlayerId(),
+                                config,
+                            },
+                            (r) => {
+                                if (r && !r.success)
+                                    toast(r.message || "Create failed", "err");
+                            },
+                        );
+                    }
+                };
+                ui.leave = function () {
+                    if (!confirm("Leave the table?")) return;
+                    socket.emit("LEAVE_ROOM", { roomId: S.roomId }, () => {});
+                    clearSession();
+                    location.reload();
+                };
+                ui.toggleSound = function () {
+                    S.muted = !S.muted;
+                    $("soundBtn").textContent = S.muted ? "🔇" : "🔊";
+                    if (!S.muted) SFX.turn();
+                };
+                // Share the room: native share sheet on mobile, clipboard elsewhere.
+                ui.share = function () {
+                    if (!S.roomId) return;
+                    const link = `${location.origin}/?room=${S.roomId}`;
+                    const text = `Join my Kali ni Tidi game! Room ${S.roomId}`;
+                    if (navigator.share) {
+                        navigator
+                            .share({ title: "Kali ni Tidi", text, url: link })
+                            .catch(() => {});
+                    } else if (navigator.clipboard) {
+                        navigator.clipboard
+                            .writeText(link)
+                            .then(() => toast("Invite link copied!", "ok"))
+                            .catch(() => toast(link));
+                    } else {
+                        toast(link);
+                    }
+                };
 
-    // prefill name if remembered
-    const sess = getSession();
-    if (sess && sess.name) $('inpName').value = sess.name;
-    // If opened via a share link (?room=CODE), pre-fill the join form.
-    const roomParam = (new URLSearchParams(location.search).get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (roomParam) { ui.setMode('join'); $('inpRoom').value = roomParam; }
-  })();
-  </script>
-</body>
+                // prefill name if remembered
+                const sess = getSession();
+                if (sess && sess.name) $("inpName").value = sess.name;
+                // If opened via a share link (?room=CODE), pre-fill the join form.
+                const roomParam = (
+                    new URLSearchParams(location.search).get("room") || ""
+                )
+                    .toUpperCase()
+                    .replace(/[^A-Z0-9]/g, "");
+                if (roomParam) {
+                    ui.setMode("join");
+                    $("inpRoom").value = roomParam;
+                }
+            })();
+        </script>
+    </body>
 </html>
