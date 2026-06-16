@@ -352,26 +352,25 @@
                 color: var(--cream);
                 white-space: nowrap;
             }
+            /* default: everything white */
             .pchip .occ {
-                color: var(--gold);
                 font-weight: 700;
                 margin-right: 1px;
             }
             .pchip .suit {
                 margin-left: 2px;
                 font-size: 14px;
+                color: var(--cream);
             }
-            .pchip .suit.red {
-                color: #ff6b6b;
-            }
-            .pchip .suit.blk {
-                color: #e8eef5;
-            }
-            /* the card whose partner has been revealed */
+            /* the card whose partner has been revealed → all red */
             .pchip.revealed {
+                color: #ff5b5b;
                 border-color: #ff5b5b;
-                background: rgba(120, 20, 20, 0.45);
+                background: rgba(120, 20, 20, 0.4);
                 box-shadow: 0 0 10px rgba(255, 91, 91, 0.5);
+            }
+            .pchip.revealed .suit {
+                color: #ff5b5b;
             }
             .pchip.lost {
                 opacity: 0.45;
@@ -388,6 +387,42 @@
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
+            }
+            /* settings dropdown menu */
+            .settings-wrap {
+                position: relative;
+            }
+            .menu {
+                position: absolute;
+                right: 0;
+                top: 46px;
+                z-index: 30;
+                display: flex;
+                flex-direction: column;
+                min-width: 170px;
+                background: rgba(12, 40, 26, 0.98);
+                border: 1px solid rgba(232, 196, 104, 0.45);
+                border-radius: 12px;
+                box-shadow: var(--shadow);
+                overflow: hidden;
+            }
+            .menu.hidden {
+                display: none;
+            }
+            .menu button {
+                padding: 13px 16px;
+                text-align: left;
+                background: transparent;
+                color: var(--cream);
+                font-size: 14.5px;
+                font-weight: 600;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+            }
+            .menu button:last-child {
+                border-bottom: none;
+            }
+            .menu button:active {
+                background: rgba(232, 196, 104, 0.18);
             }
             .conn-dot {
                 width: 9px;
@@ -723,6 +758,9 @@
             }
             .card.sm .c-pip {
                 font-size: 23px;
+            }
+            .card.sm .c-pip.hearts {
+                top: 12px;
             }
             .card.sm .c-rank {
                 font-size: 13px;
@@ -1178,9 +1216,6 @@
                     <b id="roomChip">—</b>
                     <span style="opacity: 0.8">🔗</span></span
                 >
-                <span id="trumpChip" class="chip hidden"
-                    >હુકમ <b id="trumpVal">—</b></span
-                >
                 <span id="bidChip" class="chip hidden"
                     >Bid <b id="bidVal">—</b></span
                 >
@@ -1188,24 +1223,24 @@
                     >Round <b id="roundVal">1</b></span
                 >
                 <span class="spacer"></span>
-                <button
-                    class="icon-btn"
-                    id="soundBtn"
-                    onclick="ui.toggleSound()"
-                    title="Sound"
-                >
-                    🔊
-                </button>
-                <button
-                    class="icon-btn"
-                    onclick="ui.openScores()"
-                    title="Scores"
-                >
-                    🏆
-                </button>
-                <button class="icon-btn" onclick="ui.leave()" title="Leave">
-                    ⎋
-                </button>
+                <div class="settings-wrap">
+                    <button
+                        class="icon-btn"
+                        onclick="ui.toggleMenu()"
+                        title="Menu"
+                    >
+                        ⚙️
+                    </button>
+                    <div id="settingsMenu" class="menu hidden">
+                        <button onclick="ui.toggleSound()">
+                            <span id="soundIcon">🔊</span> Sound
+                        </button>
+                        <button onclick="ui.openScores(); ui.closeMenu()">
+                            🏆 Scoreboard
+                        </button>
+                        <button onclick="ui.leave()">⎋ Logout</button>
+                    </div>
+                </div>
             </div>
 
             <div id="partnerBar" class="partner-bar"></div>
@@ -1225,6 +1260,9 @@
                 <div class="me-row">
                     <span class="me-name" id="meName">You</span>
                     <span id="meTag" class="me-tag hidden"></span>
+                    <span id="trumpChip" class="chip hidden"
+                        >હુકમ <b id="trumpVal">—</b></span
+                    >
                     <span class="me-pts"
                         >Hand: <b id="meCount">0</b> ·
                         <b id="mePts">0</b> pts</span
@@ -1619,6 +1657,14 @@
                 document.addEventListener("visibilitychange", () => {
                     if (!document.hidden && !socket.connected && getSession())
                         socket.connect();
+                });
+                // Close the settings menu when tapping outside it
+                document.addEventListener("click", (e) => {
+                    const wrap = e.target.closest && e.target.closest(".settings-wrap");
+                    if (!wrap) {
+                        const m = $("settingsMenu");
+                        if (m) m.classList.add("hidden");
+                    }
                 });
 
                 // ---------- lobby results ----------
@@ -2200,9 +2246,9 @@
                         c.points && opts.showPts !== false
                             ? `<span class="c-pt">${c.points}</span>`
                             : "";
-                    return `<div class="card${red}${trump}${sm} card-${c.suit || "none"}" data-id="${c.id || ""}">
+                    return `<div class="card${red}${trump}${sm}" data-id="${c.id || ""}">
         <span class="c-rank">${c.rank}</span><span class="c-suit-sm">${SUIT[c.suit]}</span>
-        <span class="c-pip">${SUIT[c.suit]}</span>${pts}</div>`;
+        <span class="c-pip ${c.suit || ""}">${SUIT[c.suit]}</span>${pts}</div>`;
                 }
 
                 function sortHand(cards) {
@@ -2757,9 +2803,17 @@
                     clearSession();
                     location.reload();
                 };
+                // Settings dropdown menu
+                ui.toggleMenu = function () {
+                    $("settingsMenu").classList.toggle("hidden");
+                };
+                ui.closeMenu = function () {
+                    $("settingsMenu").classList.add("hidden");
+                };
                 ui.toggleSound = function () {
                     S.muted = !S.muted;
-                    $("soundBtn").textContent = S.muted ? "🔇" : "🔊";
+                    const icon = $("soundIcon");
+                    if (icon) icon.textContent = S.muted ? "🔇" : "🔊";
                     if (!S.muted) SFX.turn();
                 };
                 // Share the room: native share sheet on mobile, clipboard elsewhere.

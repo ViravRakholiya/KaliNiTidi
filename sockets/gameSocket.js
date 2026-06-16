@@ -121,7 +121,7 @@ function broadcastCardPlayed(io, roomId, playerId, result) {
     partnerCardPlayed: result.partnerCardPlayed, partnerAssigned: result.partnerAssigned,
     partnerId: result.partnerId, partnerName: result.partnerName,
     partnerLost: result.partnerLost, partnerLostReason: result.partnerLostReason,
-    partnerIds: result.partnerIds
+    partnerIds: result.partnerIds, declaredOccurrence: result.declaredOccurrence
   });
 
   if (result.trickComplete) {
@@ -886,7 +886,8 @@ export const handleGameSocket = (io, socket) => {
         partnerName: result.partnerName,
         partnerLost: result.partnerLost,
         partnerLostReason: result.partnerLostReason,
-        partnerIds: result.partnerIds
+        partnerIds: result.partnerIds,
+        declaredOccurrence: result.declaredOccurrence
       });
 
       // Check if trick is complete
