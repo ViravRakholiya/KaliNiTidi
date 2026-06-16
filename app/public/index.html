@@ -2076,7 +2076,7 @@
                         // angle: me at 90° (bottom), the rest spread evenly clockwise
                         const a = ((90 + (k * 360) / n) * Math.PI) / 180;
                         const x = 50 + 44 * Math.cos(a);
-                        const y = 47 + 41 * Math.sin(a);
+                        const y = 50 + 41 * Math.sin(a);
 
                         const el = document.createElement("div");
                         let cls = "seat";
@@ -2200,7 +2200,7 @@
                         c.points && opts.showPts !== false
                             ? `<span class="c-pt">${c.points}</span>`
                             : "";
-                    return `<div class="card${red}${trump}${sm}" data-id="${c.id || ""}">
+                    return `<div class="card${red}${trump}${sm} card-${c.suit || "none"}" data-id="${c.id || ""}">
         <span class="c-rank">${c.rank}</span><span class="c-suit-sm">${SUIT[c.suit]}</span>
         <span class="c-pip">${SUIT[c.suit]}</span>${pts}</div>`;
                 }
