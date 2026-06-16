@@ -1241,6 +1241,7 @@ class GameService {
       leader: gameState.leader || (bidding ? bidding.highestBidder : null),
       partnerCard: gameState.partnerCard || (bidding?.partnerCards?.[0] || null),
       partnerCards: gameState.partnerCards || (bidding?.partnerCards || []),
+      declaredPartners: gameState.declaredPartners || [],
       partnerIds: gameState.partnerIds || [],
       partnerId: (gameState.partnerIds && gameState.partnerIds[0]) || null,
       bidWinner: gameState.bidWinner || (bidding ? bidding.highestBidder : null),

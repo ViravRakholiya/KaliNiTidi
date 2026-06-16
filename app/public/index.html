@@ -323,6 +323,60 @@
             .topbar .spacer {
                 flex: 1;
             }
+            /* declared partner cards (one chip each) */
+            .partner-bar {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 5px;
+                padding: 4px 10px 7px;
+                background: linear-gradient(
+                    180deg,
+                    rgba(0, 0, 0, 0.28),
+                    rgba(0, 0, 0, 0.08)
+                );
+                z-index: 5;
+            }
+            .partner-bar:empty {
+                display: none;
+            }
+            .pchip {
+                display: inline-flex;
+                align-items: center;
+                gap: 3px;
+                padding: 4px 10px;
+                border-radius: 999px;
+                background: rgba(0, 0, 0, 0.4);
+                border: 1px solid rgba(232, 196, 104, 0.3);
+                font-size: 13px;
+                font-weight: 800;
+                color: var(--cream);
+                white-space: nowrap;
+            }
+            .pchip .occ {
+                color: var(--gold);
+                font-weight: 700;
+                margin-right: 1px;
+            }
+            .pchip .suit {
+                margin-left: 2px;
+                font-size: 14px;
+            }
+            .pchip .suit.red {
+                color: #ff6b6b;
+            }
+            .pchip .suit.blk {
+                color: #e8eef5;
+            }
+            /* the card whose partner has been revealed */
+            .pchip.revealed {
+                border-color: #ff5b5b;
+                background: rgba(120, 20, 20, 0.45);
+                box-shadow: 0 0 10px rgba(255, 91, 91, 0.5);
+            }
+            .pchip.lost {
+                opacity: 0.45;
+                text-decoration: line-through;
+            }
             .icon-btn {
                 width: 38px;
                 height: 38px;
@@ -363,10 +417,10 @@
             .table-surface {
                 position: absolute;
                 left: 50%;
-                top: 47%;
+                top: 50%;
                 transform: translate(-50%, -50%);
-                width: 90%;
-                height: 78%;
+                width: 88%;
+                height: 88%;
                 max-width: 1000px;
                 border-radius: 48% / 46%;
                 background: radial-gradient(
@@ -562,14 +616,14 @@
                 align-items: center;
                 padding: 10px 12px;
             }
-            .trick:not(.hidden) {
+            /* .trick:not(.hidden) {
                 background: rgba(8, 22, 14, 0.6);
                 border-radius: 16px;
                 box-shadow:
                     0 0 0 1px rgba(232, 196, 104, 0.25),
                     0 8px 24px rgba(0, 0, 0, 0.5);
                 backdrop-filter: blur(2px);
-            }
+            } */
             .room-chip {
                 cursor: pointer;
             }
@@ -770,6 +824,7 @@
                 border: 1px solid rgba(232, 196, 104, 0.25);
             }
             .bidbox button {
+                padding: 0%;
                 width: 36px;
                 height: 36px;
                 border-radius: 9px;
@@ -1129,9 +1184,6 @@
                 <span id="bidChip" class="chip hidden"
                     >Bid <b id="bidVal">—</b></span
                 >
-                <span id="partnerChip" class="chip hidden"
-                    >🤝 <b id="partnerVal">—</b></span
-                >
                 <span id="roundChip" class="chip hidden"
                     >Round <b id="roundVal">1</b></span
                 >
@@ -1155,6 +1207,8 @@
                     ⎋
                 </button>
             </div>
+
+            <div id="partnerBar" class="partner-bar"></div>
 
             <div class="felt">
                 <div class="table-surface"></div>
@@ -1341,7 +1395,17 @@
                     "સાતમો",
                     "આઠમો",
                 ];
-                const DECK_RANKS = ["A", "K", "Q", "J", "10", "9", "8", "5", "3"];
+                const DECK_RANKS = [
+                    "A",
+                    "K",
+                    "Q",
+                    "J",
+                    "10",
+                    "9",
+                    "8",
+                    "5",
+                    "3",
+                ];
                 const $ = (id) => document.getElementById(id);
                 const PLAYER_ID_KEY = "kanitidi_playerId";
                 const SESSION_KEY = "kanitidi_session";
@@ -1426,6 +1490,8 @@
                     spectating: false,
                     config: null,
                     trickDone: false,
+                    revealedKeys: new Set(),
+                    lostKeys: new Set(),
                 };
 
                 const cardKey = (c) => `${c.rank}_${c.suit}`;
@@ -1642,6 +1708,8 @@
                     S.partnerCards = [];
                     S.partnerIds = [];
                     S.allowedPartners = 1;
+                    S.revealedKeys = new Set();
+                    S.lostKeys = new Set();
                     S.bidWinner = null;
                     S.leader = null;
                     S.players.forEach((p) => {
@@ -1765,6 +1833,13 @@
                     }
                     if (Array.isArray(d.partnerIds))
                         S.partnerIds = d.partnerIds;
+                    // Mark which declared partner card this play resolved.
+                    if (d.partnerCardPlayed && d.declaredOccurrence) {
+                        const key = `${d.card.rank}_${d.card.suit}_${d.declaredOccurrence}`;
+                        if (d.partnerAssigned) S.revealedKeys.add(key);
+                        else if (d.partnerLost) S.lostKeys.add(key);
+                        renderPartnerBar();
+                    }
                     if (d.partnerAssigned && d.partnerId) {
                         if (!S.partnerIds.includes(d.partnerId))
                             S.partnerIds.push(d.partnerId);
@@ -1777,11 +1852,7 @@
                         showReveal("🤝 ભેરુ ખૂલ્યો!", `${who} હવે ભેરુ છે`);
                         if (d.partnerId === socket.id) setMeTag();
                     } else if (d.partnerLost) {
-                        const why =
-                            d.partnerLostReason === "bidder"
-                                ? "bidder played it"
-                                : "already a partner";
-                        toast(`💔 A partner slot was lost (${why})`);
+                        toast(`💔 એક ભેરુ ગયો`);
                     }
                     if (!d.trickComplete) {
                         S.currentTurn = d.nextPlayerId;
@@ -1861,6 +1932,14 @@
                     S.partnerIds = g.partnerIds || [];
                     S.partnerCards = g.partnerCards || [];
                     S.partnerCard = g.partnerCard;
+                    S.revealedKeys = new Set();
+                    S.lostKeys = new Set();
+                    (g.declaredPartners || []).forEach((p) => {
+                        if (p.resolved)
+                            S.revealedKeys.add(
+                                `${p.rank}_${p.suit}_${p.occurrence || 1}`,
+                            );
+                    });
                     S.allowedPartners = g.allowedPartners || S.allowedPartners;
                     S.winningBid = g.winningBid || 0;
                     S.currentBid = g.bidding?.currentBid || g.winningBid || 0;
@@ -1932,7 +2011,7 @@
                     if (S.trump) {
                         c.classList.remove("hidden");
                         $("trumpVal").textContent =
-                            `${cap(S.trump)} ${SUIT[S.trump]}`;
+                            `${GU_SUIT[S.trump] || cap(S.trump)} ${SUIT[S.trump]}`;
                         c.className =
                             "chip " +
                             (isRed(S.trump) ? "suit-red" : "suit-black");
@@ -1947,23 +2026,33 @@
                         c.classList.remove("hidden");
                         $("bidVal").textContent = S.winningBid;
                     } else c.classList.add("hidden");
-                    renderPartnerChip();
+                    renderPartnerBar();
                 }
-                function renderPartnerChip() {
-                    const c = $("partnerChip");
+                const pKey = (p) => `${p.rank}_${p.suit}_${p.occurrence || 1}`;
+                // One chip per declared partner card; the revealed one is highlighted.
+                function renderPartnerBar() {
+                    const bar = $("partnerBar");
                     if (
-                        S.phase === "playing" &&
-                        S.partnerCards &&
-                        S.partnerCards.length
+                        S.phase !== "playing" ||
+                        !S.partnerCards ||
+                        !S.partnerCards.length
                     ) {
-                        c.classList.remove("hidden");
-                        $("partnerVal").textContent = S.partnerCards
-                            .map(
-                                (p) =>
-                                    `${p.occurrence ? p.occurrence + "×" : ""}${p.rank}${SUIT[p.suit]}`,
-                            )
-                            .join(" ");
-                    } else c.classList.add("hidden");
+                        bar.innerHTML = "";
+                        return;
+                    }
+                    bar.innerHTML = S.partnerCards
+                        .map((p) => {
+                            const k = pKey(p);
+                            let cls = "pchip";
+                            if (S.revealedKeys.has(k)) cls += " revealed";
+                            else if (S.lostKeys.has(k)) cls += " lost";
+                            const suitCls = isRed(p.suit) ? "red" : "blk";
+                            const occ = p.occurrence
+                                ? `<span class="occ">${p.occurrence}×</span>`
+                                : "";
+                            return `<span class="${cls}">${occ}${p.rank}<span class="suit ${suitCls}">${SUIT[p.suit]}</span></span>`;
+                        })
+                        .join("");
                 }
 
                 function renderSeats() {
@@ -2416,7 +2505,12 @@
                     // 1) Suit (કાળી / લાલી / સરકટ / ફૂલી)
                     const suitSel = document.createElement("select");
                     suitSel.style.cssText = selCss;
-                    suitSel.innerHTML = ["spades", "hearts", "diamonds", "clubs"]
+                    suitSel.innerHTML = [
+                        "spades",
+                        "hearts",
+                        "diamonds",
+                        "clubs",
+                    ]
                         .map(
                             (s) =>
                                 `<option value="${s}">${SUIT[s]} ${GU_SUIT[s]}</option>`,
