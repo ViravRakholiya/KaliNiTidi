@@ -1365,14 +1365,6 @@
                     </p>
                     <div id="partnerRows"></div>
                     <button
-                        id="btnAddPartner"
-                        class="btn ghost block"
-                        style="margin-top: 4px"
-                        onclick="ui.addPartnerRow()"
-                    >
-                        + બીજો ભેરુ ઉમેર
-                    </button>
-                    <button
                         id="btnStartPlay"
                         class="btn block lg"
                         style="margin-top: 12px"
@@ -2526,71 +2518,99 @@
                     $("selTrump").value = S.trump || "";
                     $("partnerPick").classList.toggle("hidden", !S.trump);
                     $("partnerAllowed").textContent =
-                        `વધુમાં વધુ ${S.allowedPartners || 1}`;
+                        `${S.allowedPartners || 1} ભેરુ બોલ`;
                     $("partnerRows").innerHTML = "";
-                    if (S.trump) {
-                        ui.addPartnerRow();
-                    }
+                    if (S.trump) buildPartnerRows(S.allowedPartners || 1);
                     $("partnerOverlay").classList.add("show");
                 }
 
-                // Build one partner row: suit + occurrence + rank dropdowns + remove.
-                ui.addPartnerRow = function () {
+                // Show exactly `n` partner rows at once (suit + occurrence + rank).
+                function buildPartnerRows(n) {
                     const rows = $("partnerRows");
-                    if (rows.children.length >= (S.allowedPartners || 1)) {
-                        toast(`વધુમાં વધુ ${S.allowedPartners} ભેરુ`, "err");
-                        return;
-                    }
-                    const decks = S.numberOfSets || 2;
+                    rows.innerHTML = "";
+                    for (let i = 0; i < n; i++)
+                        rows.appendChild(makePartnerRow(i));
+                    refreshOccurrences();
+                }
+
+                function makePartnerRow(index) {
                     const selCss =
                         "padding:11px 8px;border-radius:10px;background:rgba(0,0,0,.35);color:var(--cream);border:1px solid rgba(232,196,104,.25);font-size:15px";
                     const row = document.createElement("div");
                     row.className = "row2";
                     row.style.cssText =
-                        "gap:6px;margin-bottom:8px;grid-template-columns:1fr 1fr 1fr auto;align-items:center";
+                        "gap:6px;margin-bottom:8px;grid-template-columns:1fr 1fr 1fr;align-items:center";
 
-                    // 1) Suit (કાળી / લાલી / સરકટ / ફૂલી)
+                    // Suit (કાળી / લાલી / સરકટ / ફૂલી)
                     const suitSel = document.createElement("select");
                     suitSel.style.cssText = selCss;
-                    suitSel.innerHTML = [
-                        "spades",
-                        "hearts",
-                        "diamonds",
-                        "clubs",
-                    ]
+                    suitSel.innerHTML = ["spades", "hearts", "diamonds", "clubs"]
                         .map(
                             (s) =>
                                 `<option value="${s}">${SUIT[s]} ${GU_SUIT[s]}</option>`,
                         )
                         .join("");
 
-                    // 2) Occurrence (પેલો / બીજો / ત્રીજો …)
+                    // Occurrence (filled by refreshOccurrences)
                     const occSel = document.createElement("select");
                     occSel.style.cssText = selCss;
-                    occSel.innerHTML = Array.from(
-                        { length: decks },
-                        (_, i) =>
-                            `<option value="${i + 1}">${GU_ORD[i + 1] || i + 1}</option>`,
-                    ).join("");
 
-                    // 3) Rank (A K Q J 10 9 8 5 3)
+                    // Rank — default each row to a different card so they don't clash
                     const rankSel = document.createElement("select");
                     rankSel.style.cssText = selCss;
                     rankSel.innerHTML = DECK_RANKS.map(
                         (r) => `<option value="${r}">${r}</option>`,
                     ).join("");
+                    rankSel.value = DECK_RANKS[index % DECK_RANKS.length];
 
-                    const del = document.createElement("button");
-                    del.className = "icon-btn";
-                    del.textContent = "✕";
-                    del.onclick = () => row.remove();
+                    suitSel.onchange = refreshOccurrences;
+                    rankSel.onchange = refreshOccurrences;
+                    occSel.onchange = refreshOccurrences;
 
+                    row._suit = suitSel;
+                    row._occ = occSel;
+                    row._rank = rankSel;
                     row.appendChild(suitSel);
                     row.appendChild(occSel);
                     row.appendChild(rankSel);
-                    row.appendChild(del);
-                    rows.appendChild(row);
-                };
+                    return row;
+                }
+
+                // Rebuild each row's occurrence list, disabling any (suit,rank,occurrence)
+                // already taken by another row — so the same card+occurrence can't repeat.
+                function refreshOccurrences() {
+                    const decks = S.numberOfSets || 2;
+                    const rows = [...$("partnerRows").children];
+                    rows.forEach((row) => {
+                        const suit = row._suit.value,
+                            rank = row._rank.value;
+                        const cur = parseInt(row._occ.value) || 1;
+                        const taken = new Set();
+                        rows.forEach((o) => {
+                            if (
+                                o !== row &&
+                                o._suit.value === suit &&
+                                o._rank.value === rank
+                            )
+                                taken.add(parseInt(o._occ.value) || 1);
+                        });
+                        let firstFree = null;
+                        row._occ.innerHTML = Array.from(
+                            { length: decks },
+                            (_, i) => {
+                                const n = i + 1;
+                                if (!taken.has(n) && firstFree === null)
+                                    firstFree = n;
+                                return `<option value="${n}" ${taken.has(n) ? "disabled" : ""}>${GU_ORD[n] || n}</option>`;
+                            },
+                        ).join("");
+                        row._occ.value = taken.has(cur)
+                            ? firstFree != null
+                                ? firstFree
+                                : cur
+                            : cur;
+                    });
+                }
 
                 ui.confirmTrump = function () {
                     const suit = $("selTrump").value;
@@ -2604,24 +2624,29 @@
                                 renderTrumpChip();
                                 renderHand();
                                 $("partnerPick").classList.remove("hidden");
-                                if ($("partnerRows").children.length === 0)
-                                    ui.addPartnerRow();
+                                buildPartnerRows(S.allowedPartners || 1);
                             } else toast(r?.message || "Trump failed", "err");
                         },
                     );
                 };
 
-                // Collect all partner rows, declare them, then start the game.
+                // Collect every partner row, declare them, then start the game.
                 ui.declareAndStart = function () {
+                    const rows = [...$("partnerRows").children];
                     const partners = [];
-                    [...$("partnerRows").children].forEach((row) => {
-                        const sels = row.querySelectorAll("select");
-                        const suit = sels[0].value;
-                        const occurrence = parseInt(sels[1].value) || 1;
-                        const rank = sels[2].value;
-                        if (!suit || !rank) return;
+                    const seen = new Set();
+                    for (const row of rows) {
+                        const suit = row._suit.value,
+                            rank = row._rank.value,
+                            occurrence = parseInt(row._occ.value) || 1;
+                        if (!suit || !rank)
+                            return toast("બધા ભેરુ પસંદ કર", "err");
+                        const key = `${rank}_${suit}_${occurrence}`;
+                        if (seen.has(key))
+                            return toast("એક જ કાર્ડ બે વાર ન ચાલે", "err");
+                        seen.add(key);
                         partners.push({ rank, suit, occurrence });
-                    });
+                    }
                     if (!partners.length)
                         return toast("ઓછામાં ઓછો એક ભેરુ બોલ", "err");
                     socket.emit(
