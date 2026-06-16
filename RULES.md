@@ -64,11 +64,16 @@ Each time a **declared** card-occurrence is played:
 So the bidder's team = **the bidder + each distinct other player who played a declared occurrence.**
 The team can end up smaller than the bidder hoped.
 
-## 8. Scoring — ❓ to confirm next
-- The bidder's team must collect at least the **winning bid** in points across their tricks.
-- Exact win/lose values still to confirm.
-  (Current code: bid made → bidder +bid×2, partner +bid, opponents 0;
-   bid failed → bidder −bid×2, opponents +bid.)
+## 8. Scoring — ✅
+- During a round each player accumulates the trick points they collect (live display).
+  These reset to 0 at the start of every round.
+- At the end of the round the bidder's **team** total (bidder + partners' trick points) is
+  compared to the **winning bid**:
+  - **Made the bid** (team total ≥ bid) → the **bidder gets +winningBid**, everyone else **0**.
+  - **Failed** (team total < bid) → the **bidder gets −winningBid**, everyone else **0**.
+- Only the bidder ever gains/loses round points; partners and opponents always score 0.
+  Example: A wins the bid at 300 → if A's team reaches 300, A gets **+300** (others 0);
+  if not, A gets **−300** (others 0).
 
 ---
 
@@ -76,7 +81,7 @@ The team can end up smaller than the bidder hoped.
 1. ✅ Extra-partner rule — host sets at room creation (base partners + points-per-extra-partner).
 2. ✅ Bid increment — multiples of 5.
 3. ✅ Everyone passes — token-holder takes it at the minimum bid.
-4. ⏳ Scoring — keep current for now; Virav will design the final scoring later.
+4. ✅ Scoring — only the bidder scores (±winningBid); everyone else 0. Resets each round.
 5. ❓ Max-partners cap — confirm (default: no more than half the table).
 
 ### Build order

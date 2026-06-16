@@ -776,31 +776,14 @@ class GameService {
           // Store final scores in game state for retrieval
           gameState.finalScores = finalScores;
 
-          // Determine game winner
-          let gameWinner = null;
-          const teamPartners = finalScores.partners || [];
-          const isBidderTeam = (sid) => sid === finalScores.bidder || teamPartners.includes(sid);
-
-          if (finalScores.madeBid) {
-            gameWinner = finalScores.bidder;
-          } else {
-            // Opponent with highest score wins
-            let maxOpponentScore = -Infinity;
-            gameState.players
-              .filter(p => !isBidderTeam(p.socketId))
-              .map(p => p.socketId)
-              .forEach(socketId => {
-                if (finalScores.playerScores[socketId] > maxOpponentScore) {
-                  maxOpponentScore = finalScores.playerScores[socketId];
-                  gameWinner = socketId;
-                }
-              });
-          }
+          // Only the bidder scores: they "win" the round if they made the bid,
+          // otherwise the round has no winner (the bidder simply loses points).
+          const gameWinner = finalScores.madeBid ? finalScores.bidder : null;
 
           result.gameWinner = gameWinner;
           gameState.phase = 'completed';
 
-          logger.info(`GAME OVER! Winner: ${gameWinner.substring(0, 8)}...`);
+          logger.info(`GAME OVER! Bidder ${finalScores.madeBid ? 'made the bid' : 'failed'}; winner: ${gameWinner ? gameWinner.substring(0, 8) + '...' : 'none'}`);
         }
       } else {
         // Move to next player
@@ -986,40 +969,19 @@ class GameService {
     logger.info(`[Final Scores] Opponent Team: [${opponentTeam.map(id => id.substring(0, 8)).join(', ')}] = ${opponentTeamPoints} points`);
     logger.info(`[Final Scores] Winning Bid: ${gameState.winningBid}, Made Bid: ${bidderTeamPoints >= gameState.winningBid}`);
 
-    // Calculate scores based on whether bid was made
+    // Did the bidder's team collect at least the winning bid in trick points?
     const madeBid = bidderTeamPoints >= gameState.winningBid;
 
+    // Scoring (RULES.md §8): ONLY the bidder scores. Made the bid → bidder
+    // gets +winningBid; failed → bidder gets -winningBid. Everyone else gets 0.
     const finalScores = {};
     gameState.players.forEach(player => {
-      if (player.socketId === gameState.bidWinner) {
-        // Bidder
-        if (madeBid) {
-          finalScores[player.socketId] = gameState.winningBid * 2;
-          logger.info(`[SCORE] ${player.name} (Bidder) MADE BID ${gameState.winningBid}: Score = ${gameState.winningBid * 2}`);
-        } else {
-          finalScores[player.socketId] = -gameState.winningBid * 2;
-          logger.info(`[SCORE] ${player.name} (Bidder) FAILED BID ${gameState.winningBid}: Score = -${gameState.winningBid * 2}`);
-        }
-      } else if (partnerIds.includes(player.socketId)) {
-        // Partner
-        if (madeBid) {
-          finalScores[player.socketId] = gameState.winningBid;
-          logger.info(`[SCORE] ${player.name} (Partner) MADE BID ${gameState.winningBid}: Score = ${gameState.winningBid}`);
-        } else {
-          finalScores[player.socketId] = 0;
-          logger.info(`[SCORE] ${player.name} (Partner) FAILED BID ${gameState.winningBid}: Score = 0`);
-        }
-      } else {
-        // Opponents
-        if (!madeBid) {
-          finalScores[player.socketId] = gameState.winningBid;
-          logger.info(`[SCORE] ${player.name} (Opponent) Bidder FAILED: Score = ${gameState.winningBid}`);
-        } else {
-          finalScores[player.socketId] = 0;
-          logger.info(`[SCORE] ${player.name} (Opponent) Bidder MADE BID: Score = 0`);
-        }
-      }
+      finalScores[player.socketId] =
+        player.socketId === gameState.bidWinner
+          ? (madeBid ? gameState.winningBid : -gameState.winningBid)
+          : 0;
     });
+    logger.info(`[SCORE] Bidder ${madeBid ? 'MADE' : 'FAILED'} bid ${gameState.winningBid} (team had ${bidderTeamPoints}). Bidder=${finalScores[gameState.bidWinner]}, everyone else=0`);
 
     // Update player scores with calculated values
     gameState.players.forEach(player => {

@@ -1761,6 +1761,7 @@
                     S.players.forEach((p) => {
                         p._passed = false;
                         p._team = null;
+                        p.score = 0; // fresh round → reset live points
                     });
                     clearTrick();
                     S.minBid = d.minBid;
@@ -2689,7 +2690,6 @@
                     $("scoreOverlay").classList.remove("show");
 
                 function openGameOver(d) {
-                    const winner = d.winner ? getName(d.winner) : "—";
                     const rows = (d.scores || [])
                         .slice()
                         .sort((a, b) => b.score - a.score)
@@ -2698,8 +2698,11 @@
                                 `<tr><td>${escapeHtml(s.name)} ${s.isBidder ? "👑" : s.isPartner ? "🤝" : ""}</td><td>${s.team || ""}</td><td class="num ${s.score >= 0 ? "pos" : "neg"}">${s.score >= 0 ? "+" : ""}${s.score}</td></tr>`,
                         )
                         .join("");
+                    const headline = d.winner
+                        ? `🏆 ${escapeHtml(getName(d.winner))} made the bid!`
+                        : `💔 Bidder failed the bid`;
                     $("overBody").innerHTML =
-                        `<div class="winner-line">Winner: <b>${escapeHtml(winner)}</b></div>` +
+                        `<div class="winner-line"><b>${headline}</b></div>` +
                         `<table class="scoretable"><tr><th>Player</th><th>Team</th><th class="num">Score</th></tr>${rows}</table>`;
                     const act = $("overActions");
                     act.innerHTML = "";
