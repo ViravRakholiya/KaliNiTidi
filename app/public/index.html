@@ -415,6 +415,10 @@
   (function () {
     'use strict';
 
+    // Expose the UI namespace up front so inline onclick handlers and the
+    // ui.* assignments below always have an object to attach to.
+    window.ui = window.ui || {};
+
     // ---------- constants / helpers ----------
     const SUIT = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
     const RED = { hearts: 1, diamonds: 1 };
@@ -1008,7 +1012,6 @@
       rows.appendChild(row);
     };
 
-    window.ui = window.ui || {};
     ui.confirmTrump = function () {
       const suit = $('selTrump').value;
       if (!suit) return toast('Pick a trump suit', 'err');
