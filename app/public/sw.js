@@ -1,10 +1,14 @@
 /* Kali ni Tidi — service worker (offline shell + installability) */
-const CACHE = "kanitidi-v1";
+const CACHE = "kanitidi-v2";
 const ASSETS = [
   "/",
   "/index.html",
   "/socket.io.min.js",
   "/icon.svg",
+  "/favicon.svg",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/apple-touch-icon.png",
   "/manifest.json",
 ];
 
