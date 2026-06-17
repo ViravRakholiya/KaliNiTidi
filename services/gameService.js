@@ -156,6 +156,10 @@ class GameService {
       logger.info('[DEBUG] Bidding initialized successfully');
       gameState.bidding = biddingState;
 
+      // The "token" (dealer) is the player who bids first this round; it rotates
+      // one seat each round.
+      gameState.tokenHolder = biddingState.playersOrder[biddingState.currentTurnIndex];
+
       // Store game state
       logger.info('[DEBUG] About to store game state...');
       this.activeGames.set(roomId, gameState);
@@ -783,6 +787,19 @@ class GameService {
           result.gameWinner = gameWinner;
           gameState.phase = 'completed';
 
+          // Add this round's result to the running leaderboard (persists across
+          // rounds, unlike the per-round score which resets).
+          const room = roomService.getRoom(roomId);
+          if (room) {
+            if (!room.cumulativeScores) room.cumulativeScores = {};
+            gameState.players.forEach(p => {
+              const add = finalScores.playerScores[p.socketId] || 0;
+              room.cumulativeScores[p.socketId] = (room.cumulativeScores[p.socketId] || 0) + add;
+            });
+            room.currentRound = gameState.roundNumber || 1;
+            result.cumulativeScores = room.cumulativeScores;
+          }
+
           logger.info(`GAME OVER! Bidder ${finalScores.madeBid ? 'made the bid' : 'failed'}; winner: ${gameWinner ? gameWinner.substring(0, 8) + '...' : 'none'}`);
         }
       } else {
@@ -1118,7 +1135,7 @@ class GameService {
     });
 
     // Singular references
-    ['leader', 'bidWinner', 'partnerId'].forEach(key => {
+    ['leader', 'bidWinner', 'partnerId', 'tokenHolder'].forEach(key => {
       if (gameState[key] === oldSocketId) gameState[key] = newSocketId;
     });
 
@@ -1206,6 +1223,7 @@ class GameService {
       declaredPartners: gameState.declaredPartners || [],
       partnerIds: gameState.partnerIds || [],
       partnerId: (gameState.partnerIds && gameState.partnerIds[0]) || null,
+      token: gameState.tokenHolder || null,
       bidWinner: gameState.bidWinner || (bidding ? bidding.highestBidder : null),
       winningBid: gameState.winningBid || (bidding ? bidding.currentBid : 0),
       allowedPartners: bidding ? bidding.numberOfPartners : null,

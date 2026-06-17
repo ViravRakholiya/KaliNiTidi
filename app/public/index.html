@@ -633,6 +633,30 @@
                 display: flex;
                 gap: 2px;
             }
+            /* dealer / token chip (rotates each round) */
+            .seat .dealer-chip {
+                position: absolute;
+                top: -8px;
+                left: -8px;
+                width: 22px;
+                height: 22px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                font-weight: 900;
+                color: #5a3b21;
+                background: radial-gradient(
+                    circle at 35% 30%,
+                    #fff,
+                    #e3e7ee 60%,
+                    #b9c0cc
+                );
+                box-shadow:
+                    0 0 0 2px #c79a33,
+                    0 2px 5px rgba(0, 0, 0, 0.5);
+            }
             .badge {
                 font-size: 11px;
                 line-height: 1;
@@ -1250,6 +1274,7 @@
                                 value="250"
                                 min="0"
                                 step="5"
+                                oninput="ui.cfgHint()"
                             />
                         </div>
                         <div class="field">
@@ -1271,6 +1296,7 @@
                             value="250"
                             min="0"
                             step="5"
+                            oninput="ui.cfgHint()"
                         />
                     </div>
                     <div
@@ -1401,6 +1427,63 @@
                 <h2>Round Over</h2>
                 <div id="overBody"></div>
                 <div id="overActions" style="margin-top: 14px"></div>
+            </div>
+        </div>
+
+        <div id="settingsOverlay" class="overlay">
+            <div class="panel modal">
+                <h2>⚙️ Settings</h2>
+                <div class="row2">
+                    <div class="field">
+                        <label>Decks</label>
+                        <select id="setDecks">
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                            <option value="8">8</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label>Cards per player</label>
+                        <input id="setCards" type="number" min="1" max="52" />
+                    </div>
+                </div>
+                <div class="row2">
+                    <div class="field">
+                        <label>આટલા પોઈન્ટ મિનિમમ</label>
+                        <input id="setMinBid" type="number" min="0" step="5" />
+                    </div>
+                    <div class="field">
+                        <label>આટલા ભેરુ મંગાવાના</label>
+                        <input id="setBase" type="number" min="0" max="10" />
+                    </div>
+                </div>
+                <div class="field">
+                    <label>આટલા પોઈન્ટે 1 એક્સ્ટ્રા ભેરુ મળશે</label>
+                    <input id="setExtra" type="number" min="0" step="5" />
+                </div>
+                <div
+                    id="setHint"
+                    style="
+                        font-size: 11.5px;
+                        text-align: center;
+                        margin: 4px 0 10px;
+                    "
+                ></div>
+                <button class="btn block lg" onclick="ui.saveSettings()">
+                    Save
+                </button>
+                <button
+                    class="btn block ghost"
+                    style="margin-top: 8px"
+                    onclick="ui.closeSettings()"
+                >
+                    Cancel
+                </button>
             </div>
         </div>
 
@@ -1632,6 +1715,7 @@
                     trickDone: false,
                     turnDeadline: 0,
                     turnPlayer: null,
+                    token: null,
                     revealedKeys: new Set(),
                     lostKeys: new Set(),
                 };
@@ -1872,6 +1956,8 @@
                     S.currentBid = d.minBid;
                     S.winningBid = d.minBid;
                     S.currentTurn = d.currentTurn;
+                    S.token = d.token || null;
+                    if (d.roundNumber) S.roundNumber = d.roundNumber;
                     if (d.numberOfSets) S.numberOfSets = d.numberOfSets;
                     S.totalPoints = d.totalPoints;
                     $("roundChip").classList.remove("hidden");
@@ -2043,6 +2129,7 @@
                     S.phase = "completed";
                     S.turnDeadline = 0;
                     S.turnPlayer = null;
+                    if (d.cumulativeScores) S.cumulative = d.cumulativeScores;
                     if (d.scores)
                         d.scores.forEach((s) => {
                             S.scores[s.socketId] = s.score;
@@ -2131,6 +2218,7 @@
                     S.partnerIds = g.partnerIds || [];
                     S.partnerCards = g.partnerCards || [];
                     S.partnerCard = g.partnerCard;
+                    S.token = g.token || null;
                     S.revealedKeys = new Set();
                     S.lostKeys = new Set();
                     (g.declaredPartners || []).forEach((p) => {
@@ -2322,8 +2410,13 @@
                             status = '<div class="status turn">turn</div>';
                         else status = "";
 
+                        const dealer =
+                            p.socketId === S.token
+                                ? `<div class="dealer-chip" title="Token (deals/bids first this round)">D</div>`
+                                : "";
                         el.innerHTML =
                             `<div class="roles">${roles.map((r) => `<span class="badge">${r}</span>`).join("")}</div>` +
+                            dealer +
                             `<div class="avatar">${initials(p.name)}</div>` +
                             `<div class="nm">${escapeHtml(isMe ? "You" : p.name)}</div>` +
                             (typeof p.score === "number" &&
@@ -2455,8 +2548,7 @@
                                 ),
                             );
                         } else if (S.isHost) {
-                            const full =
-                                S.players.length >= (S.maxPlayers || 12);
+                            const full = S.players.length >= 16;
                             const hasBots = S.players.some((p) => p.isBot);
                             const ctr = document.createElement("div");
                             ctr.className = "actionbar grow";
@@ -2469,6 +2561,9 @@
                                 ctr.appendChild(
                                     mkBtn("Remove Bot", "btn ghost", removeBot),
                                 );
+                            ctr.appendChild(
+                                mkBtn("⚙️ Settings", "btn ghost", ui.openSettings),
+                            );
                             bar.appendChild(ctr);
                             const start = mkBtn(
                                 S.players.length >= 4
@@ -2549,15 +2644,18 @@
                             `<span id="selfClock"></span>`;
                         bar.appendChild(d);
                     } else if (S.phase === "completed") {
-                        if (S.isHost)
+                        if (S.isHost) {
                             bar.appendChild(
                                 mkBtn(
                                     "▶ Next Round",
-                                    "btn block lg",
+                                    "btn grow",
                                     startGame,
                                 ),
                             );
-                        else bar.appendChild(info("Waiting for next round…"));
+                            bar.appendChild(
+                                mkBtn("⚙️", "btn ghost", ui.openSettings),
+                            );
+                        } else bar.appendChild(info("Waiting for next round…"));
                     }
                 }
 
@@ -2928,6 +3026,82 @@
                 ui.closeScores = () =>
                     $("scoreOverlay").classList.remove("show");
 
+                // ---------- settings (host, between rounds) ----------
+                function readSettings() {
+                    return {
+                        numberOfDecks: parseInt($("setDecks").value) || 2,
+                        cardsPerPlayer: parseInt($("setCards").value) || 13,
+                        minimumBid: parseInt($("setMinBid").value) || 0,
+                        basePartners: parseInt($("setBase").value) || 0,
+                        pointsPerExtraPartner: parseInt($("setExtra").value) || 0,
+                    };
+                }
+                function settingsError(c) {
+                    const total = 250 * c.numberOfDecks;
+                    if (c.minimumBid > total)
+                        return `Minimum bid (${c.minimumBid}) can't exceed deck points (${total}).`;
+                    if (c.pointsPerExtraPartner > total)
+                        return `Extra-partner threshold (${c.pointsPerExtraPartner}) can't exceed deck points (${total}).`;
+                    return null;
+                }
+                function updateSetHint() {
+                    const c = readSettings();
+                    const total = 250 * c.numberOfDecks;
+                    const err = settingsError(c);
+                    const el = $("setHint");
+                    if (err) {
+                        el.style.color = "var(--danger)";
+                        el.textContent = "⚠ " + err;
+                    } else {
+                        el.style.color = "var(--gold)";
+                        el.textContent = `Total ${total} points in play`;
+                    }
+                }
+                ui.openSettings = function () {
+                    const cfg = S.config || {};
+                    $("setDecks").value = String(cfg.numberOfDecks || 2);
+                    $("setCards").value = cfg.cardsPerPlayer || 13;
+                    $("setMinBid").value = cfg.minimumBid ?? 250;
+                    $("setBase").value = cfg.basePartners ?? 1;
+                    $("setExtra").value = cfg.pointsPerExtraPartner ?? 250;
+                    ["setDecks", "setCards", "setMinBid", "setExtra"].forEach(
+                        (id) => {
+                            const el = $(id);
+                            if (el) {
+                                el.oninput = updateSetHint;
+                                el.onchange = updateSetHint;
+                            }
+                        },
+                    );
+                    updateSetHint();
+                    $("settingsOverlay").classList.add("show");
+                };
+                ui.closeSettings = () =>
+                    $("settingsOverlay").classList.remove("show");
+                ui.saveSettings = function () {
+                    const c = readSettings();
+                    const err = settingsError(c);
+                    if (err) return toast(err, "err");
+                    socket.emit(
+                        "UPDATE_CONFIG",
+                        { roomId: S.roomId, config: c },
+                        (r) => {
+                            if (r && r.success) {
+                                applyConfig(r.config);
+                                ui.closeSettings();
+                                toast("Settings updated", "ok");
+                                renderAll();
+                            } else
+                                toast(r?.message || "Could not update", "err");
+                        },
+                    );
+                };
+                socket.on("CONFIG_UPDATED", (d) => {
+                    if (d.config) applyConfig(d.config);
+                    if (S.roomId && d.roomId === S.roomId && !S.isHost)
+                        toast("Host changed the settings", "gold");
+                });
+
                 function openGameOver(d) {
                     const rows = (d.scores || [])
                         .slice()
@@ -2990,12 +3164,21 @@
                     const cpp = parseInt($("inpCards").value) || 13;
                     const total = players * cpp;
                     const pointCards = 25 * decks;
+                    const deckPts = 250 * decks;
+                    const minBid = parseInt($("inpMinBid").value) || 0;
+                    const extra = parseInt($("inpExtraStep").value) || 0;
                     if (total < pointCards) {
                         el.style.color = "var(--danger)";
                         el.textContent = `⚠ ${players}×${cpp}=${total} cards can't hold ${pointCards} point cards. Raise cards or lower decks.`;
+                    } else if (minBid > deckPts) {
+                        el.style.color = "var(--danger)";
+                        el.textContent = `⚠ Minimum bid ${minBid} > deck points ${deckPts}. Lower it or add decks.`;
+                    } else if (extra > deckPts) {
+                        el.style.color = "var(--danger)";
+                        el.textContent = `⚠ Extra-partner threshold ${extra} > deck points ${deckPts}. Lower it or add decks.`;
                     } else {
                         el.style.color = "var(--gold)";
-                        el.textContent = `Total ${250 * decks} pts · ${total} cards (${pointCards} point + ${total - pointCards} filler)`;
+                        el.textContent = `Total ${deckPts} pts · ${total} cards (${pointCards} point + ${total - pointCards} filler)`;
                     }
                 };
                 ui.go = function () {
@@ -3024,6 +3207,17 @@
                             pointsPerExtraPartner:
                                 parseInt($("inpExtraStep").value) || 0,
                         };
+                        const deckPts = 250 * config.numberOfDecks;
+                        if (config.minimumBid > deckPts)
+                            return toast(
+                                `Minimum bid can't exceed ${deckPts} (deck points)`,
+                                "err",
+                            );
+                        if (config.pointsPerExtraPartner > deckPts)
+                            return toast(
+                                `Extra-partner threshold can't exceed ${deckPts} (deck points)`,
+                                "err",
+                            );
                         socket.emit(
                             "CREATE_ROOM",
                             {

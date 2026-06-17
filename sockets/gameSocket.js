@@ -135,7 +135,7 @@ function broadcastCardPlayed(io, roomId, playerId, result) {
 
   if (result.gameOver) {
     const finalScores = gameService.getFinalScores(roomId);
-    io.to(roomId).emit('GAME_OVER', { roomId, scores: finalScores, winner: result.gameWinner });
+    io.to(roomId).emit('GAME_OVER', { roomId, scores: finalScores, winner: result.gameWinner, cumulativeScores: result.cumulativeScores });
   }
 }
 
@@ -323,6 +323,15 @@ export const handleGameSocket = (io, socket) => {
 
     if (maxPlayers && maxPlayers < 4) {
       const error = { success: false, error: 'INVALID_MAX_PLAYERS', message: 'Minimum 4 players required' };
+      if (typeof callback === 'function') callback(error);
+      socket.emit('ROOM_ERROR', error);
+      return;
+    }
+
+    // Reject configs where the minimum bid / threshold exceed the deck's points.
+    const cfgCheck = roomService.validateConfig(config || {});
+    if (!cfgCheck.valid) {
+      const error = { success: false, error: 'INVALID_CONFIG', message: cfgCheck.errors.join(' ') };
       if (typeof callback === 'function') callback(error);
       socket.emit('ROOM_ERROR', error);
       return;
@@ -516,6 +525,40 @@ export const handleGameSocket = (io, socket) => {
     }
   });
 
+  // Host changes the room settings (decks, points, etc.) between rounds.
+  socket.on('UPDATE_CONFIG', (data, callback) => {
+    const roomId = data?.roomId || roomService.findRoomBySocketId(socket.id);
+    const room = roomId ? roomService.getRoom(roomId) : null;
+
+    if (!room) {
+      const error = { success: false, error: 'ROOM_NOT_FOUND', message: 'Room does not exist' };
+      if (typeof callback === 'function') callback(error);
+      socket.emit('ROOM_ERROR', error);
+      return;
+    }
+    if (room.hostId !== socket.id) {
+      const error = { success: false, error: 'NOT_HOST', message: 'Only the host can change settings' };
+      if (typeof callback === 'function') callback(error);
+      socket.emit('ROOM_ERROR', error);
+      return;
+    }
+    if (room.status === 'playing') {
+      const error = { success: false, error: 'GAME_IN_PROGRESS', message: 'Change settings between rounds' };
+      if (typeof callback === 'function') callback(error);
+      socket.emit('ROOM_ERROR', error);
+      return;
+    }
+
+    const result = roomService.updateConfig(roomId, data.config || {});
+    if (result.success) {
+      io.to(roomId).emit('CONFIG_UPDATED', { roomId, config: result.config });
+      if (typeof callback === 'function') callback(result);
+    } else {
+      if (typeof callback === 'function') callback(result);
+      socket.emit('ROOM_ERROR', result);
+    }
+  });
+
   socket.on('GET_ROOM_STATE', (data, callback) => {
     const roomId = data?.roomId || roomService.findRoomBySocketId(socket.id);
 
@@ -644,7 +687,9 @@ export const handleGameSocket = (io, socket) => {
           minBid: result.bidding.minimumBid,
           totalPoints: result.bidding.totalPoints,
           currentTurn: result.bidding.playersOrder[result.bidding.currentTurnIndex],
-          numberOfSets: result.bidding.numberOfSets
+          numberOfSets: result.bidding.numberOfSets,
+          token: result.gameState.tokenHolder,
+          roundNumber: result.roundNumber
         };
 
         logger.info(`Emitting BIDDING_STARTED to room ${roomId}: minBid=${biddingStartedData.minBid}, currentTurn=${biddingStartedData.currentTurn.substring(0, 8)}..., numberOfSets=${biddingStartedData.numberOfSets}`);
@@ -964,7 +1009,8 @@ export const handleGameSocket = (io, socket) => {
         io.to(roomId).emit('GAME_OVER', {
           roomId,
           scores: finalScores,
-          winner: result.gameWinner
+          winner: result.gameWinner,
+          cumulativeScores: result.cumulativeScores
         });
 
         logger.info(`Game over in room ${roomId}. Winner: ${result.gameWinner}`);

@@ -5,12 +5,17 @@
 
 ## 1. Players
 - Minimum **4**. Odd numbers are allowed (5, 7, 9, …).
+- The "max players" set at creation is only a starting size — **more people can still
+  join** and the table auto-grows (hard cap 16).
 - A player may **join mid-game**; they sit out the current round and are dealt in next round.
 - Bots can be added by the host to fill seats (for testing / short tables).
+- The **token** (dealer, shown as a "D" chip) rotates one seat each round — that player
+  bids first, and takes the contract at the minimum if everyone passes.
 
-## 2. Room setup — decided by the host when creating the room
-These stay fixed for the whole session. The host can change them only when the room
-is recreated, or when players join/leave:
+## 2. Room setup — decided by the host
+The host can change these in the **⚙️ Settings** popup between rounds (not mid-game).
+Minimum bid and the extra-partner threshold can't exceed the deck's total points
+(250 × decks), or the room can't be created/updated.
 
 | Setting | Example (7 players) | Notes |
 |---|---|---|
@@ -73,6 +78,8 @@ The team can end up smaller than the bidder hoped.
   - **Made the bid** (team total ≥ bid) → the **bidder gets +winningBid**, everyone else **0**.
   - **Failed** (team total < bid) → the **bidder gets −winningBid**, everyone else **0**.
 - Only the bidder ever gains/loses round points; partners and opponents always score 0.
+- The **leaderboard (🏆)** keeps a running total across rounds (each round's ±bid is added);
+  the per-round score that shows on the table resets to 0 every round.
   Example: A wins the bid at 300 → if A's team reaches 300, A gets **+300** (others 0);
   if not, A gets **−300** (others 0).
 

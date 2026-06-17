@@ -22,12 +22,33 @@ class RoomService {
   }
 
   /**
+   * Validate the game settings. The minimum bid and the extra-partner threshold
+   * can never exceed the total points in the deck (250 × decks) — those points
+   * don't exist, so such a room makes no sense.
+   */
+  validateConfig(cfg = {}) {
+    const c = this.normalizeConfig(cfg);
+    const totalPoints = 250 * c.numberOfDecks;
+    const errors = [];
+    if (c.minimumBid > totalPoints) {
+      errors.push(`Minimum bid (${c.minimumBid}) can't exceed the deck's total points (${totalPoints}).`);
+    }
+    if (c.pointsPerExtraPartner > totalPoints) {
+      errors.push(`Extra-partner threshold (${c.pointsPerExtraPartner}) can't exceed the deck's total points (${totalPoints}).`);
+    }
+    return { valid: errors.length === 0, errors, totalPoints };
+  }
+
+  /**
    * Update a room's config (host only; while waiting between rounds).
    */
   updateConfig(roomId, cfg) {
     const room = this.rooms.get(roomId);
     if (!room) return { success: false, error: 'ROOM_NOT_FOUND', message: 'Room does not exist' };
-    room.config = this.normalizeConfig({ ...room.config, ...cfg });
+    const merged = { ...room.config, ...cfg };
+    const v = this.validateConfig(merged);
+    if (!v.valid) return { success: false, error: 'INVALID_CONFIG', message: v.errors.join(' ') };
+    room.config = this.normalizeConfig(merged);
     return { success: true, config: room.config };
   }
 
@@ -84,12 +105,18 @@ class RoomService {
       };
     }
 
-    if (room.players.length >= room.maxPlayers) {
+    // The "max players" set at creation is a soft size, not a hard cap — more
+    // people can still join (the table auto-grows) up to a sane hard limit.
+    const HARD_MAX = 16;
+    if (room.players.length >= HARD_MAX) {
       return {
         success: false,
         error: 'ROOM_FULL',
-        message: 'Room is full'
+        message: `Room is full (max ${HARD_MAX})`
       };
+    }
+    if (room.players.length >= room.maxPlayers) {
+      room.maxPlayers = room.players.length + 1; // grow to fit the newcomer
     }
 
     const existingPlayer = this.findPlayerBySocketId(room, socketId);
@@ -133,8 +160,11 @@ class RoomService {
   addBot(roomId) {
     const room = this.rooms.get(roomId);
     if (!room) return { success: false, error: 'ROOM_NOT_FOUND', message: 'Room does not exist' };
+    if (room.players.length >= 16) {
+      return { success: false, error: 'ROOM_FULL', message: 'Room is full (max 16)' };
+    }
     if (room.players.length >= room.maxPlayers) {
-      return { success: false, error: 'ROOM_FULL', message: 'Room is full' };
+      room.maxPlayers = room.players.length + 1; // grow to fit the bot
     }
 
     const botNum = room.players.filter(p => p.isBot).length + 1;
