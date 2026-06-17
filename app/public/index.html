@@ -934,11 +934,23 @@
                 color: var(--gold);
             }
             .bidbox .val {
-                min-width: 58px;
+                min-width: 52px;
                 text-align: center;
                 font-weight: 800;
                 font-size: 18px;
                 color: var(--gold);
+            }
+            .bidbox button {
+                min-width: 34px;
+            }
+            .bid-partners {
+                font-size: 13px;
+                font-weight: 800;
+                color: var(--cream);
+                padding: 2px 8px;
+                border-radius: 999px;
+                background: rgba(232, 196, 104, 0.18);
+                white-space: nowrap;
             }
 
             /* ---------- modal ---------- */
@@ -961,6 +973,28 @@
                 max-width: 440px;
                 max-height: 86vh;
                 overflow-y: auto;
+            }
+            .modal-hand-label {
+                font-size: 11px;
+                font-weight: 600;
+                color: var(--gold);
+                text-transform: uppercase;
+                margin-bottom: 5px;
+            }
+            .modal-hand {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+                justify-content: center;
+                margin-bottom: 14px;
+                max-height: 160px;
+                overflow-y: auto;
+                padding: 6px;
+                background: rgba(0, 0, 0, 0.22);
+                border-radius: 12px;
+            }
+            .modal-hand .card {
+                margin: 0;
             }
             .modal h2 {
                 font-family: var(--display);
@@ -1378,11 +1412,13 @@
                         text-align: center;
                         font-size: 13px;
                         color: rgba(246, 236, 210, 0.75);
-                        margin-bottom: 14px;
+                        margin-bottom: 10px;
                     "
                 >
                     હુકમ પાડ અને ભેરુ બોલ
                 </p>
+                <div class="modal-hand-label">તારા કાર્ડ</div>
+                <div id="modalHand" class="modal-hand"></div>
                 <div class="field">
                     <label>હુકમનું કાર્ડ</label>
                     <select id="selTrump">
@@ -2453,21 +2489,33 @@
                             let amt = roundUp5(S.currentBid + 5);
                             const valEl = document.createElement("span");
                             valEl.className = "val";
-                            valEl.textContent = amt;
+                            const pBadge = document.createElement("span");
+                            pBadge.className = "bid-partners";
+                            const refresh = () => {
+                                valEl.textContent = amt;
+                                pBadge.textContent = `🤝 ${partnersForBid(amt)}`;
+                            };
                             const dec = mkBtn("–", "", () => {
                                 amt = Math.max(
                                     roundUp5(S.currentBid + 5),
                                     amt - 5,
                                 );
-                                valEl.textContent = amt;
+                                refresh();
                             });
                             const inc = mkBtn("+", "", () => {
                                 amt = amt + 5;
-                                valEl.textContent = amt;
+                                refresh();
                             });
+                            const jump = mkBtn("+50", "", () => {
+                                amt = amt + 50;
+                                refresh();
+                            });
+                            refresh();
                             box.appendChild(dec);
                             box.appendChild(valEl);
                             box.appendChild(inc);
+                            box.appendChild(jump);
+                            box.appendChild(pBadge);
                             bar.appendChild(box);
                             const bid = mkBtn("Bid", "btn grow", () =>
                                 placeBid(amt),
@@ -2534,6 +2582,28 @@
                     return b;
                 }
                 const roundUp5 = (n) => Math.ceil(n / 5) * 5;
+
+                // How many ભેરુ (partners) a given bid earns, from room config.
+                function partnersForBid(bid) {
+                    const cfg = S.config || {};
+                    const base =
+                        typeof cfg.basePartners === "number"
+                            ? cfg.basePartners
+                            : 1;
+                    const step = cfg.pointsPerExtraPartner || 0;
+                    const min =
+                        typeof cfg.minimumBid === "number"
+                            ? cfg.minimumBid
+                            : S.minBid || 0;
+                    const maxP =
+                        cfg.maxPartners != null
+                            ? cfg.maxPartners
+                            : Math.max(1, (S.players.length || 4) - 2);
+                    let n = base;
+                    if (step > 0)
+                        n = base + Math.max(0, Math.floor((bid - min) / step));
+                    return Math.min(n, maxP);
+                }
 
                 // ---------- trick area ----------
                 let ledSuitTracker = null;
@@ -2649,8 +2719,19 @@
                     $("partnerAllowed").textContent =
                         `${S.allowedPartners || 1} ભેરુ બોલ`;
                     $("partnerRows").innerHTML = "";
+                    renderModalHand();
                     if (S.trump) buildPartnerRows(S.allowedPartners || 1);
                     $("partnerOverlay").classList.add("show");
+                }
+
+                // Read-only view of the leader's hand so they can see their cards
+                // while deciding hukum + partners.
+                function renderModalHand() {
+                    const box = $("modalHand");
+                    if (!box) return;
+                    box.innerHTML = sortHand(S.hand)
+                        .map((c) => cardHTML(c, { sm: true, showPts: false }))
+                        .join("");
                 }
 
                 // Show exactly `n` partner rows at once (suit + occurrence + rank).
@@ -2752,6 +2833,7 @@
                                 S.trump = suit;
                                 renderTrumpChip();
                                 renderHand();
+                                renderModalHand();
                                 $("partnerPick").classList.remove("hidden");
                                 buildPartnerRows(S.allowedPartners || 1);
                             } else toast(r?.message || "Trump failed", "err");
