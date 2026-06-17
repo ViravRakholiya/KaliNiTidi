@@ -181,34 +181,79 @@ function lowestLegalCard(hand, ledSuit) {
   return legal.slice().sort((a, b) => (RANK_VALUE[a.rank] || 0) - (RANK_VALUE[b.rank] || 0))[0];
 }
 
-// One pending bot action per room at a time. Prevents a bot from being
-// scheduled twice for the same turn (which caused "two cards in one go").
-const botTimers = new Map();
-function scheduleBot(roomId, fn) {
-  clearTimeout(botTimers.get(roomId));
-  const t = setTimeout(() => { botTimers.delete(roomId); fn(); }, BOT_DELAY_MS);
-  botTimers.set(roomId, t);
+// ---- turn timing ----
+// One timer per room. Bots act after a short delay. A human gets a turn timer
+// and is auto-played (treated like a bot) if it expires — so the game never
+// freezes when someone switches apps / is reconnecting. A connected-but-idle
+// human gets the full window; a disconnected one is auto-played quickly so the
+// table keeps moving until they return.
+const TURN_TIMEOUT_MS = parseInt(process.env.TURN_TIMEOUT_MS, 10) || 120000; // 2 min
+const DISCONNECT_TURN_MS = parseInt(process.env.DISCONNECT_TURN_MS, 10) || 5000;
+const turnTimers = new Map();
+
+function clearTurnTimer(roomId) {
+  const t = turnTimers.get(roomId);
+  if (t) { clearTimeout(t); turnTimers.delete(roomId); }
 }
 
-// ---- the driver: if the current turn belongs to a bot, make it act ----
-function driveBots(io, roomId) {
-  const room = roomService.getRoom(roomId);
+// Whose turn is it right now (and in which phase)?
+function currentActor(roomId) {
   const game = gameService.activeGames.get(roomId);
-  if (!room || !game) return;
-
+  if (!game) return null;
   if (game.phase === 'bidding') {
-    const bidding = biddingService.getBiddingState(roomId);
-    if (!bidding) return;
-    const turnId = bidding.playersOrder[bidding.currentTurnIndex];
-    if (isBotId(room, turnId)) scheduleBot(roomId, () => botBid(io, roomId, turnId));
-  } else if (game.phase === 'selection') {
-    const bidding = biddingService.getBiddingState(roomId);
-    if (bidding && isBotId(room, bidding.highestBidder)) scheduleBot(roomId, () => botLead(io, roomId, bidding.highestBidder));
-  } else if (game.phase === 'playing' && game.currentTrick) {
-    const turnId = game.players[game.currentTrick.currentPlayerIndex] && game.players[game.currentTrick.currentPlayerIndex].socketId;
-    if (isBotId(room, turnId)) scheduleBot(roomId, () => botPlay(io, roomId, turnId));
+    const b = biddingService.getBiddingState(roomId);
+    return b ? { id: b.playersOrder[b.currentTurnIndex], phase: 'bidding' } : null;
   }
+  if (game.phase === 'selection') {
+    const b = biddingService.getBiddingState(roomId);
+    return b && b.highestBidder ? { id: b.highestBidder, phase: 'selection' } : null;
+  }
+  if (game.phase === 'playing' && game.currentTrick) {
+    const p = game.players[game.currentTrick.currentPlayerIndex];
+    return p ? { id: p.socketId, phase: 'playing' } : null;
+  }
+  return null;
 }
+
+// Auto-play the current actor's move (same logic bots use).
+function autoAct(io, roomId, turnId, phase) {
+  if (phase === 'bidding') botBid(io, roomId, turnId);
+  else if (phase === 'selection') botLead(io, roomId, turnId);
+  else if (phase === 'playing') botPlay(io, roomId, turnId);
+}
+
+// Called after every turn-changing action. Drives bots and starts/refreshes
+// the human turn timer. (Replaces the old driveBots; aliased below.)
+function advanceTurn(io, roomId) {
+  clearTurnTimer(roomId);
+  const room = roomService.getRoom(roomId);
+  const actor = currentActor(roomId);
+  if (!room || !actor || !actor.id) return;
+
+  const player = room.players.find(p => p.socketId === actor.id);
+  if (!player) return;
+
+  if (player.isBot) {
+    turnTimers.set(roomId, setTimeout(() => {
+      turnTimers.delete(roomId);
+      autoAct(io, roomId, actor.id, actor.phase);
+    }, BOT_DELAY_MS));
+    return;
+  }
+
+  const connected = player.connected !== false;
+  const duration = connected ? TURN_TIMEOUT_MS : DISCONNECT_TURN_MS;
+  io.to(roomId).emit('TURN_TIMER', {
+    roomId, playerId: actor.id, durationMs: duration, phase: actor.phase
+  });
+  turnTimers.set(roomId, setTimeout(() => {
+    turnTimers.delete(roomId);
+    autoAct(io, roomId, actor.id, actor.phase);
+  }, duration));
+}
+
+// Existing call sites use driveBots(); keep it as an alias.
+const driveBots = advanceTurn;
 
 // Bots always pass in bidding (keeps a human in control of the contract).
 function botBid(io, roomId, botId) {
@@ -1148,11 +1193,26 @@ export const handleGameSocket = (io, socket) => {
     if (typeof callback === 'function') callback({ success: true, ...payload });
     socket.emit('REJOINED', payload);
 
+    // Safety net: also push the hand via the normal channel so the cards are
+    // guaranteed to render even if the snapshot path missed anything.
+    if (game && Array.isArray(game.hand) && game.hand.length) {
+      socket.emit('PLAYER_HAND', {
+        cards: game.hand,
+        cardsPerPlayer: game.cardsPerPlayer,
+        totalCards: game.totalCards
+      });
+    }
+
     socket.to(roomId).emit('PLAYER_RECONNECTED', {
       roomId,
       player: { socketId: socket.id, name: rebind.player.name, isHost: rebind.player.isHost },
       playerCount: room.players.length
     });
+
+    // Back in their seat → refresh the turn timer to the full window if it's
+    // their turn (it may have been on the short disconnected window or about to
+    // auto-play).
+    advanceTurn(io, roomId);
 
     logger.info(`Player ${rebind.player.name} (${playerId}) rejoined room ${roomId} as ${socket.id}`);
   });
@@ -1182,6 +1242,10 @@ export const handleGameSocket = (io, socket) => {
     });
 
     scheduleEviction(io, roomId, player.playerId);
+
+    // If it was this player's turn, switch to the short auto-play window so the
+    // table doesn't sit frozen for the full 2 minutes while they're away.
+    advanceTurn(io, roomId);
 
     logger.info(`Socket ${socket.id} (${player.name}) disconnected from room ${roomId}; grace period ${GRACE_PERIOD_MS}ms`);
   });

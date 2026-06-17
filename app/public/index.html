@@ -648,6 +648,14 @@
                 border-radius: 8px;
                 min-height: 14px;
             }
+            .seat .turn-clock {
+                font-size: 11px;
+                font-weight: 800;
+                line-height: 1.1;
+                min-height: 13px;
+                color: var(--gold);
+                font-variant-numeric: tabular-nums;
+            }
             .seat .status.turn {
                 background: var(--gold);
                 color: var(--ink);
@@ -1586,6 +1594,8 @@
                     spectating: false,
                     config: null,
                     trickDone: false,
+                    turnDeadline: 0,
+                    turnPlayer: null,
                     revealedKeys: new Set(),
                     lostKeys: new Set(),
                 };
@@ -1995,6 +2005,8 @@
 
                 socket.on("GAME_OVER", (d) => {
                     S.phase = "completed";
+                    S.turnDeadline = 0;
+                    S.turnPlayer = null;
                     if (d.scores)
                         d.scores.forEach((s) => {
                             S.scores[s.socketId] = s.score;
@@ -2004,6 +2016,52 @@
                     openGameOver(d);
                     SFX.win();
                 });
+
+                // Turn timer: server says whose turn it is and how long they have.
+                // If it runs out the server auto-plays for them, so the table
+                // never freezes while someone is away / reconnecting.
+                socket.on("TURN_TIMER", (d) => {
+                    S.turnPlayer = d.playerId;
+                    S.currentTurn = d.playerId;
+                    S.turnDeadline = Date.now() + (d.durationMs || 0);
+                    renderSeats();
+                    renderActions();
+                    startTurnTicker();
+                });
+
+                let turnTicker = null;
+                function fmtClock(s) {
+                    return s >= 60
+                        ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`
+                        : `${s}s`;
+                }
+                function tickTurnClock() {
+                    const rem = S.turnDeadline
+                        ? Math.max(0, Math.ceil((S.turnDeadline - Date.now()) / 1000))
+                        : 0;
+                    document
+                        .querySelectorAll(".seat .turn-clock")
+                        .forEach((el) => (el.textContent = ""));
+                    const seatClock = document.querySelector(
+                        ".seat.active .turn-clock",
+                    );
+                    if (seatClock && S.turnDeadline && rem > 0) {
+                        seatClock.textContent = fmtClock(rem);
+                        seatClock.style.color = rem <= 15 ? "#ff6b6b" : "var(--gold)";
+                    }
+                    const self = document.getElementById("selfClock");
+                    if (self)
+                        self.textContent =
+                            S.turnPlayer === socket.id && S.turnDeadline && rem > 0
+                                ? ` · ${fmtClock(rem)}`
+                                : "";
+                    if (!S.turnDeadline || rem <= 0) S.turnDeadline = 0;
+                }
+                function startTurnTicker() {
+                    if (turnTicker) return;
+                    turnTicker = setInterval(tickTurnClock, 1000);
+                    tickTurnClock();
+                }
 
                 // ---------- reconnection snapshot ----------
                 socket.on("REJOIN_FAILED", (d) => {
@@ -2236,9 +2294,11 @@
                             S.phase === "playing"
                                 ? `<div class="sc">${p.score} pts</div>`
                                 : "") +
-                            (status ? status : "");
+                            (status ? status : "") +
+                            `<div class="turn-clock"></div>`;
                         box.appendChild(el);
                     });
+                    if (typeof tickTurnClock === "function") tickTurnClock();
                 }
 
                 function renderCenter() {
@@ -2435,13 +2495,16 @@
                             );
                         }
                     } else if (S.phase === "playing") {
-                        bar.appendChild(
-                            info(
-                                S.currentTurn === socket.id
-                                    ? "▸ Your turn — tap a card to play"
-                                    : `${getName(S.currentTurn)}'s turn`,
-                            ),
-                        );
+                        const d = document.createElement("div");
+                        d.className = "grow";
+                        d.style.cssText =
+                            "text-align:center;font-size:13px;color:rgba(246,236,210,.8);padding:10px;font-weight:600";
+                        d.innerHTML =
+                            (S.currentTurn === socket.id
+                                ? "▸ Your turn — tap a card to play"
+                                : `${escapeHtml(getName(S.currentTurn))}'s turn`) +
+                            `<span id="selfClock"></span>`;
+                        bar.appendChild(d);
                     } else if (S.phase === "completed") {
                         if (S.isHost)
                             bar.appendChild(
