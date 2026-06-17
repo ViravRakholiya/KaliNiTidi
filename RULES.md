@@ -18,7 +18,7 @@ is recreated, or when players join/leave:
 | Cards per player | 18 | Hand size everyone gets |
 | Minimum bid | 600 | Lowest opening bid |
 | Base partners | 3 | Max partners the bidder may name at the minimum bid |
-| Points per extra partner | 250 | Each full step of this many points bid **above the minimum** lets the bidder name 1 more partner (e.g. min 600 → 3, bid 850 → 4, bid 1100 → 5) |
+| Extra-partner threshold | 400 | An **absolute** bid value. If the winning bid **reaches this threshold**, the bidder gets exactly **one** extra partner (base + 1) — no further scaling. Must be set above the minimum bid, else it's ignored. e.g. min 300, threshold 400, base 3 → bid 395 = 3 partners, bid 400+ = 4 partners |
 | Max partners | half the table ❓ | Optional cap |
 
 All of the above are **set by the host at room creation** (not formulas).
@@ -43,6 +43,7 @@ All of the above are **set by the host at room creation** (not formulas).
 - There is a **token** (like the dealer token in Teen Patti) that **rotates one seat every round**.
 - The token-holder **bids first** each round.
 - Opening bid = the room's **minimum bid**; bids go up in **multiples of 5**.
+- A bid can never exceed the **total points in the deck (250 × decks)** — that's the most any team could collect.
 - Turn rotates; each player bids higher or passes. Highest bidder wins the contract.
 - **If everyone passes**, the **token-holder is forced to take the contract at the minimum bid**
   (they get at least the minimum). The token then moves on next round.

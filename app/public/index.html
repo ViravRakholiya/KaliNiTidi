@@ -1243,7 +1243,7 @@
                     </div>
                     <div class="row2">
                         <div class="field">
-                            <label>Minimum bid</label>
+                            <label>આટલા પોઈન્ટ મિનિમમ</label>
                             <input
                                 id="inpMinBid"
                                 type="number"
@@ -1253,7 +1253,7 @@
                             />
                         </div>
                         <div class="field">
-                            <label>Base partners</label>
+                            <label>આટલા ભેરુ મંગાવાના</label>
                             <input
                                 id="inpBasePartners"
                                 type="number"
@@ -1264,7 +1264,7 @@
                         </div>
                     </div>
                     <div class="field">
-                        <label>Points per extra partner</label>
+                        <label>આટલા પોઈન્ટે 1 એક્સ્ટ્રા ભેરુ મળશે</label>
                         <input
                             id="inpExtraStep"
                             type="number"
@@ -2486,7 +2486,9 @@
                         if (S.currentTurn === socket.id) {
                             const box = document.createElement("div");
                             box.className = "bidbox";
-                            let amt = roundUp5(S.currentBid + 5);
+                            const lo = roundUp5(S.currentBid + 5);
+                            const hi = maxBid();
+                            let amt = Math.min(lo, hi);
                             const valEl = document.createElement("span");
                             valEl.className = "val";
                             const pBadge = document.createElement("span");
@@ -2496,30 +2498,23 @@
                                 pBadge.textContent = `🤝 ${partnersForBid(amt)}`;
                             };
                             const dec = mkBtn("–", "", () => {
-                                amt = Math.max(
-                                    roundUp5(S.currentBid + 5),
-                                    amt - 5,
-                                );
+                                amt = Math.max(lo, amt - 5);
                                 refresh();
                             });
                             const inc = mkBtn("+", "", () => {
-                                amt = amt + 5;
-                                refresh();
-                            });
-                            const jump = mkBtn("+50", "", () => {
-                                amt = amt + 50;
+                                amt = Math.min(hi, amt + 5);
                                 refresh();
                             });
                             refresh();
                             box.appendChild(dec);
                             box.appendChild(valEl);
                             box.appendChild(inc);
-                            box.appendChild(jump);
                             box.appendChild(pBadge);
                             bar.appendChild(box);
                             const bid = mkBtn("Bid", "btn grow", () =>
-                                placeBid(amt),
+                                placeBid(Math.min(amt, hi)),
                             );
+                            if (lo > hi) bid.disabled = true; // can't bid above the deck's points
                             bar.appendChild(bid);
                             const pass = mkBtn("Pass", "btn ghost", passBid);
                             bar.appendChild(pass);
@@ -2583,14 +2578,15 @@
                 }
                 const roundUp5 = (n) => Math.ceil(n / 5) * 5;
 
-                // How many ભેરુ (partners) a given bid earns, from room config.
+                // How many ભેરુ (partners) a given bid earns: base, plus a single
+                // fixed +1 once the bid reaches the (absolute) threshold.
                 function partnersForBid(bid) {
                     const cfg = S.config || {};
                     const base =
                         typeof cfg.basePartners === "number"
                             ? cfg.basePartners
                             : 1;
-                    const step = cfg.pointsPerExtraPartner || 0;
+                    const threshold = cfg.pointsPerExtraPartner || 0;
                     const min =
                         typeof cfg.minimumBid === "number"
                             ? cfg.minimumBid
@@ -2600,9 +2596,16 @@
                             ? cfg.maxPartners
                             : Math.max(1, (S.players.length || 4) - 2);
                     let n = base;
-                    if (step > 0)
-                        n = base + Math.max(0, Math.floor((bid - min) / step));
+                    if (threshold > 0 && threshold > min && bid >= threshold)
+                        n = base + 1;
                     return Math.min(n, maxP);
+                }
+                // Highest a bid can ever be: the points actually in the deck.
+                function maxBid() {
+                    return (
+                        S.totalPoints ||
+                        250 * (S.config?.numberOfDecks || S.numberOfSets || 2)
+                    );
                 }
 
                 // ---------- trick area ----------

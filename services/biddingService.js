@@ -158,6 +158,15 @@ class BiddingService {
       };
     }
 
+    // A bid can never exceed the total points actually in play.
+    if (bidValue > bidding.totalPoints) {
+      return {
+        isValid: false,
+        error: 'BID_TOO_HIGH',
+        message: `Bid cannot exceed the total points in play (${bidding.totalPoints})`
+      };
+    }
+
     // Check if bid is in multiples of 5
     if (bidValue % 5 !== 0) {
       return {
@@ -348,12 +357,13 @@ class BiddingService {
       };
     }
 
-    // Partners the bidder earns: base + one per full "points per extra partner"
-    // step above the minimum bid, capped at maxPartners (RULES.md §2).
+    // Extra partner: a single fixed +1 once the winning bid reaches the
+    // threshold (absolute), nothing more. Guarded so a threshold set at/below
+    // the minimum bid never grants a "free" extra partner. (RULES.md §2)
     let allowedPartners = bidding.basePartners;
-    if (bidding.pointsPerExtraPartner > 0) {
-      const extra = Math.floor((bidding.currentBid - bidding.minimumBid) / bidding.pointsPerExtraPartner);
-      allowedPartners = bidding.basePartners + Math.max(0, extra);
+    const threshold = bidding.pointsPerExtraPartner;
+    if (threshold > 0 && threshold > bidding.minimumBid && bidding.currentBid >= threshold) {
+      allowedPartners = bidding.basePartners + 1;
     }
     if (bidding.maxPartners != null) allowedPartners = Math.min(allowedPartners, bidding.maxPartners);
     bidding.numberOfPartners = allowedPartners;
