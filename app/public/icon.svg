@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="felt" cx="50%" cy="38%" r="80%">
+      <stop offset="0%" stop-color="#2f9e63"/>
+      <stop offset="60%" stop-color="#1f7d4c"/>
+      <stop offset="100%" stop-color="#14603a"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="104" fill="#1c1526"/>
+  <rect x="24" y="24" width="464" height="464" rx="92" fill="url(#felt)"/>
+  <rect x="40" y="40" width="432" height="432" rx="78" fill="none" stroke="#e8c468" stroke-width="8" opacity="0.55"/>
+  <!-- spade -->
+  <text x="200" y="330" font-family="Georgia, 'Times New Roman', serif" font-size="260" fill="#0c1a12" text-anchor="middle">♠</text>
+  <!-- heart accent -->
+  <text x="350" y="220" font-family="Georgia, 'Times New Roman', serif" font-size="150" fill="#c0392b" text-anchor="middle">♥</text>
+</svg>

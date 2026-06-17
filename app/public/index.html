@@ -8,6 +8,17 @@
         />
         <meta name="theme-color" content="#0e3a23" />
         <title>Kali ni Tidi</title>
+        <!-- PWA / installable web app -->
+        <link rel="manifest" href="/manifest.json" />
+        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="/icon.svg" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta
+            name="apple-mobile-web-app-status-bar-style"
+            content="black-translucent"
+        />
+        <meta name="apple-mobile-web-app-title" content="Kali ni Tidi" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link
@@ -163,6 +174,47 @@
                 padding: 24px;
                 padding-top: calc(24px + var(--safe-top));
                 overflow-y: auto;
+            }
+            /* install-as-app banner (home page, bottom) */
+            .install-banner {
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                z-index: 50;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 12px 14px;
+                padding-bottom: calc(12px + var(--safe-bottom));
+                background: linear-gradient(
+                    180deg,
+                    rgba(12, 40, 26, 0.96),
+                    rgba(8, 24, 16, 0.98)
+                );
+                border-top: 1px solid rgba(232, 196, 104, 0.4);
+                box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.5);
+            }
+            .install-banner.hidden {
+                display: none;
+            }
+            .install-banner .ib-text {
+                flex: 1;
+                font-size: 13.5px;
+                font-weight: 600;
+                color: var(--cream);
+            }
+            .install-banner .btn {
+                padding: 10px 16px;
+                font-size: 14px;
+            }
+            .install-banner .ib-x {
+                width: 34px;
+                height: 34px;
+                border-radius: 9px;
+                background: rgba(0, 0, 0, 0.3);
+                color: var(--cream);
+                font-size: 15px;
             }
             .brand {
                 text-align: center;
@@ -1202,6 +1254,18 @@
                 >
                     Min 4 players to start. Short? Add bots from the table.
                 </p>
+            </div>
+
+            <div id="installBanner" class="install-banner hidden">
+                <span class="ib-text">📲 Install Kali ni Tidi as an app</span>
+                <button class="btn" onclick="ui.install()">Add as app</button>
+                <button
+                    class="ib-x"
+                    onclick="ui.dismissInstall()"
+                    title="Dismiss"
+                >
+                    ✕
+                </button>
             </div>
         </section>
 
@@ -2876,6 +2940,79 @@
                     ui.setMode("join");
                     $("inpRoom").value = roomParam;
                 }
+
+                // ---------- PWA: install as app ----------
+                if ("serviceWorker" in navigator) {
+                    window.addEventListener("load", () =>
+                        navigator.serviceWorker.register("/sw.js").catch(() => {}),
+                    );
+                }
+
+                const isStandalone = () =>
+                    window.matchMedia("(display-mode: standalone)").matches ||
+                    window.navigator.standalone === true;
+                const isIOS = () =>
+                    /iphone|ipad|ipod/i.test(navigator.userAgent) &&
+                    !window.MSStream;
+
+                let deferredPrompt = null;
+                function showInstallBanner() {
+                    if (isStandalone()) return;
+                    if (
+                        (function () {
+                            try {
+                                return (
+                                    localStorage.getItem("kanitidi_install_dismiss") ===
+                                    "1"
+                                );
+                            } catch (e) {
+                                return false;
+                            }
+                        })()
+                    )
+                        return;
+                    $("installBanner").classList.remove("hidden");
+                }
+
+                window.addEventListener("beforeinstallprompt", (e) => {
+                    e.preventDefault();
+                    deferredPrompt = e;
+                    showInstallBanner();
+                });
+                window.addEventListener("appinstalled", () => {
+                    deferredPrompt = null;
+                    $("installBanner").classList.add("hidden");
+                });
+
+                ui.install = function () {
+                    if (deferredPrompt) {
+                        deferredPrompt.prompt();
+                        deferredPrompt.userChoice.finally(() => {
+                            deferredPrompt = null;
+                            $("installBanner").classList.add("hidden");
+                        });
+                    } else if (isIOS()) {
+                        toast(
+                            "Safari માં: Share (⬆️) → 'Add to Home Screen' દબાવો",
+                            "gold",
+                        );
+                    } else {
+                        toast(
+                            "Browser menu → 'Install app' / 'Add to Home screen'",
+                            "gold",
+                        );
+                    }
+                };
+                ui.dismissInstall = function () {
+                    $("installBanner").classList.add("hidden");
+                    try {
+                        localStorage.setItem("kanitidi_install_dismiss", "1");
+                    } catch (e) {}
+                };
+
+                // iOS never fires beforeinstallprompt — show the banner with
+                // manual instructions instead.
+                if (isIOS() && !isStandalone()) showInstallBanner();
             })();
         </script>
     </body>
