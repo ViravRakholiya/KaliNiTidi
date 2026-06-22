@@ -59,10 +59,12 @@ const io = new Server(httpServer, {
 // Initialize socket handlers
 initializeSocket(io);
 
-// Start server
+// Start server. Bind explicitly to 0.0.0.0 so platforms like Render can reach
+// the internal health check (Node's default bind can be IPv6-only '::').
 const PORT = config.port;
-httpServer.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`);
+const HOST = '0.0.0.0';
+httpServer.listen(PORT, HOST, () => {
+  logger.info(`Server running on ${HOST}:${PORT}`);
   logger.info(`Environment: ${config.env}`);
   logger.info(`Socket.io server initialized`);
 });
