@@ -1123,6 +1123,11 @@ class GameService {
     const gameState = this.activeGames.get(roomId);
     if (!gameState) return false;
 
+    // Same socket id (e.g. Socket.IO connectionStateRecovery restored it): the
+    // assign-then-delete remaps below would destroy state (notably the hand), so
+    // there is nothing to do.
+    if (oldSocketId === newSocketId) return true;
+
     // hands is keyed by socketId
     if (gameState.hands && oldSocketId in gameState.hands) {
       gameState.hands[newSocketId] = gameState.hands[oldSocketId];

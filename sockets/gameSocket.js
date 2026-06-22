@@ -188,9 +188,19 @@ function lowestLegalCard(hand, ledSuit) {
 // human gets the full window; a disconnected one is auto-played quickly so the
 // table keeps moving until they return.
 const TURN_TIMEOUT_MS = parseInt(process.env.TURN_TIMEOUT_MS, 10) || 120000; // 2 min
-const DISCONNECT_TURN_MS = parseInt(process.env.DISCONNECT_TURN_MS, 10) || 5000;
+// Grace before auto-playing a player who disconnected on their turn, so they can
+// switch apps / drop briefly and return without losing the turn.
+const DISCONNECT_TURN_MS = parseInt(process.env.DISCONNECT_TURN_MS, 10) || 60000; // 1 min
+// Floor given to a player who returns with almost no time left, so they aren't
+// auto-played the instant they reconnect.
+const MIN_RESUME_MS = 10000;
 const turnTimers = new Map();
+// Absolute turn deadline per room: { actorId, deadline } so the countdown can be
+// resumed (not restarted) across a disconnect/reconnect.
+const turnDeadlines = new Map();
 
+// Clears only the pending auto-play timeout. The turn deadline is intentionally
+// left intact so advanceTurn (which calls this first) can resume the same turn.
 function clearTurnTimer(roomId) {
   const t = turnTimers.get(roomId);
   if (t) { clearTimeout(t); turnTimers.delete(roomId); }
@@ -234,6 +244,7 @@ function advanceTurn(io, roomId) {
   if (!player) return;
 
   if (player.isBot) {
+    turnDeadlines.delete(roomId);
     turnTimers.set(roomId, setTimeout(() => {
       turnTimers.delete(roomId);
       autoAct(io, roomId, actor.id, actor.phase);
@@ -241,8 +252,26 @@ function advanceTurn(io, roomId) {
     return;
   }
 
+  // Resume the same turn's deadline across reconnects: only start a fresh window
+  // when the active player actually changed (or the previous deadline expired).
+  const now = Date.now();
+  const prev = turnDeadlines.get(roomId);
   const connected = player.connected !== false;
-  const duration = connected ? TURN_TIMEOUT_MS : DISCONNECT_TURN_MS;
+  let deadline;
+  if (prev && prev.actorId === actor.id && prev.deadline > now) {
+    deadline = prev.deadline;
+    // A player who just returned with almost no time left gets a small floor.
+    if (connected && deadline - now < MIN_RESUME_MS) deadline = now + MIN_RESUME_MS;
+  } else {
+    deadline = now + TURN_TIMEOUT_MS; // new turn
+  }
+  turnDeadlines.set(roomId, { actorId: actor.id, deadline });
+
+  const remaining = Math.max(0, deadline - now);
+  // Connected: count down the real remaining time (continues on reconnect).
+  // Disconnected: auto-play after the 1-min grace, but never beyond the turn.
+  const duration = connected ? remaining : Math.min(remaining, DISCONNECT_TURN_MS);
+
   io.to(roomId).emit('TURN_TIMER', {
     roomId, playerId: actor.id, durationMs: duration, phase: actor.phase
   });
@@ -693,6 +722,10 @@ export const handleGameSocket = (io, socket) => {
         };
 
         logger.info(`Emitting BIDDING_STARTED to room ${roomId}: minBid=${biddingStartedData.minBid}, currentTurn=${biddingStartedData.currentTurn.substring(0, 8)}..., numberOfSets=${biddingStartedData.numberOfSets}`);
+
+        // Fresh round: drop any stale turn deadline so the first bidder gets a
+        // full window (not a leftover deadline from the previous round).
+        turnDeadlines.delete(roomId);
 
         io.to(roomId).emit('BIDDING_STARTED', biddingStartedData);
         logger.info(`[DEBUG] Emitted BIDDING_STARTED to room ${roomId}`);
@@ -1201,7 +1234,9 @@ export const handleGameSocket = (io, socket) => {
 
     const oldSocketId = roomService.findPlayerByPlayerId(room, playerId).socketId;
 
-    // Rebind room membership, then the active game/bidding state, to the new id
+    // Rebind room membership, then the active game/bidding state, to the new id.
+    // When the socket id is unchanged (connectionStateRecovery restored it) the
+    // rebinds are no-ops; rebindSocket still marks the player connected.
     const rebind = roomService.rebindSocket(roomId, playerId, socket.id);
     if (!rebind.success) {
       if (typeof callback === 'function') callback(rebind);
@@ -1209,8 +1244,12 @@ export const handleGameSocket = (io, socket) => {
       return;
     }
 
-    if (gameService.hasGame(roomId)) {
+    if (oldSocketId !== socket.id && gameService.hasGame(roomId)) {
       gameService.rebindSocket(roomId, oldSocketId, socket.id);
+      // Keep the stored turn deadline pointing at the same player so advanceTurn
+      // resumes (not restarts) the countdown after the id change.
+      const td = turnDeadlines.get(roomId);
+      if (td && td.actorId === oldSocketId) td.actorId = socket.id;
     }
 
     clearDisconnectTimer(playerId);

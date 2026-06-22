@@ -703,6 +703,7 @@ class BiddingService {
   rebindSocket(roomId, oldSocketId, newSocketId) {
     const bidding = this.activeBiddings.get(roomId);
     if (!bidding) return;
+    if (oldSocketId === newSocketId) return;
 
     bidding.playersOrder = bidding.playersOrder.map(id => (id === oldSocketId ? newSocketId : id));
     bidding.passedPlayers = bidding.passedPlayers.map(id => (id === oldSocketId ? newSocketId : id));

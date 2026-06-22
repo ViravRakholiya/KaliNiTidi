@@ -385,6 +385,12 @@ class RoomService {
     player.socketId = newSocketId;
     player.connected = true;
 
+    // Same socket id (Socket.IO restored it): just mark reconnected. The re-keys
+    // below would otherwise assign-then-delete the same key and wipe state.
+    if (oldSocketId === newSocketId) {
+      return { success: true, room, player, oldSocketId };
+    }
+
     if (room.hostId === oldSocketId) {
       room.hostId = newSocketId;
     }
