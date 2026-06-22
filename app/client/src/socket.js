@@ -362,6 +362,34 @@ socket.on("REJOINED", (d) => {
   toast("Reconnected to your game", "ok");
 });
 
+// ---------- chat + reactions ----------
+let chatId = 0;
+socket.on("CHAT_MESSAGE", (d) => {
+  const mine = d.playerId === me();
+  const msg = {
+    id: ++chatId,
+    playerId: d.playerId,
+    name: d.name,
+    text: d.text,
+    ts: d.ts,
+    mine,
+  };
+  store.set((s) => ({
+    chat: [...s.chat, msg].slice(-100),
+    unreadChat: s.overlay === "chat" ? 0 : s.unreadChat + (mine ? 0 : 1),
+  }));
+});
+
+socket.on("REACTION", (d) => {
+  const id = ++chatId;
+  store.set((s) => ({
+    reactions: [...s.reactions, { id, playerId: d.playerId, emoji: d.emoji }],
+  }));
+  setTimeout(() => {
+    store.set((s) => ({ reactions: s.reactions.filter((r) => r.id !== id) }));
+  }, 3000);
+});
+
 function nameOf(sid) {
   const p = getPlayer(sid);
   return p ? p.name : "—";
@@ -445,4 +473,11 @@ export const actions = {
     }),
   updateConfig: (config, cb) =>
     socket.emit("UPDATE_CONFIG", { roomId: store.get().roomId, config }, cb),
+  sendChat: (text) => {
+    const t = (text || "").trim();
+    if (!t) return;
+    socket.emit("CHAT_MESSAGE", { roomId: store.get().roomId, text: t });
+  },
+  sendReaction: (emoji) =>
+    socket.emit("REACTION", { roomId: store.get().roomId, emoji }),
 };

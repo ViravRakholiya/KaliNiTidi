@@ -48,10 +48,14 @@ export const initialState = {
   turnDeadline: 0,
   turnPlayer: null,
   muted: false,
+  // chat + reactions
+  chat: [], // [{ id, playerId, name, text, ts, mine }]
+  unreadChat: 0,
+  reactions: [], // transient [{ id, playerId, emoji }]
   // ui
   toasts: [],
   reveal: null, // { id, title, subtitle }
-  overlay: null, // "scores" | "over" | "partner" | "settings"
+  overlay: null, // "scores" | "over" | "partner" | "settings" | "chat"
   gameOver: null, // GAME_OVER payload
   install: { available: false, dismissed: false },
 };

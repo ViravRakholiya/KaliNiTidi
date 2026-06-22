@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useStore, store, toast } from "../store.js";
 import { actions } from "../socket.js";
+import { REACTIONS } from "../util.js";
 
 export default function TopBar() {
   const s = useStore();
   const [menu, setMenu] = useState(false);
+  const [react, setReact] = useState(false);
   const wrap = useRef(null);
+  const reactWrap = useRef(null);
 
   useEffect(() => {
     if (!menu) return;
@@ -15,6 +18,15 @@ export default function TopBar() {
     document.addEventListener("click", onDoc);
     return () => document.removeEventListener("click", onDoc);
   }, [menu]);
+
+  useEffect(() => {
+    if (!react) return;
+    const onDoc = (e) => {
+      if (reactWrap.current && !reactWrap.current.contains(e.target)) setReact(false);
+    };
+    document.addEventListener("click", onDoc);
+    return () => document.removeEventListener("click", onDoc);
+  }, [react]);
 
   const share = () => {
     if (!s.roomId) return;
@@ -51,6 +63,36 @@ export default function TopBar() {
         </span>
       ) : null}
       <span className="spacer" />
+
+      <div className="settings-wrap" ref={reactWrap}>
+        <button className="icon-btn" onClick={() => setReact((r) => !r)} title="Reactions">
+          😊
+        </button>
+        <div className={"menu reaction-popover" + (react ? "" : " hidden")}>
+          {REACTIONS.map((e) => (
+            <button
+              key={e}
+              className="reaction-btn"
+              onClick={() => {
+                actions.sendReaction(e);
+                setReact(false);
+              }}
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <button
+        className="icon-btn chat-btn"
+        onClick={() => store.set({ overlay: "chat", unreadChat: 0 })}
+        title="Chat"
+      >
+        💬
+        {s.unreadChat > 0 ? <span className="chat-badge">{s.unreadChat}</span> : null}
+      </button>
+
       <div className="settings-wrap" ref={wrap}>
         <button className="icon-btn" onClick={() => setMenu((m) => !m)} title="Menu">
           ⚙️

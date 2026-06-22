@@ -21,6 +21,9 @@ export const GU_ORD = [
   "આઠમો",
 ];
 
+// Quick one-tap reactions (must match the server whitelist in gameSocket.js).
+export const REACTIONS = ["👍", "😂", "🔥", "😮", "😢", "👏", "❤️", "🤔", "🎉", "😎"];
+
 export const isRed = (suit) => !!RED[suit];
 export const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 export const initials = (name) => (name || "?").trim().slice(0, 2).toUpperCase();

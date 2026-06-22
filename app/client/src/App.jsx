@@ -6,6 +6,7 @@ import PartnerModal from "./components/modals/PartnerModal.jsx";
 import SettingsModal from "./components/modals/SettingsModal.jsx";
 import ScoresModal from "./components/modals/ScoresModal.jsx";
 import GameOverModal from "./components/modals/GameOverModal.jsx";
+import ChatModal from "./components/modals/ChatModal.jsx";
 
 export default function App() {
   const screen = useStore((s) => s.screen);
@@ -17,6 +18,7 @@ export default function App() {
       {overlay === "settings" ? <SettingsModal /> : null}
       {overlay === "scores" ? <ScoresModal /> : null}
       {overlay === "over" ? <GameOverModal /> : null}
+      {overlay === "chat" ? <ChatModal /> : null}
       <Reveal />
       <Toasts />
     </>

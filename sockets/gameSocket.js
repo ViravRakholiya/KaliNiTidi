@@ -1302,6 +1302,51 @@ export const handleGameSocket = (io, socket) => {
     logger.info(`Player ${rebind.player.name} (${playerId}) rejoined room ${roomId} as ${socket.id}`);
   });
 
+  // ----------------------------------------------------------------
+  //  CHAT + REACTIONS (free, broadcast over the existing room)
+  // ----------------------------------------------------------------
+  // Quick whitelist of emoji that may be sent as a floating reaction.
+  const ALLOWED_REACTIONS = new Set(['👍', '😂', '🔥', '😮', '😢', '👏', '❤️', '🤔', '🎉', '😎']);
+
+  socket.on('CHAT_MESSAGE', (data, callback) => {
+    const roomId = data?.roomId || roomService.findRoomBySocketId(socket.id);
+    const room = roomId ? roomService.getRoom(roomId) : null;
+    const player = room ? roomService.findPlayerBySocketId(room, socket.id) : null;
+    if (!room || !player) {
+      if (typeof callback === 'function') callback({ success: false, message: 'Not in room' });
+      return;
+    }
+    const text = typeof data?.text === 'string' ? data.text.trim().slice(0, 300) : '';
+    if (!text) {
+      if (typeof callback === 'function') callback({ success: false, message: 'Empty message' });
+      return;
+    }
+    io.to(roomId).emit('CHAT_MESSAGE', {
+      roomId,
+      playerId: player.socketId,
+      name: player.name,
+      text,
+      ts: Date.now()
+    });
+    if (typeof callback === 'function') callback({ success: true });
+  });
+
+  socket.on('REACTION', (data, callback) => {
+    const roomId = data?.roomId || roomService.findRoomBySocketId(socket.id);
+    const room = roomId ? roomService.getRoom(roomId) : null;
+    const player = room ? roomService.findPlayerBySocketId(room, socket.id) : null;
+    if (!room || !player) return;
+    const emoji = data?.emoji;
+    if (!ALLOWED_REACTIONS.has(emoji)) return;
+    io.to(roomId).emit('REACTION', {
+      roomId,
+      playerId: player.socketId,
+      name: player.name,
+      emoji
+    });
+    if (typeof callback === 'function') callback({ success: true });
+  });
+
   socket.on('disconnect', () => {
     const roomId = roomService.findRoomBySocketId(socket.id);
     if (!roomId) return;

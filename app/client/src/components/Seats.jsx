@@ -36,8 +36,14 @@ function Seat({ p, isMe, x, y, s }) {
     status = <div className="status turn">turn</div>;
 
   const score = s.score[p.socketId];
+  const reaction = s.reactions.filter((r) => r.playerId === p.socketId).slice(-1)[0];
   return (
     <div className={cls} style={{ left: x + "%", top: y + "%" }}>
+      {reaction ? (
+        <div className="seat-reaction" key={reaction.id}>
+          {reaction.emoji}
+        </div>
+      ) : null}
       <div className="roles">
         {roles.map((r, i) => (
           <span className="badge" key={i}>
