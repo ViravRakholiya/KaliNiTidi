@@ -4,14 +4,13 @@ FROM node:20-alpine
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-
-# Install dependencies
-RUN npm ci --only=production
-
-# Copy application files
+# Copy the full source first so the postinstall step can build the React
+# client (app/client), which has its own package.json outside the root.
 COPY . .
+
+# Install server deps; the root "postinstall" hook then installs the client's
+# dev deps and builds app/client/dist (served by Express in production).
+RUN npm install --omit=dev
 
 # Create directory for logs if needed
 RUN mkdir -p logs

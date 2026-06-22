@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="felt" cx="50%" cy="34%" r="82%">
+      <stop offset="0%" stop-color="#37b277"/>
+      <stop offset="55%" stop-color="#1f8351"/>
+      <stop offset="100%" stop-color="#11542f"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f6dd92"/>
+      <stop offset="100%" stop-color="#c5992f"/>
+    </linearGradient>
+    <filter id="cardShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- felt background + gold rim -->
+  <rect width="512" height="512" rx="114" fill="#0f2e1c"/>
+  <rect x="14" y="14" width="484" height="484" rx="102" fill="url(#felt)"/>
+  <rect x="40" y="40" width="432" height="432" rx="82" fill="none" stroke="url(#gold)" stroke-width="10" opacity="0.85"/>
+
+  <!-- 3 of spades card (the game's namesake) -->
+  <g transform="rotate(-8 256 260)" filter="url(#cardShadow)">
+    <rect x="151" y="108" width="210" height="304" rx="28" fill="#fbf7ef"/>
+    <rect x="151" y="108" width="210" height="304" rx="28" fill="none" stroke="#000" stroke-opacity="0.08" stroke-width="2"/>
+
+    <!-- centre spade -->
+    <g transform="translate(181 188) scale(1.5)">
+      <path d="M50 10 C 50 35 20 42 20 64 C 20 78 31 84 41 81 C 47 79 49 75 50 71 C 51 75 53 79 59 81 C 69 84 80 78 80 64 C 80 42 50 35 50 10 Z M43 95 C 47 86 49 80 50 72 C 51 80 53 86 57 95 Z" fill="#16202b"/>
+    </g>
+
+    <!-- top-left corner: 3 + small spade -->
+    <text x="183" y="166" font-family="Georgia, 'Times New Roman', serif" font-size="50" font-weight="700" fill="#16202b" text-anchor="middle">3</text>
+    <path transform="translate(170 178) scale(0.26)" d="M50 10 C 50 35 20 42 20 64 C 20 78 31 84 41 81 C 47 79 49 75 50 71 C 51 75 53 79 59 81 C 69 84 80 78 80 64 C 80 42 50 35 50 10 Z M43 95 C 47 86 49 80 50 72 C 51 80 53 86 57 95 Z" fill="#16202b"/>
+
+    <!-- bottom-right corner (rotated) -->
+    <g transform="rotate(180 256 260)">
+      <text x="183" y="166" font-family="Georgia, 'Times New Roman', serif" font-size="50" font-weight="700" fill="#16202b" text-anchor="middle">3</text>
+      <path transform="translate(170 178) scale(0.26)" d="M50 10 C 50 35 20 42 20 64 C 20 78 31 84 41 81 C 47 79 49 75 50 71 C 51 75 53 79 59 81 C 69 84 80 78 80 64 C 80 42 50 35 50 10 Z M43 95 C 47 86 49 80 50 72 C 51 80 53 86 57 95 Z" fill="#16202b"/>
+    </g>
+  </g>
+</svg>
