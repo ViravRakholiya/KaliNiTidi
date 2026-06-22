@@ -5,8 +5,6 @@ import { Server } from 'socket.io';
 console.log('🚀 Starting KaliNiTidi server...');
 console.log('📝 Node version:', process.version);
 console.log('🌍 Environment:', process.env.NODE_ENV || 'development');
-console.log('🔑 Supabase URL configured:', !!process.env.SUPABASE_URL);
-console.log('🔑 Supabase Key configured:', !!process.env.SUPABASE_KEY);
 
 try {
   var app = await import('./app/index.js');

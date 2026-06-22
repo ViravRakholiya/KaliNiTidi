@@ -1,14 +1,16 @@
 # Blacks 3 Backend
 
-Real-time multiplayer card game backend built with Node.js, Express, Socket.io, and Supabase.
+Real-time multiplayer card game backend built with Node.js, Express, and Socket.io.
 
 ## Tech Stack
 
 - **Node.js** (Latest LTS)
 - **Express.js** - Web framework
 - **Socket.io** - Real-time bidirectional communication
-- **Supabase** - PostgreSQL database and authentication
+- **React + Vite** - Client (app/client)
 - **Docker** - Containerization
+
+> Game state is held in-memory; there is no external database.
 
 ## Project Structure
 
@@ -18,8 +20,7 @@ Real-time multiplayer card game backend built with Node.js, Express, Socket.io, 
 │   ├── index.js
 │   └── public/          # Static game client
 ├── config/              # Configuration files
-│   ├── index.js         # Main config
-│   └── supabase.js      # Supabase client
+│   └── index.js         # Main config
 ├── controllers/         # Route controllers
 │   └── healthController.js
 ├── services/            # Business logic
@@ -50,18 +51,13 @@ Real-time multiplayer card game backend built with Node.js, Express, Socket.io, 
 npm install
 ```
 
-### 2. Configure Environment Variables
+### 2. Configure Environment Variables (optional)
 
-Copy `.env.example` to `.env` and fill in your values:
+All variables are optional; the server runs with sensible defaults.
 
-```bash
-cp .env.example .env
-```
-
-Required variables:
 - `PORT` - Server port (default: 3000)
-- `SUPABASE_URL` - Your Supabase project URL
-- `SUPABASE_KEY` - Your Supabase anon key
+- `NODE_ENV` - `development` or `production`
+- `CORS_ORIGIN` - Allowed origin (default: `*`)
 
 ### 3. Run the Server
 
