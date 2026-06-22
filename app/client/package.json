@@ -1,0 +1,21 @@
+{
+  "name": "kanitidi-client",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Kali ni Tidi — React client",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
+  }
+}

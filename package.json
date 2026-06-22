@@ -7,6 +7,11 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
+    "client:dev": "npm --prefix app/client run dev",
+    "client:install": "npm --prefix app/client install --include=dev",
+    "build:client": "npm run client:install && npm --prefix app/client run build",
+    "build": "npm run build:client",
+    "postinstall": "npm run build:client",
     "docker:build": "docker build -t blacks-3-backend .",
     "docker:run": "docker run -p 3000:3000 --env-file .env blacks-3-backend"
   },
