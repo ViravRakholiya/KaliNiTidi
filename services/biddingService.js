@@ -269,16 +269,33 @@ class BiddingService {
     // Add to passed players
     bidding.passedPlayers.push(socketId);
 
-    // Check if all players have passed (special case: everyone passes)
-    const allPlayersPassed = bidding.passedPlayers.length === bidding.playersOrder.length;
-    if (allPlayersPassed) {
-      // Everyone passed - first player becomes highest bidder with minimum bid
-      const firstPlayer = bidding.playersOrder[bidding.currentTurnIndex]; // Current player who just passed is last, so next (which would be first in order) becomes default
-      // Actually, the first player in the order for this round would be the one at startingIndex
+    const remainingActive = bidding.playersOrder.length - bidding.passedPlayers.length;
+
+    // If someone has the highest bid and everyone else has now passed, that
+    // player wins immediately at their bid. End here WITHOUT advancing the turn,
+    // so the highest bidder is never asked again (and never auto-passed).
+    if (bidding.highestBidder && remainingActive <= 1) {
+      bidding.completed = true;
+      bidding.currentTurnIndex = bidding.playersOrder.indexOf(bidding.highestBidder);
+
+      logger.info(`Bidding decided in room ${roomId} - everyone else passed; ${bidding.highestBidder.substring(0, 8)}... wins at ${bidding.currentBid}`);
+
+      return {
+        success: true,
+        passedPlayer: socketId,
+        biddingEnded: true,
+        highestBidder: bidding.highestBidder,
+        winningBid: bidding.currentBid
+      };
+    }
+
+    // Nobody ever bid and everyone has now passed: the token-holder (round's
+    // first bidder) is forced to take the contract at the minimum bid.
+    if (!bidding.highestBidder && remainingActive === 0) {
       const startingIndex = (bidding.roundNumber - 1) % bidding.playersOrder.length;
       const defaultWinner = bidding.playersOrder[startingIndex];
 
-      logger.info(`All players passed in room ${roomId} - first player ${defaultWinner.substring(0, 8)}... becomes highest bidder with minimum bid (${bidding.minimumBid})`);
+      logger.info(`All players passed in room ${roomId} - token-holder ${defaultWinner.substring(0, 8)}... takes it at minimum bid (${bidding.minimumBid})`);
 
       bidding.highestBidder = defaultWinner;
       bidding.currentBid = bidding.minimumBid;
@@ -290,7 +307,7 @@ class BiddingService {
         biddingEnded: true,
         highestBidder: defaultWinner,
         winningBid: bidding.minimumBid,
-        message: 'All players passed - first player becomes highest bidder with minimum bid'
+        message: 'All players passed - token-holder takes it at the minimum bid'
       };
     }
 
