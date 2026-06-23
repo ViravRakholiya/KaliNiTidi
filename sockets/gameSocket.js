@@ -109,6 +109,30 @@ function broadcastPass(io, roomId, result) {
   }
 }
 
+// Build the partner-selection card pool and emit BIDDING_ENDED to the room.
+function emitBiddingEnded(io, roomId, endResult) {
+  const gameState = gameService.activeGames.get(roomId);
+  const pool = new Set();
+  if (gameState && gameState.hands) {
+    for (const sid in gameState.hands)
+      for (const card of gameState.hands[sid]) pool.add(`${card.rank}_${card.suit}`);
+  } else {
+    const ranks = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
+    const suits = ['spades', 'hearts', 'diamonds', 'clubs'];
+    for (const r of ranks) for (const s of suits) pool.add(`${r}_${s}`);
+  }
+  io.to(roomId).emit('BIDDING_ENDED', {
+    roomId,
+    leader: endResult.leader,
+    winningBid: endResult.winningBid,
+    minimumBid: endResult.minimumBid,
+    totalPoints: endResult.totalPoints,
+    allowedPartners: endResult.allowedPartners,
+    cardPool: Array.from(pool).sort()
+  });
+  logger.info(`Bidding ended in room ${roomId}. Leader: ${endResult.leader?.substring(0, 8)}..., Bid: ${endResult.winningBid}`);
+}
+
 function broadcastCardPlayed(io, roomId, playerId, result) {
   const gameState = gameService.activeGames.get(roomId);
   const nextPlayerId = gameState && gameState.currentTrick && gameState.currentTrick.currentPlayerIndex !== undefined
@@ -834,6 +858,12 @@ export const handleGameSocket = (io, socket) => {
         nextTurn: result.nextTurn
       });
 
+      // Everyone else already passed → this bid wins; end bidding right away
+      // instead of asking the sole bidder to bid again.
+      if (result.biddingEnded && result.endResult?.leader) {
+        emitBiddingEnded(io, roomId, result.endResult);
+      }
+
       if (typeof callback === 'function') callback(result);
 
       logger.info(`Player ${socket.id.substring(0, 8)}... bid ${bidValue} in room ${roomId}`);
@@ -872,48 +902,7 @@ export const handleGameSocket = (io, socket) => {
           if (typeof callback === 'function') callback(result);
           return;
         }
-
-        // Collect all cards in play for the partner selection dropdown
-        const gameState = gameService.activeGames.get(roomId);
-        const cardPool = new Set(); // Use Set to avoid duplicates
-
-        if (gameState && gameState.hands) {
-          // Collect all unique cards from all hands
-          for (const socketId in gameState.hands) {
-            const hand = gameState.hands[socketId];
-            for (const card of hand) {
-              // Add unique card identifier (rank + suit)
-              cardPool.add(`${card.rank}_${card.suit}`);
-            }
-          }
-          logger.info(`Collected ${cardPool.size} unique cards from ${Object.keys(gameState.hands).length} players for card pool`);
-        } else {
-          logger.error(`[BUG] Cannot generate cardPool - gameState: ${!!gameState}, hands: ${!!gameState?.hands}`);
-          // Fallback: Create a standard deck card pool if hands are not available
-          const standardDeck = ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2'];
-          const suits = ['spades', 'hearts', 'diamonds', 'clubs'];
-          for (const rank of standardDeck) {
-            for (const suit of suits) {
-              cardPool.add(`${rank}_${suit}`);
-            }
-          }
-          logger.info(`Using fallback standard deck card pool with ${cardPool.size} cards`);
-        }
-
-        // Convert Set to array for JSON serialization
-        const cardPoolArray = Array.from(cardPool).sort();
-
-        io.to(roomId).emit('BIDDING_ENDED', {
-          roomId,
-          leader: result.endResult.leader,
-          winningBid: result.endResult.winningBid,
-          minimumBid: result.endResult.minimumBid,
-          totalPoints: result.endResult.totalPoints,
-          allowedPartners: result.endResult.allowedPartners,
-          cardPool: cardPoolArray
-        });
-
-        logger.info(`Bidding ended in room ${roomId}. Leader: ${result.endResult.leader?.substring(0, 8)}..., Bid: ${result.endResult.winningBid}, Card pool size: ${cardPoolArray.length}`);
+        emitBiddingEnded(io, roomId, result.endResult);
       }
 
       if (typeof callback === 'function') callback(result);

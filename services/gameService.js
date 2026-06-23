@@ -328,7 +328,19 @@ class GameService {
       };
     }
 
-    return biddingService.placeBid(roomId, socketId, bidValue);
+    const result = biddingService.placeBid(roomId, socketId, bidValue);
+
+    // If everyone else has already passed, this bid wins immediately — end the
+    // bidding instead of looping the turn back to the sole remaining bidder.
+    if (result.success && biddingService.shouldEndBidding(roomId)) {
+      const endResult = biddingService.endBidding(roomId);
+      if (endResult.leader) {
+        gameState.phase = 'selection';
+        return { ...result, biddingEnded: true, endResult };
+      }
+    }
+
+    return result;
   }
 
   /**
