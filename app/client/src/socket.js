@@ -106,6 +106,14 @@ socket.on("PLAYER_RECONNECTED", (d) => {
   toast(`${d.player?.name || "A player"} reconnected`, "ok");
   refreshRoom();
 });
+socket.on("PLAYER_REPLACED_BY_BOT", (d) => {
+  if (d && d.newHostId === me()) {
+    store.set({ isHost: true });
+    toast("You are now the host", "gold");
+  }
+  toast(`${d.player?.name || "A player"} dropped out — a bot took over 🤖`, "gold");
+  refreshRoom();
+});
 socket.on("HOST_ASSIGNED", () => refreshRoom());
 socket.on("CONFIG_UPDATED", (d) => {
   if (d.config) applyConfig(d.config);

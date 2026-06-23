@@ -353,6 +353,26 @@ class RoomService {
    * Mark a player as temporarily disconnected (kept in the room during the
    * reconnection grace period instead of being removed immediately).
    */
+  // Hand a flaky player's seat to a bot in place: keep their socketId/seat (and
+  // therefore their hand in the active game) but mark them as a bot so the
+  // bot-driver takes over their turns. The human is flagged so they can't rejoin.
+  convertToBot(roomId, socketId) {
+    const room = this.rooms.get(roomId);
+    if (!room) return null;
+    const player = this.findPlayerBySocketId(room, socketId);
+    if (!player) return null;
+    player.isBot = true;
+    player.connected = true;
+    player.replacedByBot = true;
+    if (room.hostId === socketId) {
+      // Don't leave a bot as host — pass it to a connected human if any.
+      const human = room.players.find(p => !p.isBot && p.connected);
+      if (human) room.hostId = human.socketId;
+    }
+    logger.info(`Player ${player.name} (${player.playerId}) replaced by a bot in room ${roomId}`);
+    return { room, player, newHostId: room.hostId };
+  }
+
   markDisconnected(roomId, socketId) {
     const room = this.rooms.get(roomId);
     if (!room) return null;

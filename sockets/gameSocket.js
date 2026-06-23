@@ -8,6 +8,12 @@ import { biddingService } from '../services/biddingService.js';
 // Covers the common "switched apps / locked phone and came back" case.
 const GRACE_PERIOD_MS = 120000; // 2 minutes
 
+// If a player drops more than this many times within a single round WITHOUT
+// cleanly reconnecting in between, their seat is handed to a bot for the rest of
+// the game so they can't keep stalling it. A clean reconnect resets the counter.
+const _maxRoundDc = parseInt(process.env.MAX_ROUND_DISCONNECTS, 10);
+const MAX_ROUND_DISCONNECTS = Number.isNaN(_maxRoundDc) ? 3 : _maxRoundDc;
+
 // Pending eviction timers, keyed by stable playerId (NOT socketId, which
 // changes on reconnect).
 const disconnectTimers = new Map();
@@ -748,6 +754,8 @@ export const handleGameSocket = (io, socket) => {
         // Fresh round: drop any stale turn deadline so the first bidder gets a
         // full window (not a leftover deadline from the previous round).
         turnDeadlines.delete(roomId);
+        // Reset per-round disconnect counters (used for bot-takeover).
+        room.players.forEach(p => { p.roundDisconnects = 0; });
 
         io.to(roomId).emit('BIDDING_STARTED', biddingStartedData);
         logger.info(`[DEBUG] Emitted BIDDING_STARTED to room ${roomId}`);
@@ -1212,14 +1220,15 @@ export const handleGameSocket = (io, socket) => {
     const roomId = data.roomId || roomService.findRoomByPlayerId(playerId);
     const room = roomId ? roomService.getRoom(roomId) : null;
 
-    if (!room || !roomService.findPlayerByPlayerId(room, playerId)) {
+    const existing = room ? roomService.findPlayerByPlayerId(room, playerId) : null;
+    if (!room || !existing) {
       const error = { success: false, error: 'REJOIN_FAILED', message: 'Your seat is no longer available. Please join again.' };
       if (typeof callback === 'function') callback(error);
       socket.emit('REJOIN_FAILED', error);
       return;
     }
 
-    const oldSocketId = roomService.findPlayerByPlayerId(room, playerId).socketId;
+    const oldSocketId = existing.socketId;
 
     // Rebind room membership, then the active game/bidding state, to the new id.
     // When the socket id is unchanged (connectionStateRecovery restored it) the
@@ -1240,6 +1249,14 @@ export const handleGameSocket = (io, socket) => {
     }
 
     clearDisconnectTimer(playerId);
+    // Came back cleanly → forgive their drops; the bot-takeover counter resets.
+    existing.roundDisconnects = 0;
+    // If a bot had taken their seat, hand it back to the returning human.
+    const reclaimed = existing.replacedByBot === true;
+    if (reclaimed) {
+      existing.isBot = false;
+      existing.replacedByBot = false;
+    }
     socket.join(roomId);
 
     const roomState = roomService.getRoomState(roomId).roomState;
@@ -1345,6 +1362,27 @@ export const handleGameSocket = (io, socket) => {
     // Keep the player in the room and start the grace period instead of
     // removing them right away, so they can reconnect and resume the game.
     roomService.markDisconnected(roomId, socket.id);
+
+    // Count drops this round. Past the limit (during a live round) the seat is
+    // handed to a bot so a flaky connection can't keep stalling the game.
+    player.roundDisconnects = (player.roundDisconnects || 0) + 1;
+    const game = gameService.activeGames.get(roomId);
+    const midRound = game && ['bidding', 'selection', 'playing'].includes(game.phase);
+
+    if (midRound && player.roundDisconnects > MAX_ROUND_DISCONNECTS) {
+      clearDisconnectTimer(player.playerId);
+      const conv = roomService.convertToBot(roomId, socket.id);
+      io.to(roomId).emit('PLAYER_REPLACED_BY_BOT', {
+        roomId,
+        player: { socketId: player.socketId, playerId: player.playerId, name: player.name },
+        newHostId: conv ? conv.newHostId : room.hostId,
+        playerCount: room.players.length
+      });
+      // It may be (or become) the bot's turn — let the bot driver take over.
+      advanceTurn(io, roomId);
+      logger.info(`Player ${player.name} dropped ${player.roundDisconnects}x this round; replaced by a bot in ${roomId}`);
+      return;
+    }
 
     io.to(roomId).emit('PLAYER_DISCONNECTED', {
       roomId,
