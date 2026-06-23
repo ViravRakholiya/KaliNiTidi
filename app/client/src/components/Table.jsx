@@ -2,6 +2,7 @@ import TopBar from "./TopBar.jsx";
 import PartnerBar from "./PartnerBar.jsx";
 import Seats from "./Seats.jsx";
 import Center from "./Center.jsx";
+import DeckIndicator from "./DeckIndicator.jsx";
 import MeBar from "./MeBar.jsx";
 import Hand from "./Hand.jsx";
 import Actions from "./Actions.jsx";
@@ -13,6 +14,7 @@ export default function Table() {
       <PartnerBar />
       <div className="felt">
         <div className="table-surface" />
+        <DeckIndicator />
         <Seats />
         <Center />
       </div>
