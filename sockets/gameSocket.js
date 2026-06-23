@@ -584,32 +584,30 @@ export const handleGameSocket = (io, socket) => {
     const room = roomId ? roomService.getRoom(roomId) : null;
 
     if (!room) {
-      const error = { success: false, error: 'ROOM_NOT_FOUND', message: 'Room does not exist' };
-      if (typeof callback === 'function') callback(error);
-      socket.emit('ROOM_ERROR', error);
+      if (typeof callback === 'function')
+        callback({ success: false, error: 'ROOM_NOT_FOUND', message: 'Room does not exist' });
       return;
     }
     if (room.hostId !== socket.id) {
-      const error = { success: false, error: 'NOT_HOST', message: 'Only the host can change settings' };
-      if (typeof callback === 'function') callback(error);
-      socket.emit('ROOM_ERROR', error);
+      if (typeof callback === 'function')
+        callback({ success: false, error: 'NOT_HOST', message: 'Only the host can change settings' });
       return;
     }
-    if (room.status === 'playing') {
-      const error = { success: false, error: 'GAME_IN_PROGRESS', message: 'Change settings between rounds' };
-      if (typeof callback === 'function') callback(error);
-      socket.emit('ROOM_ERROR', error);
+    // Block only while a round is actually in play. Between rounds (no active
+    // game, or the round is over) settings may be changed for the next round.
+    const game = gameService.activeGames.get(roomId);
+    const midRound = game && ['bidding', 'selection', 'playing'].includes(game.phase);
+    if (midRound) {
+      if (typeof callback === 'function')
+        callback({ success: false, error: 'GAME_IN_PROGRESS', message: 'Change settings between rounds' });
       return;
     }
 
     const result = roomService.updateConfig(roomId, data.config || {});
     if (result.success) {
       io.to(roomId).emit('CONFIG_UPDATED', { roomId, config: result.config });
-      if (typeof callback === 'function') callback(result);
-    } else {
-      if (typeof callback === 'function') callback(result);
-      socket.emit('ROOM_ERROR', result);
     }
+    if (typeof callback === 'function') callback(result);
   });
 
   socket.on('GET_ROOM_STATE', (data, callback) => {
