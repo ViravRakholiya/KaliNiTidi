@@ -44,7 +44,7 @@ function Seat({ p, isMe, x, y, s }) {
   return (
     <div className={cls} style={{ left: x + "%", top: y + "%" }}>
       {bubble ? (
-        <div className="seat-bubble" key={bubble.id}>
+        <div className={"seat-bubble" + (y < 45 ? " below" : "")} key={bubble.id}>
           {bubble.text}
         </div>
       ) : null}

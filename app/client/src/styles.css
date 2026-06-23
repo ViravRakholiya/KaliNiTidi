@@ -1361,6 +1361,18 @@ button {
     border: 6px solid transparent;
     border-top-color: rgba(12, 24, 16, 0.96);
 }
+/* Top-of-table seats: show the bubble BELOW the avatar so it isn't clipped by
+   the felt's top edge (overflow:hidden). */
+.seat-bubble.below {
+    bottom: auto;
+    top: calc(100% + 6px);
+}
+.seat-bubble.below::after {
+    top: auto;
+    bottom: 100%;
+    border-top-color: transparent;
+    border-bottom-color: rgba(12, 24, 16, 0.96);
+}
 @keyframes bubbleIn {
     from { opacity: 0; transform: translate(-50%, 4px) scale(0.9); }
     to { opacity: 1; transform: translate(-50%, 0) scale(1); }
