@@ -68,7 +68,14 @@ function attemptReconnect() {
 
 // ---------- connection ----------
 socket.on("connect", () => {
-  store.set({ socketId: socket.id, connected: true });
+  store.set((st) => ({
+    socketId: socket.id,
+    connected: true,
+    // Mark our own seat connected immediately so we never see ourselves offline.
+    players: st.players.map((p) =>
+      p.socketId === socket.id ? { ...p, connected: true } : p,
+    ),
+  }));
   if (getSession()) attemptReconnect();
 });
 socket.on("disconnect", () => {
@@ -90,6 +97,8 @@ socket.on("PLAYER_LEFT", (d) => {
   refreshRoom();
 });
 socket.on("PLAYER_DISCONNECTED", (d) => {
+  // Ignore a stale/replayed event about ourselves — we're clearly here.
+  if (d.player && d.player.socketId === me()) return;
   toast(`${d.player?.name || "A player"} disconnected`, "err");
   refreshRoom();
 });
@@ -374,10 +383,20 @@ socket.on("CHAT_MESSAGE", (d) => {
     ts: d.ts,
     mine,
   };
+  const bubbleId = ++chatId;
   store.set((s) => ({
     chat: [...s.chat, msg].slice(-100),
     unreadChat: s.overlay === "chat" ? 0 : s.unreadChat + (mine ? 0 : 1),
+    // Float the message over the sender's seat so everyone can read it without
+    // opening the chat panel (keep only the latest per player).
+    bubbles: [
+      ...s.bubbles.filter((b) => b.playerId !== d.playerId),
+      { id: bubbleId, playerId: d.playerId, text: d.text },
+    ],
   }));
+  setTimeout(() => {
+    store.set((s) => ({ bubbles: s.bubbles.filter((b) => b.id !== bubbleId) }));
+  }, 5000);
 });
 
 socket.on("REACTION", (d) => {

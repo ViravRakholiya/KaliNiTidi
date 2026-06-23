@@ -5,6 +5,9 @@ import TurnClock from "./TurnClock.jsx";
 
 function Seat({ p, isMe, x, y, s }) {
   const me = socket.id;
+  // Never show yourself as offline while your own socket is connected — a
+  // replayed/stale disconnect event must not blur your own seat.
+  const offline = p.connected === false && !(isMe && s.connected);
   const onTeamBidder =
     s.team[p.socketId] === "bidder" ||
     p.socketId === s.bidWinner ||
@@ -13,7 +16,7 @@ function Seat({ p, isMe, x, y, s }) {
     "seat",
     isMe ? "me-seat" : "",
     p.socketId === s.currentTurn ? "active" : "",
-    p.connected === false ? "off" : "",
+    offline ? "off" : "",
     onTeamBidder ? "team-bidder" : s.team[p.socketId] === "opp" ? "team-opp" : "",
   ]
     .filter(Boolean)
@@ -26,7 +29,7 @@ function Seat({ p, isMe, x, y, s }) {
   if (p.isHost) roles.push("★");
 
   let status = null;
-  if (p.connected === false) status = <div className="status off">offline</div>;
+  if (offline) status = <div className="status off">offline</div>;
   else if (p.waiting) status = <div className="status bid">next round</div>;
   else if (s.phase === "bidding" && p.socketId === s.currentTurn)
     status = <div className="status turn">bidding…</div>;
@@ -37,8 +40,14 @@ function Seat({ p, isMe, x, y, s }) {
 
   const score = s.score[p.socketId];
   const reaction = s.reactions.filter((r) => r.playerId === p.socketId).slice(-1)[0];
+  const bubble = s.bubbles.filter((b) => b.playerId === p.socketId).slice(-1)[0];
   return (
     <div className={cls} style={{ left: x + "%", top: y + "%" }}>
+      {bubble ? (
+        <div className="seat-bubble" key={bubble.id}>
+          {bubble.text}
+        </div>
+      ) : null}
       {reaction ? (
         <div className="seat-reaction" key={reaction.id}>
           {reaction.emoji}
@@ -80,7 +89,7 @@ export default function Seats() {
     <div id="seats" className="seats">
       {ordered.map((p, k) => {
         const a = ((90 + (k * 360) / n) * Math.PI) / 180;
-        const x = 50 + 44 * Math.cos(a);
+        const x = 50 + 40 * Math.cos(a);
         const y = 50 + 41 * Math.sin(a);
         return (
           <Seat

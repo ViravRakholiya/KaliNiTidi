@@ -52,6 +52,7 @@ export const initialState = {
   chat: [], // [{ id, playerId, name, text, ts, mine }]
   unreadChat: 0,
   reactions: [], // transient [{ id, playerId, emoji }]
+  bubbles: [], // transient chat bubbles over seats [{ id, playerId, text }]
   // ui
   toasts: [],
   reveal: null, // { id, title, subtitle }
