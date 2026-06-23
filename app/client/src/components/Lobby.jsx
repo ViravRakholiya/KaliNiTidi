@@ -71,7 +71,7 @@ export default function Lobby() {
   };
 
   return (
-    <section className="screen active">
+    <section className="screen active screen-lobby">
       <div className="brand">
         <div className="suits">
           <span className="b">♠</span> <span className="r">♥</span>{" "}

@@ -132,13 +132,12 @@ button {
 .screen.active {
     display: flex;
     flex-direction: column;
-    align-content: center;
-    justify-content: center;
-    align-items: center;
 }
 
 /* ---------- LOBBY ---------- */
-#screen-lobby {
+/* Centering applies to the lobby only; the table screen stays a full-width
+   column so the felt can fill its space (seats/center are positioned inside). */
+.screen-lobby {
     align-items: center;
     justify-content: center;
     padding: 24px;
@@ -1169,7 +1168,9 @@ button {
 }
 
 /* ===================== CHAT + REACTIONS ===================== */
-.chat-btn { position: relative; }
+.chat-btn {
+    position: relative;
+}
 .chat-badge {
     position: absolute;
     top: -4px;
@@ -1202,10 +1203,17 @@ button {
     padding: 6px;
     border-radius: 8px;
     cursor: pointer;
-    transition: transform 0.1s, background 0.1s;
+    transition:
+        transform 0.1s,
+        background 0.1s;
 }
-.reaction-btn:hover { background: rgba(232, 196, 104, 0.15); transform: scale(1.15); }
-.reaction-btn:active { transform: scale(0.95); }
+.reaction-btn:hover {
+    background: rgba(232, 196, 104, 0.15);
+    transform: scale(1.15);
+}
+.reaction-btn:active {
+    transform: scale(0.95);
+}
 
 /* reaction row inside the chat modal */
 .reaction-row {
@@ -1230,15 +1238,33 @@ button {
     animation: reactionFloat 3s ease-out forwards;
 }
 @keyframes reactionFloat {
-    0% { opacity: 0; transform: translate(-50%, 6px) scale(0.6); }
-    15% { opacity: 1; transform: translate(-50%, 0) scale(1.15); }
-    30% { transform: translate(-50%, -2px) scale(1); }
-    80% { opacity: 1; transform: translate(-50%, -22px) scale(1); }
-    100% { opacity: 0; transform: translate(-50%, -40px) scale(0.9); }
+    0% {
+        opacity: 0;
+        transform: translate(-50%, 6px) scale(0.6);
+    }
+    15% {
+        opacity: 1;
+        transform: translate(-50%, 0) scale(1.15);
+    }
+    30% {
+        transform: translate(-50%, -2px) scale(1);
+    }
+    80% {
+        opacity: 1;
+        transform: translate(-50%, -22px) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -40px) scale(0.9);
+    }
 }
 
 /* chat modal */
-.chat-modal { display: flex; flex-direction: column; max-height: 80vh; }
+.chat-modal {
+    display: flex;
+    flex-direction: column;
+    max-height: 80vh;
+}
 .chat-list {
     flex: 1;
     overflow-y: auto;
@@ -1275,7 +1301,9 @@ button {
     color: var(--gold);
     margin-bottom: 2px;
 }
-.chat-text { color: var(--cream); }
+.chat-text {
+    color: var(--cream);
+}
 .chat-input-row {
     display: flex;
     gap: 8px;
