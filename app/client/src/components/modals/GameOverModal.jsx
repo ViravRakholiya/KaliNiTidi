@@ -7,7 +7,14 @@ export default function GameOverModal() {
   if (!d) return null;
   const close = () => store.set({ overlay: null });
 
-  const rows = (d.scores || []).slice().sort((a, b) => b.score - a.score);
+  // The per-round score (±bid) resets every round by design; the running total
+  // (🏆 leaderboard) persists across rounds. Show both so it's clear points are
+  // accumulating, not resetting. Standings sort by the running total.
+  const cumulative = s.cumulative || {};
+  const total = (sid) => cumulative[sid] ?? 0;
+  const rows = (d.scores || [])
+    .slice()
+    .sort((a, b) => total(b.socketId) - total(a.socketId) || b.score - a.score);
   const headline = d.winner
     ? `🏆 ${getName(d.winner)} made the bid!`
     : `💔 Bidder failed the bid`;
@@ -25,20 +32,30 @@ export default function GameOverModal() {
               <tr>
                 <th>Player</th>
                 <th>Team</th>
-                <th className="num">Score</th>
+                <th className="num">Round</th>
+                <th className="num">Total</th>
               </tr>
-              {rows.map((sc, i) => (
-                <tr key={i}>
-                  <td>
-                    {sc.name} {sc.isBidder ? "👑" : sc.isPartner ? "🤝" : ""}
-                  </td>
-                  <td>{sc.team || ""}</td>
-                  <td className={"num " + (sc.score >= 0 ? "pos" : "neg")}>
-                    {sc.score >= 0 ? "+" : ""}
-                    {sc.score}
-                  </td>
-                </tr>
-              ))}
+              {rows.map((sc, i) => {
+                const tot = total(sc.socketId);
+                return (
+                  <tr key={i}>
+                    <td>
+                      {sc.name} {sc.isBidder ? "👑" : sc.isPartner ? "🤝" : ""}
+                    </td>
+                    <td>{sc.team || ""}</td>
+                    <td className={"num " + (sc.score >= 0 ? "pos" : "neg")}>
+                      {sc.score >= 0 ? "+" : ""}
+                      {sc.score}
+                    </td>
+                    <td className={"num " + (tot >= 0 ? "pos" : "neg")}>
+                      <b>
+                        {tot >= 0 ? "+" : ""}
+                        {tot}
+                      </b>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
